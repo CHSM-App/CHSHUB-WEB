@@ -1,0 +1,102 @@
+.helpdesk-card {
+    background-color: #ecf0f1;
+    padding: 30px 20px;
+    border-radius: 10px;
+    width: 45%;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+    .helpdesk-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+    }
+
+.helpdesk-card-title {
+    font-size: 18px;
+    color: #34495e;
+    margin-bottom: 15px;
+}
+
+.helpdesk-card-number {
+    font-size: 28px;
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+.helpdesk-cards {
+    display: flex;
+    justify-content: space-around;
+    gap: 20px;
+}
+
+/* OUTER GRID: 2 columns (left 2fr, right 1fr) */
+.layout-container {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+}
+
+/* NESTED GRIDS */
+.layout-left,
+.layout-right {
+  display: grid;
+  gap: 16px;
+  height:auto;
+}
+
+/* Top row in left column: 3 equal boxes */
+.layout-top-row {
+    display: grid;
+/*    height: 165px;*/
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    height:auto;
+}
+
+/* COMMON BOX STYLES */
+.layout-box {
+    /*  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: bold;
+  border-radius: 4px;
+
+
+    height: 165px;
+*/
+}
+
+/* HEIGHTS FOR CLARITY */
+.layout-small        { }
+.layout-big          { min-height: 380px; }
+.layout-tall         { min-height: 278px; }
+.layout-medium       {    height: 407px;  }
+.layout-small-right  { min-height: 267px; }
+
+/* DISTINCT BACKGROUND COLORS */
+.layout-red    { background: white; }
+.layout-orange { background: white; }
+.layout-yellow { background: white; color: #333; }
+.layout-green  { background: white; }
+.layout-blue   {  overflow-x:auto }
+.layout-purple { background: white; }
+.layout-pink   { background: white; }
+.layout-cyan   { background: white; }
+
+/* RESPONSIVE: stack into one column on small screens */
+@media (max-width: 768px) {
+  .layout-container {
+    grid-template-columns: 1fr;
+  }
+
+}
+
+@media(max-width: 1025px){
+    .layout-top-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+

@@ -1,0 +1,108 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<xs:schema id="ledger" targetNamespace="http://tempuri.org/ledger.xsd" xmlns:mstns="http://tempuri.org/ledger.xsd" xmlns="http://tempuri.org/ledger.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata" xmlns:msprop="urn:schemas-microsoft-com:xml-msprop" attributeFormDefault="qualified" elementFormDefault="qualified">
+  <xs:annotation>
+    <xs:appinfo source="urn:schemas-microsoft-com:xml-msdatasource">
+      <DataSource DefaultConnectionIndex="0" FunctionsComponentName="QueriesTableAdapter" Modifier="AutoLayout, AnsiClass, Class, Public" SchemaSerializationMode="IncludeSchema" xmlns="urn:schemas-microsoft-com:xml-msdatasource">
+        <Connections>
+          <Connection AppSettingsObjectName="Web.config" AppSettingsPropertyName="DBCS" ConnectionStringObject="" IsAppSettingsProperty="true" Modifier="Assembly" Name="DBCS (Web.config)" ParameterPrefix="@" PropertyReference="AppConfig.System.Configuration.ConfigurationManager.0.ConnectionStrings.DBCS.ConnectionString" Provider="System.Data.SqlClient" />
+        </Connections>
+        <Tables>
+          <TableAdapter BaseClass="System.ComponentModel.Component" DataAccessorModifier="AutoLayout, AnsiClass, Class, Public" DataAccessorName="shop_vwTableAdapter" GeneratorDataComponentClassName="shop_vwTableAdapter" Name="shop_vw" UserDataComponentName="shop_vwTableAdapter">
+            <MainSource>
+              <DbSource ConnectionRef="DBCS (Web.config)" DbObjectName="Society.dbo.shop_vw" DbObjectType="View" FillMethodModifier="Public" FillMethodName="Fill" GenerateMethods="Both" GenerateShortCommands="false" GeneratorGetMethodName="GetData" GeneratorSourceName="Fill" GetMethodModifier="Public" GetMethodName="GetData" QueryType="Rowset" ScalarCallRetval="System.Object, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" UseOptimisticConcurrency="false" UserGetMethodName="GetData" UserSourceName="Fill">
+                <SelectCommand>
+                  <DbCommand CommandType="Text" ModifiedByUser="false">
+                    <CommandText>SELECT led_description, m_id, mrep_no, m_date, other_details, led_id, amt, pay_method, cheq_no, cheq_date, society_id, name FROM dbo.shop_vw</CommandText>
+                    <Parameters />
+                  </DbCommand>
+                </SelectCommand>
+              </DbSource>
+            </MainSource>
+            <Mappings>
+              <Mapping SourceColumn="led_description" DataSetColumn="led_description" />
+              <Mapping SourceColumn="m_id" DataSetColumn="m_id" />
+              <Mapping SourceColumn="mrep_no" DataSetColumn="mrep_no" />
+              <Mapping SourceColumn="m_date" DataSetColumn="m_date" />
+              <Mapping SourceColumn="other_details" DataSetColumn="other_details" />
+              <Mapping SourceColumn="led_id" DataSetColumn="led_id" />
+              <Mapping SourceColumn="amt" DataSetColumn="amt" />
+              <Mapping SourceColumn="pay_method" DataSetColumn="pay_method" />
+              <Mapping SourceColumn="cheq_no" DataSetColumn="cheq_no" />
+              <Mapping SourceColumn="cheq_date" DataSetColumn="cheq_date" />
+              <Mapping SourceColumn="society_id" DataSetColumn="society_id" />
+              <Mapping SourceColumn="name" DataSetColumn="name" />
+            </Mappings>
+            <Sources />
+          </TableAdapter>
+        </Tables>
+        <Sources />
+      </DataSource>
+    </xs:appinfo>
+  </xs:annotation>
+  <xs:element name="ledger" msdata:IsDataSet="true" msdata:UseCurrentLocale="true" msprop:EnableTableAdapterManager="True" msprop:Generator_DataSetName="ledger" msprop:Generator_UserDSName="ledger">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element name="shop_vw" msprop:Generator_TableClassName="shop_vwDataTable" msprop:Generator_TableVarName="tableshop_vw" msprop:Generator_TablePropName="shop_vw" msprop:Generator_RowDeletingName="shop_vwRowDeleting" msprop:Generator_RowChangingName="shop_vwRowChanging" msprop:Generator_RowEvHandlerName="shop_vwRowChangeEventHandler" msprop:Generator_RowDeletedName="shop_vwRowDeleted" msprop:Generator_UserTableName="shop_vw" msprop:Generator_RowChangedName="shop_vwRowChanged" msprop:Generator_RowEvArgName="shop_vwRowChangeEvent" msprop:Generator_RowClassName="shop_vwRow">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="led_description" msprop:Generator_ColumnVarNameInTable="columnled_description" msprop:Generator_ColumnPropNameInRow="led_description" msprop:Generator_ColumnPropNameInTable="led_descriptionColumn" msprop:Generator_UserColumnName="led_description" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="2147483647" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="m_id" msprop:Generator_ColumnVarNameInTable="columnm_id" msprop:Generator_ColumnPropNameInRow="m_id" msprop:Generator_ColumnPropNameInTable="m_idColumn" msprop:Generator_UserColumnName="m_id" type="xs:int" />
+              <xs:element name="mrep_no" msprop:Generator_ColumnVarNameInTable="columnmrep_no" msprop:Generator_ColumnPropNameInRow="mrep_no" msprop:Generator_ColumnPropNameInTable="mrep_noColumn" msprop:Generator_UserColumnName="mrep_no" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="m_date" msprop:Generator_ColumnVarNameInTable="columnm_date" msprop:Generator_ColumnPropNameInRow="m_date" msprop:Generator_ColumnPropNameInTable="m_dateColumn" msprop:Generator_UserColumnName="m_date" type="xs:dateTime" minOccurs="0" />
+              <xs:element name="other_details" msprop:Generator_ColumnVarNameInTable="columnother_details" msprop:Generator_ColumnPropNameInRow="other_details" msprop:Generator_ColumnPropNameInTable="other_detailsColumn" msprop:Generator_UserColumnName="other_details" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="2147483647" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="led_id" msprop:Generator_ColumnVarNameInTable="columnled_id" msprop:Generator_ColumnPropNameInRow="led_id" msprop:Generator_ColumnPropNameInTable="led_idColumn" msprop:Generator_UserColumnName="led_id" type="xs:int" minOccurs="0" />
+              <xs:element name="amt" msprop:Generator_ColumnVarNameInTable="columnamt" msprop:Generator_ColumnPropNameInRow="amt" msprop:Generator_ColumnPropNameInTable="amtColumn" msprop:Generator_UserColumnName="amt" type="xs:int" minOccurs="0" />
+              <xs:element name="pay_method" msprop:Generator_ColumnVarNameInTable="columnpay_method" msprop:Generator_ColumnPropNameInRow="pay_method" msprop:Generator_ColumnPropNameInTable="pay_methodColumn" msprop:Generator_UserColumnName="pay_method" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="cheq_no" msprop:Generator_ColumnVarNameInTable="columncheq_no" msprop:Generator_ColumnPropNameInRow="cheq_no" msprop:Generator_ColumnPropNameInTable="cheq_noColumn" msprop:Generator_UserColumnName="cheq_no" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="cheq_date" msprop:Generator_ColumnVarNameInTable="columncheq_date" msprop:Generator_ColumnPropNameInRow="cheq_date" msprop:Generator_ColumnPropNameInTable="cheq_dateColumn" msprop:Generator_UserColumnName="cheq_date" type="xs:dateTime" minOccurs="0" />
+              <xs:element name="society_id" msprop:Generator_ColumnVarNameInTable="columnsociety_id" msprop:Generator_ColumnPropNameInRow="society_id" msprop:Generator_ColumnPropNameInTable="society_idColumn" msprop:Generator_UserColumnName="society_id" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="name" msprop:Generator_ColumnVarNameInTable="columnname" msprop:Generator_ColumnPropNameInRow="name" msprop:Generator_ColumnPropNameInTable="nameColumn" msprop:Generator_UserColumnName="name" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

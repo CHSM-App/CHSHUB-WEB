@@ -1,0 +1,173 @@
+﻿<Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProductVersion>
+    </ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{AB39B230-CBC3-45BC-B102-3C440B170079}</ProjectGuid>
+    <ProjectTypeGuids>{349c5851-65df-11da-9384-00065b846f21};{fae04ec0-301f-11d3-bf4b-00c04f79efbc}</ProjectTypeGuids>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>DataAccessLayer</RootNamespace>
+    <AssemblyName>DataAccessLayer</AssemblyName>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <UseIISExpress>true</UseIISExpress>
+    <Use64BitIISExpress />
+    <IISExpressSSLPort>44389</IISExpressSSLPort>
+    <IISExpressAnonymousAuthentication />
+    <IISExpressWindowsAuthentication />
+    <IISExpressUseClassicPipelineMode />
+    <UseGlobalApplicationHostFile />
+    <NuGetPackageImportStamp>
+    </NuGetPackageImportStamp>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Microsoft.ApplicationBlocks.Data, Version=2.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.ApplicationBlocks.Data.2.0.0\lib\net45\Microsoft.ApplicationBlocks.Data.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Web.DynamicData" />
+    <Reference Include="System.Web.Entity" />
+    <Reference Include="System.Web.ApplicationServices" />
+    <Reference Include="System.ComponentModel.DataAnnotations" />
+    <Reference Include="System" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Web" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Configuration" />
+    <Reference Include="System.Web.Services" />
+    <Reference Include="System.EnterpriseServices" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="App_Data\stored.cs">
+      <SubType>ASPXCodeBehind</SubType>
+    </Compile>
+    <Compile Include="DA\DA_Account_Setting.cs" />
+    <Compile Include="DA\DA_Car_Polling.cs" />
+    <Compile Include="DA\DA_Contact_Master.cs" />
+    <Compile Include="DA\DA_Loan.cs" />
+    <Compile Include="DA\DA_Meeting_Details.cs" />
+    <Compile Include="DA\DA_New_Registration.cs" />
+    <Compile Include="DA\DA_Other_credits.cs" />
+    <Compile Include="DA\DA_Parking_Allotment.cs" />
+    <Compile Include="DA\DA_Facility.cs" />
+    <Compile Include="DA\DA_Pdc_Reminder.cs" />
+    <Compile Include="DA\DA_poll.cs" />
+    <Compile Include="DA\DA_PrintContact.cs" />
+    <Compile Include="DA\DA_PrintVisitor.cs" />
+    <Compile Include="DA\DA_Receipt.cs" />
+    <Compile Include="DA\DA_Shop_Maint.cs" />
+    <Compile Include="DA\DA_Society_Expense.cs" />
+    <Compile Include="DA\DA_Staff.cs" />
+    <Compile Include="DA\DA_FillRepeater.cs" />
+    <Compile Include="DA\DA_Terms.cs" />
+    <Compile Include="DA\DA_Upload_Doc.cs" />
+    <Compile Include="DA\DA_Usefull_Contact.cs" />
+    <Compile Include="DA\DA_Vendor_Bills.cs" />
+    <Compile Include="DA\da_v_resident.cs" />
+    <Compile Include="DA\DA_V_staff.cs" />
+    <Compile Include="MasterDA\DA_Amc_Master.cs" />
+    <Compile Include="MasterDA\DA_Asset_Master.cs" />
+    <Compile Include="MasterDA\DA_Building_Master.cs" />
+    <Compile Include="MasterDA\DA_CareTaker_Master.cs" />
+    <Compile Include="MasterDA\DA_Doc_Master.cs" />
+    <Compile Include="MasterDA\DA_Event_Master.cs" />
+    <Compile Include="MasterDA\DA_Flat_Master.cs" />
+    <Compile Include="MasterDA\DA_House_Tax.cs" />
+    <Compile Include="MasterDA\DA_Inventory_Master.cs" />
+    <Compile Include="DA\DA_Ledger.cs" />
+    <Compile Include="MasterDA\DA_Maintenence_Master.cs" />
+    <Compile Include="MasterDA\DA_Meeting_Master.cs" />
+    <Compile Include="MasterDA\DA_Notice_Master.cs" />
+    <Compile Include="MasterDA\DA_Owner_Master.cs" />
+    <Compile Include="MasterDA\DA_Parking_Master.cs" />
+    <Compile Include="MasterDA\DA_Servent_Maid_Master.cs" />
+    <Compile Include="MasterDA\DA_Society_Master.cs" />
+    <Compile Include="MasterDA\DA_Society_Member_Master.cs" />
+    <Compile Include="MasterDA\DA_User_Login.cs" />
+    <Compile Include="MasterDA\DA_Vendor_Master.cs" />
+    <Compile Include="MasterDA\DA_Village_Master.cs" />
+    <Compile Include="MasterDA\DA_Village_Owner.cs" />
+    <Compile Include="MasterDA\DA_Visitor_Master.cs" />
+    <Compile Include="MasterDA\DA_Wing_Master.cs" />
+    <Compile Include="MasterDA\DA_Suggestion_Request.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\Society2024\Web.config">
+      <Link>Web.config</Link>
+    </Content>
+    <None Include="packages.config" />
+    <None Include="Web.Debug.config" />
+    <None Include="Web.Release.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <WCFMetadata Include="Connected Services\" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DBCode\DBCode.csproj">
+      <Project>{30305991-315e-4f6d-af9c-8761b0084e9f}</Project>
+      <Name>DBCode</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <PropertyGroup>
+    <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">10.0</VisualStudioVersion>
+    <VSToolsPath Condition="'$(VSToolsPath)' == ''">$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)</VSToolsPath>
+  </PropertyGroup>
+  <PropertyGroup>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+  </PropertyGroup>
+  <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
+  <Import Project="$(VSToolsPath)\WebApplications\Microsoft.WebApplication.targets" Condition="'$(VSToolsPath)' != ''" />
+  <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v10.0\WebApplications\Microsoft.WebApplication.targets" Condition="false" />
+  <ProjectExtensions>
+    <VisualStudio>
+      <FlavorProperties GUID="{349c5851-65df-11da-9384-00065b846f21}">
+        <WebProjectProperties>
+          <UseIIS>True</UseIIS>
+          <AutoAssignPort>True</AutoAssignPort>
+          <DevelopmentServerPort>51326</DevelopmentServerPort>
+          <DevelopmentServerVPath>/</DevelopmentServerVPath>
+          <IISUrl>https://localhost:44389/</IISUrl>
+          <NTLMAuthentication>False</NTLMAuthentication>
+          <UseCustomServer>False</UseCustomServer>
+          <CustomServerUrl>
+          </CustomServerUrl>
+          <SaveServerSettingsInUserFile>False</SaveServerSettingsInUserFile>
+        </WebProjectProperties>
+      </FlavorProperties>
+    </VisualStudio>
+  </ProjectExtensions>
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+</Project>

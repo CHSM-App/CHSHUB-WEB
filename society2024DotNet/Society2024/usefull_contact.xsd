@@ -1,0 +1,124 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<xs:schema id="usefull_contact" targetNamespace="http://tempuri.org/usefull_contact.xsd" xmlns:mstns="http://tempuri.org/usefull_contact.xsd" xmlns="http://tempuri.org/usefull_contact.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata" xmlns:msprop="urn:schemas-microsoft-com:xml-msprop" attributeFormDefault="qualified" elementFormDefault="qualified">
+  <xs:annotation>
+    <xs:appinfo source="urn:schemas-microsoft-com:xml-msdatasource">
+      <DataSource DefaultConnectionIndex="0" FunctionsComponentName="QueriesTableAdapter" Modifier="AutoLayout, AnsiClass, Class, Public" SchemaSerializationMode="IncludeSchema" xmlns="urn:schemas-microsoft-com:xml-msdatasource">
+        <Connections>
+          <Connection AppSettingsObjectName="Web.config" AppSettingsPropertyName="DBCS" ConnectionStringObject="" IsAppSettingsProperty="true" Modifier="Assembly" Name="DBCS (Web.config)" ParameterPrefix="@" PropertyReference="AppConfig.System.Configuration.ConfigurationManager.0.ConnectionStrings.DBCS.ConnectionString" Provider="System.Data.SqlClient" />
+        </Connections>
+        <Tables>
+          <TableAdapter BaseClass="System.ComponentModel.Component" DataAccessorModifier="AutoLayout, AnsiClass, Class, Public" DataAccessorName="usefull_contact_vwTableAdapter" GeneratorDataComponentClassName="usefull_contact_vwTableAdapter" Name="usefull_contact_vw" UserDataComponentName="usefull_contact_vwTableAdapter">
+            <MainSource>
+              <DbSource ConnectionRef="DBCS (Web.config)" DbObjectName="Society.dbo.usefull_contact_vw" DbObjectType="View" FillMethodModifier="Public" FillMethodName="Fill" GenerateMethods="Both" GenerateShortCommands="false" GeneratorGetMethodName="GetData" GeneratorSourceName="Fill" GetMethodModifier="Public" GetMethodName="GetData" QueryType="Rowset" ScalarCallRetval="System.Object, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" UseOptimisticConcurrency="false" UserGetMethodName="GetData" UserSourceName="Fill">
+                <SelectCommand>
+                  <DbCommand CommandType="Text" ModifiedByUser="false">
+                    <CommandText>SELECT t_name, p_name, org_name, contact_no, contact_address, address2, email, remark, society_id, p_type, name FROM dbo.usefull_contact_vw</CommandText>
+                    <Parameters />
+                  </DbCommand>
+                </SelectCommand>
+              </DbSource>
+            </MainSource>
+            <Mappings>
+              <Mapping SourceColumn="t_name" DataSetColumn="t_name" />
+              <Mapping SourceColumn="p_name" DataSetColumn="p_name" />
+              <Mapping SourceColumn="org_name" DataSetColumn="org_name" />
+              <Mapping SourceColumn="contact_no" DataSetColumn="contact_no" />
+              <Mapping SourceColumn="contact_address" DataSetColumn="contact_address" />
+              <Mapping SourceColumn="address2" DataSetColumn="address2" />
+              <Mapping SourceColumn="email" DataSetColumn="email" />
+              <Mapping SourceColumn="remark" DataSetColumn="remark" />
+              <Mapping SourceColumn="society_id" DataSetColumn="society_id" />
+              <Mapping SourceColumn="p_type" DataSetColumn="p_type" />
+              <Mapping SourceColumn="name" DataSetColumn="name" />
+            </Mappings>
+            <Sources />
+          </TableAdapter>
+        </Tables>
+        <Sources />
+      </DataSource>
+    </xs:appinfo>
+  </xs:annotation>
+  <xs:element name="usefull_contact" msdata:IsDataSet="true" msdata:UseCurrentLocale="true" msprop:EnableTableAdapterManager="True" msprop:Generator_DataSetName="usefull_contact" msprop:Generator_UserDSName="usefull_contact">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element name="usefull_contact_vw" msprop:Generator_TableClassName="usefull_contact_vwDataTable" msprop:Generator_TableVarName="tableusefull_contact_vw" msprop:Generator_TablePropName="usefull_contact_vw" msprop:Generator_RowDeletingName="usefull_contact_vwRowDeleting" msprop:Generator_RowChangingName="usefull_contact_vwRowChanging" msprop:Generator_RowEvHandlerName="usefull_contact_vwRowChangeEventHandler" msprop:Generator_RowDeletedName="usefull_contact_vwRowDeleted" msprop:Generator_UserTableName="usefull_contact_vw" msprop:Generator_RowChangedName="usefull_contact_vwRowChanged" msprop:Generator_RowEvArgName="usefull_contact_vwRowChangeEvent" msprop:Generator_RowClassName="usefull_contact_vwRow">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="t_name" msprop:Generator_ColumnVarNameInTable="columnt_name" msprop:Generator_ColumnPropNameInRow="t_name" msprop:Generator_ColumnPropNameInTable="t_nameColumn" msprop:Generator_UserColumnName="t_name" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="p_name" msprop:Generator_ColumnVarNameInTable="columnp_name" msprop:Generator_ColumnPropNameInRow="p_name" msprop:Generator_ColumnPropNameInTable="p_nameColumn" msprop:Generator_UserColumnName="p_name" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="org_name" msprop:Generator_ColumnVarNameInTable="columnorg_name" msprop:Generator_ColumnPropNameInRow="org_name" msprop:Generator_ColumnPropNameInTable="org_nameColumn" msprop:Generator_UserColumnName="org_name" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="contact_no" msprop:Generator_ColumnVarNameInTable="columncontact_no" msprop:Generator_ColumnPropNameInRow="contact_no" msprop:Generator_ColumnPropNameInTable="contact_noColumn" msprop:Generator_UserColumnName="contact_no" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="10" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="contact_address" msprop:Generator_ColumnVarNameInTable="columncontact_address" msprop:Generator_ColumnPropNameInRow="contact_address" msprop:Generator_ColumnPropNameInTable="contact_addressColumn" msprop:Generator_UserColumnName="contact_address" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="250" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="address2" msprop:Generator_ColumnVarNameInTable="columnaddress2" msprop:Generator_ColumnPropNameInRow="address2" msprop:Generator_ColumnPropNameInTable="address2Column" msprop:Generator_UserColumnName="address2" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="250" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="email" msprop:Generator_ColumnVarNameInTable="columnemail" msprop:Generator_ColumnPropNameInRow="email" msprop:Generator_ColumnPropNameInTable="emailColumn" msprop:Generator_UserColumnName="email" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="remark" msprop:Generator_ColumnVarNameInTable="columnremark" msprop:Generator_ColumnPropNameInRow="remark" msprop:Generator_ColumnPropNameInTable="remarkColumn" msprop:Generator_UserColumnName="remark" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="society_id" msprop:Generator_ColumnVarNameInTable="columnsociety_id" msprop:Generator_ColumnPropNameInRow="society_id" msprop:Generator_ColumnPropNameInTable="society_idColumn" msprop:Generator_UserColumnName="society_id" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="10" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="p_type" msprop:Generator_ColumnVarNameInTable="columnp_type" msprop:Generator_ColumnPropNameInRow="p_type" msprop:Generator_ColumnPropNameInTable="p_typeColumn" msprop:Generator_UserColumnName="p_type" type="xs:int" minOccurs="0" />
+              <xs:element name="name" msprop:Generator_ColumnVarNameInTable="columnname" msprop:Generator_ColumnPropNameInRow="name" msprop:Generator_ColumnPropNameInTable="nameColumn" msprop:Generator_UserColumnName="name" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

@@ -10,6 +10,15 @@ node_modules/
 dist/
 build/
 
+# .NET build output / IDE cruft (society2024DotNet)
+[Bb]in/
+[Oo]bj/
+packages/
+.vs/
+*.user
+*.suo
+society2024DotNet/.git_disabled/
+
 # Archives / bundles — never commit (GitHub rejects files over 100 MB)
 *.zip
 *.7z

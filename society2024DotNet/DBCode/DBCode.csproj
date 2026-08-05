@@ -1,0 +1,176 @@
+﻿<Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProductVersion>
+    </ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{30305991-315E-4F6D-AF9C-8761B0084E9F}</ProjectGuid>
+    <ProjectTypeGuids>{349c5851-65df-11da-9384-00065b846f21};{fae04ec0-301f-11d3-bf4b-00c04f79efbc}</ProjectTypeGuids>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>DBCode</RootNamespace>
+    <AssemblyName>DBCode</AssemblyName>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <UseIISExpress>true</UseIISExpress>
+    <Use64BitIISExpress />
+    <IISExpressSSLPort>44380</IISExpressSSLPort>
+    <IISExpressAnonymousAuthentication />
+    <IISExpressWindowsAuthentication />
+    <IISExpressUseClassicPipelineMode />
+    <UseGlobalApplicationHostFile />
+    <NuGetPackageImportStamp>
+    </NuGetPackageImportStamp>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Web.DynamicData" />
+    <Reference Include="System.Web.Entity" />
+    <Reference Include="System.Web.ApplicationServices" />
+    <Reference Include="System.ComponentModel.DataAnnotations" />
+    <Reference Include="System" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Web" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Configuration" />
+    <Reference Include="System.Web.Services" />
+    <Reference Include="System.EnterpriseServices" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="acc_setting.cs" />
+    <Compile Include="Amc.cs" />
+    <Compile Include="DataClass\Account_Setting.cs" />
+    <Compile Include="DataClass\Admin_Dashboard.cs" />
+    <Compile Include="DataClass\Adv_Payment.cs" />
+    <Compile Include="DataClass\bedroom.cs" />
+    <Compile Include="DataClass\carpolling.cs" />
+    <Compile Include="DataClass\car_polling.cs" />
+    <Compile Include="DataClass\Cashbook.cs" />
+    <Compile Include="DataClass\certificate.cs" />
+    <Compile Include="DataClass\cheque.cs" />
+    <Compile Include="DataClass\file_upload.cs" />
+    <Compile Include="DataClass\flat_usage.cs" />
+    <Compile Include="DataClass\homeModal.cs" />
+    <Compile Include="DataClass\isc_activity.cs" />
+    <Compile Include="DataClass\ledger.cs" />
+    <Compile Include="DataClass\loan.cs" />
+    <Compile Include="DataClass\Login_Details.cs" />
+    <Compile Include="DataClass\maintenance.cs" />
+    <Compile Include="DataClass\maintenance_cal.cs" />
+    <Compile Include="DataClass\married_status.cs" />
+    <Compile Include="DataClass\Master_Dataclass\Amc.cs" />
+    <Compile Include="DataClass\Master_Dataclass\Asset.cs" />
+    <Compile Include="DataClass\Master_Dataclass\Building.cs" />
+    <Compile Include="DataClass\Master_Dataclass\Caretaker.cs" />
+    <Compile Include="DataClass\Master_Dataclass\Doc.cs" />
+    <Compile Include="DataClass\Master_Dataclass\Event.cs" />
+    <Compile Include="DataClass\Master_Dataclass\Flat.cs" />
+    <Compile Include="DataClass\Master_Dataclass\house.cs" />
+    <Compile Include="DataClass\Master_Dataclass\House_Tax.cs" />
+    <Compile Include="DataClass\Master_Dataclass\Inventory.cs" />
+    <Compile Include="DataClass\Master_Dataclass\Meeting.cs" />
+    <Compile Include="DataClass\Master_Dataclass\Messages.cs" />
+    <Compile Include="DataClass\Master_Dataclass\Notice.cs" />
+    <Compile Include="DataClass\Master_Dataclass\Owner.cs" />
+    <Compile Include="DataClass\Master_Dataclass\Park.cs" />
+    <Compile Include="DataClass\Master_Dataclass\Parking.cs" />
+    <Compile Include="DataClass\Master_Dataclass\Search_Society.cs" />
+    <Compile Include="DataClass\Master_Dataclass\Servent_Made.cs" />
+    <Compile Include="DataClass\Master_Dataclass\Society_Member.cs" />
+    <Compile Include="DataClass\Master_Dataclass\Sq_ft.cs" />
+    <Compile Include="DataClass\Master_Dataclass\Suggestion_Request.cs" />
+    <Compile Include="DataClass\Master_Dataclass\Vendor.cs" />
+    <Compile Include="DataClass\Master_Dataclass\Village.cs" />
+    <Compile Include="DataClass\Master_Dataclass\VillageOwner.cs" />
+    <Compile Include="DataClass\Master_Dataclass\Visitor.cs" />
+    <Compile Include="DataClass\Master_Dataclass\Wing.cs" />
+    <Compile Include="DataClass\meeting_extension.cs" />
+    <Compile Include="DataClass\new_maintenance.cs" />
+    <Compile Include="DataClass\owner_extension.cs" />
+    <Compile Include="DataClass\parking.cs" />
+    <Compile Include="DataClass\Parking_1.cs" />
+    <Compile Include="DataClass\facility.cs" />
+    <Compile Include="DataClass\pay_mode.cs" />
+    <Compile Include="DataClass\pdc_reminder.cs" />
+    <Compile Include="DataClass\person_type.cs" />
+    <Compile Include="DataClass\polls.cs" />
+    <Compile Include="DataClass\receipt.cs" />
+    <Compile Include="DataClass\Request.cs" />
+    <Compile Include="DataClass\rights_details_.cs" />
+    <Compile Include="DataClass\shop_maintenance.cs" />
+    <Compile Include="DataClass\society_expense.cs" />
+    <Compile Include="DataClass\staff.cs" />
+    <Compile Include="DataClass\State.cs" />
+    <Compile Include="DataClass\terms_condition.cs" />
+    <Compile Include="DataClass\types.cs" />
+    <Compile Include="DataClass\upload_doc.cs" />
+    <Compile Include="DataClass\usefull_contact.cs" />
+    <Compile Include="DataClass\usertype.cs" />
+    <Compile Include="DataClass\visiting_type.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\Society2024\Web.config">
+      <Link>Web.config</Link>
+    </Content>
+    <None Include="Web.Debug.config" />
+    <None Include="Web.Release.config" />
+  </ItemGroup>
+  <ItemGroup />
+  <PropertyGroup>
+    <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">10.0</VisualStudioVersion>
+    <VSToolsPath Condition="'$(VSToolsPath)' == ''">$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)</VSToolsPath>
+  </PropertyGroup>
+  <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
+  <Import Project="$(VSToolsPath)\WebApplications\Microsoft.WebApplication.targets" Condition="'$(VSToolsPath)' != ''" />
+  <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v10.0\WebApplications\Microsoft.WebApplication.targets" Condition="false" />
+  <ProjectExtensions>
+    <VisualStudio>
+      <FlavorProperties GUID="{349c5851-65df-11da-9384-00065b846f21}">
+        <WebProjectProperties>
+          <UseIIS>True</UseIIS>
+          <AutoAssignPort>True</AutoAssignPort>
+          <DevelopmentServerPort>51403</DevelopmentServerPort>
+          <DevelopmentServerVPath>/</DevelopmentServerVPath>
+          <IISUrl>https://localhost:44380/</IISUrl>
+          <NTLMAuthentication>False</NTLMAuthentication>
+          <UseCustomServer>False</UseCustomServer>
+          <CustomServerUrl>
+          </CustomServerUrl>
+          <SaveServerSettingsInUserFile>False</SaveServerSettingsInUserFile>
+        </WebProjectProperties>
+      </FlavorProperties>
+    </VisualStudio>
+  </ProjectExtensions>
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+</Project>

@@ -1,0 +1,76 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<xs:schema id="ledger_details" targetNamespace="http://tempuri.org/ledger_details.xsd" xmlns:mstns="http://tempuri.org/ledger_details.xsd" xmlns="http://tempuri.org/ledger_details.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata" xmlns:msprop="urn:schemas-microsoft-com:xml-msprop" attributeFormDefault="qualified" elementFormDefault="qualified">
+  <xs:annotation>
+    <xs:appinfo source="urn:schemas-microsoft-com:xml-msdatasource">
+      <DataSource DefaultConnectionIndex="0" FunctionsComponentName="QueriesTableAdapter" Modifier="AutoLayout, AnsiClass, Class, Public" SchemaSerializationMode="IncludeSchema" xmlns="urn:schemas-microsoft-com:xml-msdatasource">
+        <Connections>
+          <Connection AppSettingsObjectName="Web.config" AppSettingsPropertyName="DBCS" ConnectionStringObject="" IsAppSettingsProperty="true" Modifier="Assembly" Name="DBCS (Web.config)" ParameterPrefix="@" PropertyReference="AppConfig.System.Configuration.ConfigurationManager.0.ConnectionStrings.DBCS.ConnectionString" Provider="System.Data.SqlClient" />
+        </Connections>
+        <Tables>
+          <TableAdapter BaseClass="System.ComponentModel.Component" DataAccessorModifier="AutoLayout, AnsiClass, Class, Public" DataAccessorName="ledger_vwTableAdapter" GeneratorDataComponentClassName="ledger_vwTableAdapter" Name="ledger_vw" UserDataComponentName="ledger_vwTableAdapter">
+            <MainSource>
+              <DbSource ConnectionRef="DBCS (Web.config)" DbObjectName="Society.dbo.ledger_vw" DbObjectType="View" FillMethodModifier="Public" FillMethodName="Fill" GenerateMethods="Both" GenerateShortCommands="false" GeneratorGetMethodName="GetData" GeneratorSourceName="Fill" GetMethodModifier="Public" GetMethodName="GetData" QueryType="Rowset" ScalarCallRetval="System.Object, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" UseOptimisticConcurrency="false" UserGetMethodName="GetData" UserSourceName="Fill">
+                <SelectCommand>
+                  <DbCommand CommandType="Text" ModifiedByUser="false">
+                    <CommandText>SELECT led_id, led_description, led_status, society_id, name FROM dbo.ledger_vw</CommandText>
+                    <Parameters />
+                  </DbCommand>
+                </SelectCommand>
+              </DbSource>
+            </MainSource>
+            <Mappings>
+              <Mapping SourceColumn="led_id" DataSetColumn="led_id" />
+              <Mapping SourceColumn="led_description" DataSetColumn="led_description" />
+              <Mapping SourceColumn="led_status" DataSetColumn="led_status" />
+              <Mapping SourceColumn="society_id" DataSetColumn="society_id" />
+              <Mapping SourceColumn="name" DataSetColumn="name" />
+            </Mappings>
+            <Sources />
+          </TableAdapter>
+        </Tables>
+        <Sources />
+      </DataSource>
+    </xs:appinfo>
+  </xs:annotation>
+  <xs:element name="ledger_details" msdata:IsDataSet="true" msdata:UseCurrentLocale="true" msprop:EnableTableAdapterManager="True" msprop:Generator_DataSetName="ledger_details" msprop:Generator_UserDSName="ledger_details">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element name="ledger_vw" msprop:Generator_TableClassName="ledger_vwDataTable" msprop:Generator_TableVarName="tableledger_vw" msprop:Generator_TablePropName="ledger_vw" msprop:Generator_RowDeletingName="ledger_vwRowDeleting" msprop:Generator_RowChangingName="ledger_vwRowChanging" msprop:Generator_RowEvHandlerName="ledger_vwRowChangeEventHandler" msprop:Generator_RowDeletedName="ledger_vwRowDeleted" msprop:Generator_UserTableName="ledger_vw" msprop:Generator_RowChangedName="ledger_vwRowChanged" msprop:Generator_RowEvArgName="ledger_vwRowChangeEvent" msprop:Generator_RowClassName="ledger_vwRow">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="led_id" msprop:Generator_ColumnVarNameInTable="columnled_id" msprop:Generator_ColumnPropNameInRow="led_id" msprop:Generator_ColumnPropNameInTable="led_idColumn" msprop:Generator_UserColumnName="led_id" type="xs:int" />
+              <xs:element name="led_description" msprop:Generator_ColumnVarNameInTable="columnled_description" msprop:Generator_ColumnPropNameInRow="led_description" msprop:Generator_ColumnPropNameInTable="led_descriptionColumn" msprop:Generator_UserColumnName="led_description" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="2147483647" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="led_status" msprop:Generator_ColumnVarNameInTable="columnled_status" msprop:Generator_ColumnPropNameInRow="led_status" msprop:Generator_ColumnPropNameInTable="led_statusColumn" msprop:Generator_UserColumnName="led_status" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="society_id" msprop:Generator_ColumnVarNameInTable="columnsociety_id" msprop:Generator_ColumnPropNameInRow="society_id" msprop:Generator_ColumnPropNameInTable="society_idColumn" msprop:Generator_UserColumnName="society_id" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="name" msprop:Generator_ColumnVarNameInTable="columnname" msprop:Generator_ColumnPropNameInRow="name" msprop:Generator_ColumnPropNameInTable="nameColumn" msprop:Generator_UserColumnName="name" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

@@ -1,0 +1,1453 @@
+﻿<%@ Master Language="C#" AutoEventWireup="true" CodeBehind="Site.Master.cs" Inherits="Society.SiteMaster" %>
+
+<!DOCTYPE html>
+
+<html lang="en">
+<head runat="server">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
+
+
+
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <%--<meta http-equiv="X-UA-Compatible" content="IE=9" />--%>
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="-1" />
+    <title>Society</title>
+
+    <asp:PlaceHolder runat="server">
+        <%: Scripts.Render("~/bundles/modernizr") %>
+    </asp:PlaceHolder>
+    <style>
+
+        .animated-sidebar {
+            transition: all 0.3s ease-in-out;
+        }
+
+        .profile-container {
+            position: relative;
+            width: 150px;
+            height: 150px;
+            margin: auto;
+        }
+
+        #profileImage {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 1px solid #000;
+            cursor: pointer;
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: 0.3s;
+            cursor: pointer;
+        }
+
+        .profile-container:hover .overlay {
+            opacity: 1;
+        }
+
+        #cropModal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0,0,0,0.8);
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+
+        #cropBox {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+        }
+
+        #preview {
+            max-width: 300px;
+            max-height: 300px;
+        }
+
+        .btn-group {
+            margin-top: 10px;
+            display: flex;
+            justify-content: space-around;
+        }
+
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .btn-upload {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-cancel {
+            background: #f44336;
+            color: white;
+        }
+
+
+        .user-info-model {
+            width: 500px;
+        }
+
+        .profile-card {
+            max-width: 800px;
+            margin: 50px auto;
+            background-color: #fff;
+            border-radius: 15px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+        }
+
+        .cover-image {
+            background: linear-gradient(to left, #0d3fc7, #80a7ee);
+            height: 120px;
+            border-top-left-radius: 15px;
+            border-top-right-radius: 15px;
+            position: relative;
+        }
+
+        .profile-pic {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            border: 4px solid #fff;
+            position: absolute;
+            bottom: -50px;
+            left: 50%;
+            transform: translateX(-50%);
+            object-fit: cover;
+        }
+
+        .user-info {
+            text-align: center;
+            margin-top: 60px;
+        }
+
+        .form-label {
+            font-weight: 500;
+        }
+
+        .save-btn {
+            background-color: #7f56d9;
+            color: #fff;
+        }
+
+            .save-btn:hover {
+                background-color: #6f46c9;
+            }
+
+
+        .search-container {
+            position: relative;
+            width: 300px;
+            margin: 10px 0;
+        }
+
+            .search-container .aspNetTextBox {
+                width: 100%;
+                padding: 7px 15px;
+                border-radius: 12px;
+                border: 1px solid #ccc;
+                outline: none;
+                font-weight: bold;
+            }
+
+        /* Button container on right side of textbox */
+        .input-buttons {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: absolute;
+            right: 0px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        /* Calendar Icon */
+        .calendar-icon {
+            width: 24px;
+            height: 24px;
+            border: none;
+            background: none;
+            margin-left: 8px;
+            cursor: pointer;
+            margin-right: 12px;
+        }
+
+        /* Search Button */
+        .search-button2 {
+            padding: 7px 9px;
+            background: #0d6efd;
+            border-radius: 0 14px 12px 0;
+            border: none;
+            cursor: pointer;
+            color: gray;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+            .search-button2 span {
+                color: white;
+            }
+
+        /* Fix background of CalendarExtender popup */
+        .ajax__calendar_container {
+            background-color: white !important;
+            z-index: 9999;
+            box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            padding: 4px;
+        }
+
+        .search-container {
+            position: relative;
+            width: 300px;
+            margin: 10px 0;
+        }
+
+            .search-container .aspNetTextBox {
+                width: 100%;
+                padding: 7px 15px;
+                border-radius: 12px;
+                border: 1px solid #ccc;
+                outline: none;
+                font-weight: bold;
+            }
+
+        /* Button container on right side of textbox */
+        .input-buttons {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: absolute;
+            right: 0px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        /* Calendar Icon */
+        .calendar-icon {
+            width: 24px;
+            height: 24px;
+            border: none;
+            background: none;
+            margin-left: 8px;
+            cursor: pointer;
+            margin-right: 12px;
+        }
+
+        /* Search Button */
+        .search-button2 {
+            padding: 7px 9px;
+            background: #0d6efd;
+            border-radius: 0 14px 12px 0;
+            border: none;
+            cursor: pointer;
+            color: gray;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+            .search-button2 span {
+                color: white;
+            }
+
+        /* Fix background of CalendarExtender popup */
+        .ajax__calendar_container {
+            background-color: white !important;
+            z-index: 9999;
+            box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            padding: 4px;
+        }
+
+
+    </style>
+<%--    <script type="text/javascript">
+        $(document).ready(function () {
+            // Rebind sidebar toggle after partial postback
+            Sys.WebForms.PageRequestManager.getInstance().add_endRequest(function () {
+                $('[data-toggle="collapse"]').off('click').on('click', function () {
+                    $('#sidebar').toggleClass('active');
+                });
+            });
+        });
+    </script>--%>
+
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&icon_names=search" />
+
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet" />
+
+    <link href="vendor/fontawesome-free/css/all.min.css" rel="stylesheet" type="text/css">
+    <link
+        href="https://fonts.googleapis.com/css?family=Nunito:200,200i,300,300i,400,400i,600,600i,700,700i,800,800i,900,900i"
+        rel="stylesheet">
+
+    <!-- Custom styles for this template-->
+    <link href="css/mobileView/sb-admin-2.min.css" rel="stylesheet">
+
+    <%--<link href="css/layout.css" rel="stylesheet" />--%>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body id="page-top">
+
+    <form runat="server" autocomplete="off" id="myForm" class="needs-validation" novalidate>
+
+        <asp:ScriptManager runat="server">
+            <Scripts>
+                <%--To learn more about bundling scripts in ScriptManager see https://go.microsoft.com/fwlink/?LinkID=301884 --%>
+                <%--Framework Scripts--%>
+                <asp:ScriptReference Name="MsAjaxBundle" />
+                <asp:ScriptReference Name="jquery" />
+                <asp:ScriptReference Name="bootstrap" />
+                <asp:ScriptReference Name="WebForms.js" Assembly="System.Web" Path="~/Scripts/WebForms/WebForms.js" />
+                <asp:ScriptReference Name="WebUIValidation.js" Assembly="System.Web" Path="~/Scripts/WebForms/WebUIValidation.js" />
+                <asp:ScriptReference Name="MenuStandards.js" Assembly="System.Web" Path="~/Scripts/WebForms/MenuStandards.js" />
+                <asp:ScriptReference Name="GridView.js" Assembly="System.Web" Path="~/Scripts/WebForms/GridView.js" />
+                <asp:ScriptReference Name="DetailsView.js" Assembly="System.Web" Path="~/Scripts/WebForms/DetailsView.js" />
+                <asp:ScriptReference Name="TreeView.js" Assembly="System.Web" Path="~/Scripts/WebForms/TreeView.js" />
+                <asp:ScriptReference Name="WebParts.js" Assembly="System.Web" Path="~/Scripts/WebForms/WebParts.js" />
+                <asp:ScriptReference Name="Focus.js" Assembly="System.Web" Path="~/Scripts/WebForms/Focus.js" />
+                <asp:ScriptReference Name="WebFormsBundle" />
+                <%--Site Scripts--%>
+            </Scripts>
+        </asp:ScriptManager>
+        <!-- Theame-->
+        <div id="wrapper">
+            <!-- Sidebar -->
+
+            <asp:Panel ID="Panel1" runat="server">
+                <div class="auto-scroll">
+                    <div>
+
+                        <ul class="animated-sidebar toggled nav-mob navbar-nav bg-gradient-primary sidebar sidebar-dark accordion" id="accordionSidebar">
+
+
+                            <!-- Sidebar - Brand -->
+                            <a class="sidebar-brand d-flex align-items-center justify-content-center" href="dashboard.aspx">
+                                <div class="sidebar-brand-icon rotate-n-15">
+                                    <i class="fas fa-laugh-wink"></i>
+                                </div>
+                                <div class="sidebar-brand-text mx-3">
+                                    <%----------Here welcome text ----------%>
+                                </div>
+                            </a>
+
+                            <!-- Divider -->
+                            <hr class="sidebar-divider my-0">
+                            <asp:Panel runat="server" ID="society">
+                                <li class="nav-item zoom">
+                                    <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseSociety"
+                                        aria-expanded="true" aria-controls="collapseTwo">
+                                        <i class="fas fa-fw fa-tachometer-alt"></i>
+                                        <span>Admin Dashboard</span>
+                                    </a>
+
+                                    <div id="collapseSociety" class="collapse" aria-labelledby="headingSociety" data-parent="#accordionSidebar">
+                                        <div class="bg-white py-2 collapse-inner rounded">
+                                            <a class="collapse-item" href="Admin_dashboard.aspx">Admin Dashboard</a>
+                                            <a class="collapse-item" href="society_charges.aspx">Society Charges</a>
+                                            <a class="collapse-item" href="society_charges_monthwise.aspx">Society Charges Monthwise</a>
+                                        </div>
+                                    </div>
+                                </li>
+
+                                <li class="nav-item zoom active">
+                                    <a class="nav-link" href="dashboard.aspx">
+                                        <i class="fas fa-fw fa-tachometer-alt"></i>
+                                        <span>Dashboard</span></a>
+                                </li>
+
+
+
+                                <!-- Divider -->
+                                <hr class="sidebar-divider">
+
+                                <!-- Heading -->
+                                <div class="sidebar-heading">
+                                    Interface
+                                </div>
+
+                                <!-- Nav Item - Pages Collapse Menu -->
+                                <li class="nav-item zoom">
+                                    <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseTwo"
+                                        aria-expanded="true" aria-controls="collapseTwo">
+                                        <i class="fas fa-fw fa-cog"></i>
+                                        <span>Masters</span>
+                                    </a>
+                                    <div id="collapseTwo" class="collapse" aria-labelledby="headingTwo" data-parent="#accordionSidebar">
+                                        <div class="bg-white py-2 collapse-inner rounded">
+                                            <h6 class="collapse-header">Masters:</h6>
+                                            <a class="collapse-item" href="society_search.aspx">Society Master</a>
+                                            <a class="collapse-item" href="society_member_search.aspx">Society Member Master</a>
+                                            <a class="collapse-item" href="building_search.aspx">Buildings</a>
+                                            <a class="collapse-item" href="wing_search.aspx">Wing Master</a>
+                                            <a class="collapse-item" href="flat_search.aspx">Flat master</a>
+                                            <a class="collapse-item" href="owner_search.aspx">Owner Master</a>
+                                            <a class="collapse-item" href="rental_search.aspx">Rental Master</a>
+                                            <a class="collapse-item" href="visitor_search.aspx">Visitor Master</a>
+                                            <a class="collapse-item" href="Facility_master.aspx">facilities</a>
+                                            <a class="collapse-item" href="Staff_Master.aspx">Staff Master</a>
+                                            <a class="collapse-item" href="staff_role.aspx">Staff Role</a>
+                                            <a class="collapse-item" href="maintenance_search.aspx">Maintenance master</a>
+                                            <a class="collapse-item" href="event_search.aspx">Event Master</a>
+                                            <a class="collapse-item" href="notice_search.aspx">Notice Master</a>
+                                            <a class="collapse-item" href="meeting_search.aspx">Meeting Master</a>
+
+                                            <a class="collapse-item" href="servent_search.aspx">Servant Master</a>
+                                            <a class="collapse-item" href="park_place_search.aspx">Parking Master</a>
+                                            <a class="collapse-item" href="doc_search.aspx">Document Master</a>
+                                            <a class="collapse-item" href="Terms_and_Condition.aspx">Terms and Condition</a>
+                                            <a class="collapse-item" href="About.aspx">About</a>
+
+                                        </div>
+                                    </div>
+                                </li>
+
+                                <!-- Nav Item - Utilities Collapse Menu -->
+                                <li class="nav-item zoom">
+                                    <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseUtilities"
+                                        aria-expanded="true" aria-controls="collapseUtilities">
+                                        <i class="fas fa-fw fa-wrench"></i>
+                                        <span>Service Management</span>
+                                    </a>
+                                    <div id="collapseUtilities" class="collapse" aria-labelledby="headingUtilities"
+                                        data-parent="#accordionSidebar">
+                                        <div class="bg-white py-2 collapse-inner rounded">
+                                            <h6 class="collapse-header">Services:</h6>
+                                            <a class="collapse-item" href="parking_allotment_search.aspx">Parking Allotment</a>
+                                            <a class="collapse-item" href="facility_booking.aspx">Facility Booking</a>
+
+                                            <a class="collapse-item" href="contact_master.aspx">Helper Contact</a>
+                                            <a class="collapse-item" href="meeting_details.aspx">Meeting Details</a>
+                                            <a class="collapse-item" href="car_polling.aspx">Car Polling</a>
+                                            <a class="collapse-item" href="loan.aspx">Loan & Lien</a>
+                                        </div>
+                                    </div>
+                                </li>
+
+                                <!-- Divider -->
+                                <hr class="sidebar-divider">
+
+                                <!-- Heading -->
+                                <div class="sidebar-heading">
+                                    Add-ons
+                                </div>
+
+                                <!-- Nav Item - Pages Collapse Menu -->
+                                <li class="nav-item zoom">
+                                    <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapsePages"
+                                        aria-expanded="true" aria-controls="collapsePages">
+                                        <i class="fas fa-fw fa-folder"></i>
+                                        <span>Society Management</span>
+                                    </a>
+                                    <div id="collapsePages" class="collapse" aria-labelledby="headingPages" data-parent="#accordionSidebar">
+                                        <div class="bg-white py-2 collapse-inner rounded">
+                                            <h6 class="collapse-header">Society Management:</h6>
+                                            <a class="collapse-item" href="caretaker.aspx">Careteker</a>
+                                            <a class="collapse-item" href="upload_doc_search.aspx">Documents Upload </a>
+                                            <%-- <a class="collapse-item" href="#">Rules & Regulations</a>--%>
+                                            <a class="collapse-item" href="inventory_search.aspx">Inventory</a>
+                                          <%--  <a class="collapse-item" href="vendor_search.aspx">Vendor</a>--%>
+                                            <a class="collapse-item" href="ledger_form.aspx">Ledger</a>
+                                            <a class="collapse-item" href="shop_maintenance.aspx">Shop Maintenance</a>
+                                            <a class="collapse-item" href="pdc_reminder_search.aspx">PDC Reminder</a>
+                                            <a class="collapse-item" href="pdc_clearing.aspx">PDC Clearing</a>
+                                            <a class="collapse-item" href="receipt_search_form.aspx">Receipt</a>
+                                            <a class="collapse-item" href="society_expense.aspx">Society Expense</a>
+                                            <div class="collapse-divider"></div>
+                                            <h6 class="collapse-header">Other Pages:</h6>
+                                            <%--<a class="collapse-item" href="404.html">404 Page</a>
+                        <a class="collapse-item" href="blank.html">Blank Page</a>--%>
+                                        </div>
+                                    </div>
+                                </li>
+
+                                <!-- Nav Item - Charts -->
+                                <li class="nav-item zoom">
+                                    <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapsesuggestion"
+                                        aria-expanded="true" aria-controls="collapsesuggestion">
+                                        <i class="fas fa-fw fa-folder"></i>
+                                        <span>Requests/Suggestion</span></a>
+                                    <div id="collapsesuggestion" class="collapse" aria-labelledby="headingPages" data-parent="#accordionSidebar">
+                                        <div class="bg-white py-2 collapse-inner rounded">
+                                            <h6 class="collapse-header">Request/Suggestions:</h6>
+                                            <a class="collapse-item" href="suggestion_request.aspx">Suggestion</a>
+
+
+                                        </div>
+                                    </div>
+
+                                </li>
+
+                                <li class="nav-item zoom">
+                                    <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapsereport"
+                                        aria-expanded="true" aria-controls="collapsereport">
+                                        <i class="fas fa-fw fa-folder"></i>
+                                        <span>Report</span></a>
+                                    <div id="collapsereport" class="collapse" aria-labelledby="headingPages" data-parent="#accordionSidebar">
+                                        <div class="bg-white py-2 collapse-inner rounded">
+                                            <h6 class="collapse-header">Reports:</h6>
+                                            <a class="collapse-item" href="printvisitor.aspx">Visitor</a>
+                                            <a class="collapse-item" href="printcontact.aspx">Useful Contact</a>
+                                            <a class="collapse-item" href="printshop.aspx">Shop Maintenance</a>
+                                            <a class="collapse-item" href="printrental.aspx">Rental</a>
+                                            <a class="collapse-item" href="printowner.aspx">Owner</a>
+                                            <a class="collapse-item" href="printledger_details.aspx">Ledger</a>
+                                            <a class="collapse-item" href="maintenance_search.aspx">Maintenance</a>
+                                            <a class="collapse-item" href="receipt_search_form.aspx">Maintenance Receipt</a>
+                                            <a class="collapse-item" href="print_expense.aspx">Vendor Bill</a>
+
+                                            <a class="collapse-item" href="cashbook.aspx">Cashbook</a>
+                                            <a class="collapse-item" href="ownerwise_maintenance.aspx">Owner-wise Maintenance</a>
+
+
+
+
+
+
+                                        </div>
+                                    </div>
+
+                                </li>
+                            </asp:Panel>
+
+                            <asp:Panel runat="server" ID="village">
+                                <li>
+                                    <a class="sidebar-item collapsed" href="#" data-toggle="collapse" data-target="#Village"
+                                        aria-expanded="true" aria-controls="collapsereport">
+                                        <i class="fas fa-fw fa-file-alt"></i>
+                                        <span>Village</span>
+                                    </a>
+                                    <div id="Village" class="collapse" data-parent="#accordionSidebar">
+                                        <div class="collapse-inner">
+                                            <h6 class="collapse-header">Village Management</h6>
+                                            <a class="collapse-item" href="village_dashboard.aspx">Dashboard</a>
+                                            <a class="collapse-item" href="village_master.aspx">Village master</a>
+                                            <a class="collapse-item" href="village_owner_master.aspx">Owner Master</a>
+                                            <a class="collapse-item" href="water_tax.aspx">Water Tax</a>
+                                            <a class="collapse-item" href="square_feet_rate.aspx">Square Feet Rate</a>
+
+                                        </div>
+                                    </div>
+                                </li>
+
+                            </asp:Panel>
+
+                            <hr class="sidebar-divider">
+                            <li class="m-auto">
+                                <div class="text-center d-none d-md-inline">
+                                    <button type="button" class="rounded-circle border-0" id="sidebarToggle"></button>
+                                </div>
+                            </li>
+                            <li class="nav-item zoom">
+                                <asp:LinkButton Visible="false" ID="logout" runat="server" CssClass="logout-button"
+                                    OnClientClick="return confirm('Are you sure you want to log out?');"
+                                    OnClick="logout_Click">
+         &nbsp;&nbsp;<i class="fas fa-fw fa-table"></i>Log-Out
+                                </asp:LinkButton>
+                            </li>
+
+
+                        </ul>
+                    </div>
+                </div>
+            </asp:Panel>
+
+
+
+            <!-- End of Sidebar -->
+            <!--    =========================================-->
+            <!-- Content Wrapper -->
+            <div id="content-wrapper" class="main-Content d-flex flex-column" style="height: 100vh">
+                <!-- Main Content -->
+                <div id="content" style="background: #EBF0F9;">
+
+                    <nav
+                        class="navbar navbar-expand navbar-light bg-white topbar mb-4 static-top shadow" style="position: sticky; top: 0px; z-index: 10; margin-top: 3px;">
+                        <!-- Sidebar Toggle (Topbar) -->
+                        <%--   <button id="sidebarToggleTop" class="btn btn-link d-md-none rounded-circle mr-3">
+                            <i class="fa fa-bars"></i>
+                        </button>--%>
+                        <button type="button" class="btn btn-link d-md-none rounded-circle mr-3" id="sidebarToggleTop"><i class="fa fa-bars"></i></button>
+                        <!-- Topbar Search -->
+                        <marquee direction="left">
+                            <strong>
+                                <asp:Label ID="name_society" runat="server" Font-Size="XX-Large" ForeColor="#0066FF" Font-Bold="True" /></strong></marquee>
+
+                        <!-- Topbar Navbar -->
+                        <ul class="navbar-nav ml-auto">
+                            <!-- Nav Item - Search Dropdown (Visible Only XS) -->
+                            <li class="nav-item dropdown no-arrow d-sm-none">
+                                <%--<a
+                                    class="nav-link dropdown-toggle"
+                                    href="#"
+                                    id="searchDropdown"
+                                    role="button"
+                                    data-toggle="dropdown"
+                                    aria-haspopup="true"
+                                    aria-haspopup="true"
+                                    aria-expanded="false">
+                                    <i class="fas fa-search fa-fw"></i>
+                                </a>--%>
+                                <!-- Dropdown - Messages -->
+
+                            </li>
+
+                            <!-- Nav Item - Alerts -->
+
+                            <asp:Timer ID="SharedTimer" runat="server" Interval="5000" OnTick="TimerNotif_Tick" />
+
+
+                            <li class="nav-item dropdown no-arrow mx-1">
+                                <a
+                                    class="nav-link dropdown-toggle"
+                                    href="#"
+                                    id="alertsDropdown"
+                                    role="button"
+                                    data-toggle="dropdown"
+                                    aria-haspopup="true"
+                                    aria-expanded="false">
+                                    <img src="img/bell.png" width="26px" />
+                                    <!-- Counter - Alerts -->
+                                    <%-- <asp:Timer ID="TimerNotif" runat="server" Interval="5000" OnTick="TimerNotif_Tick" />--%>
+                                    <asp:Panel runat="server" ID="badgePanel">
+
+                                        <span class="badge badge-danger badge-counter">
+                                            <asp:UpdatePanel ID="upNotifCount" runat="server" UpdateMode="Conditional">
+                                                <ContentTemplate>
+
+
+                                                    <asp:Label runat="server" ID="notifCount"></asp:Label>
+                                                </ContentTemplate>
+                                                <Triggers>
+                                                    <asp:AsyncPostBackTrigger ControlID="SharedTimer" EventName="Tick" />
+                                                </Triggers>
+
+                                            </asp:UpdatePanel>
+                                        </span>
+                                    </asp:Panel>
+                                </a>
+                                <!-- Dropdown - Alerts -->
+                                <div
+                                    class="dropdown-list dropdown-menu dropdown-menu-right shadow animated--grow-in"
+                                    aria-labelledby="alertsDropdown" style="overflow-y: auto; max-height: 508px;">
+                                    <h6 class="dropdown-header">Alerts Center</h6>
+                                    <div style="width: 100%;">
+                                        <asp:Label ID="noNotif" runat="server" CssClass="dropdown-item"> No Notification Found </asp:Label>
+                                        <asp:UpdatePanel ID="upNotifList" runat="server" UpdateMode="Conditional">
+                                            <ContentTemplate>
+                                                <asp:GridView ID="Notification_grid" Width="100%" runat="server" ShowHeader="false" AutoGenerateColumns="false" GridLines="None" OnRowCommand="Update_Notify_Status" DataKeyNames="notify_status_id">
+                                                    <Columns>
+                                                        <asp:TemplateField HeaderText="Building" ItemStyle-Width="100%" SortExpression="name">
+                                                            <ItemTemplate>
+                                                                <asp:LinkButton
+                                                                    ID="lnkDetails2"
+                                                                    runat="server"
+                                                                    CommandName="Redirect"
+                                                                    CommandArgument='<%# Eval("notify_status_id") %>'
+                                                                    Style="text-decoration: none;">
+                                                                    <div class="hov" style="display: flex; align-items: center; width: 20rem; padding: 0 11px;">
+                                                                        <img src="img/bell.png" width="25px" height="28px" style="margin-right: 11px;" />
+                                                                        <div>
+                                                                            <div style="justify-content: space-between; display: flex; margin-bottom: 2px;">
+                                                                                <asp:Label runat="server" ID="Label1" Text='<%# Eval("title") %>' Font-Size="Small" ForeColor="#808080"></asp:Label>
+                                                                                <asp:Label runat="server" Text='<%# Eval("timestamp", "{0:yyyy-MM-dd}") %>' Font-Size="Small" ForeColor="#BCBED0"></asp:Label>
+                                                                            </div>
+                                                                            <div>
+                                                                                <div class="notify-div">
+                                                                                    <asp:Label runat="server" ID="name" Text='<%# Eval("body") %>' ForeColor="Black"></asp:Label>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div style="height: 1px; background-color: #d5d5d5; margin-top: 9px;"></div>
+                                                                        </div>
+                                                                    </div>
+                                                                </asp:LinkButton>
+                                                            </ItemTemplate>
+                                                        </asp:TemplateField>
+                                                    </Columns>
+                                                </asp:GridView>
+
+                                            </ContentTemplate>
+                                            <Triggers>
+                                                <asp:AsyncPostBackTrigger ControlID="SharedTimer" EventName="Tick" />
+                                            </Triggers>
+                                        </asp:UpdatePanel>
+                                    </div>
+                                </div>
+                            </li>
+
+
+                            <!-- Nav Item - Messages -->
+
+                            <div class="topbar-divider d-none d-sm-block"></div>
+
+                            <!-- Nav Item - User Information -->
+                            <li class="nav-item dropdown no-arrow">
+                                <a
+                                    class="nav-link dropdown-toggle"
+                                    href="#"
+                                    id="userDropdown"
+                                    role="button"
+                                    data-toggle="dropdown"
+                                    aria-haspopup="true"
+                                    aria-expanded="false">
+                                    <span class="mr-2 d-none d-lg-inline text-gray-600 small">
+                                        <asp:Label ID="txt_welcome" runat="server"></asp:Label></span>
+                                    <img id="profileImage" runat="server" style="width: 35px; height: 53%"
+                                        class="img-profile rounded-circle" />
+                                </a>
+                                <!-- Dropdown - User Information -->
+                                <div
+                                    class="dropdown-menu dropdown-menu-right shadow animated--grow-in"
+                                    aria-labelledby="userDropdown">
+                                    <asp:UpdatePanel runat="server" ID="upOpenButton" UpdateMode="Conditional">
+                                        <ContentTemplate>
+                                            <button runat="server" id="openUpModel" class="dropdown-item" data-toggle="modal" data-target="#edit_model2" onserverclick="Unnamed_ServerClick">
+                                                <i class="fas fa-user fa-sm fa-fw mr-2 text-gray-400"></i>
+                                                Profile
+                                   
+                                            </button>
+                                        </ContentTemplate>
+                                    </asp:UpdatePanel>
+                                    <a class="dropdown-item" href="account_setting.aspx">
+                                        <i class="fas fa-cogs fa-sm fa-fw mr-2 text-gray-400"></i>
+                                        Settings
+                                    </a>
+                                    <%--       <a class="dropdown-item" href="#">
+                        <i class="fas fa-list fa-sm fa-fw mr-2 text-gray-400"></i>
+                        Activity Log
+                    </a>--%>
+                                    <div class="dropdown-divider"></div>
+                                    <asp:LinkButton ID="LinkButton1" runat="server" CssClass="dropdown-item"
+                                        OnClientClick="return confirm('Are you sure you want to log out?');"
+                                        OnClick="logout_Click">
+                                        &nbsp;&nbsp;
+                                        <i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i>Log Out
+                                    </asp:LinkButton>
+                                </div>
+                            </li>
+                        </ul>
+                    </nav>
+                    <!-- End of Topbar -->
+                    <!-- Begin Page Content -->
+                    <div class="container-fluid">
+                        <asp:ContentPlaceHolder ID="MainContent" runat="server">
+                            <!-- Page Heading -->
+
+                        </asp:ContentPlaceHolder>
+
+                    </div>
+
+                </div>
+
+                    
+
+                <!-- Footer -->
+                <footer class="sticky-footer bg-white">
+                    <div class="container my-auto">
+                        <div class="copyright ">
+                            <span>Copyright &copy; Your Website 2021</span>
+                        </div>
+                    </div>
+                </footer>
+                <!-- End of Footer -->
+
+            </div>
+            <!-- End of Content Wrapper -->
+        </div>
+
+        <!-- End of Page Wrapper -->
+        <div class="modal fade bs-example-modal-sm" style="padding: 15px 10px;" id="edit_model2" tabindex="-1" role="dialog" aria-labelledby="myLargeModalLabel" data-backdrop="static">
+            <div class="modal-dialog modal-sm-6">
+                <div class="modal-content user-info-model">
+                    <div class="modal-body">
+                        <asp:UpdatePanel ID="upnlCountry" runat="server" UpdateMode="Conditional">
+                            <ContentTemplate>
+                                <asp:HiddenField runat="server" ID="owner_id" />
+                                <asp:HiddenField runat="server" ID="userID" />
+                                <div class="cover-image">
+                                    <div class="profile-container">
+                                        <img id="profileImage2" class="img-profile rounded-circle" runat="server" src="img/profilePic.png" alt="Profile">
+                                        <div class="overlay" onclick="document.getElementById('fileInput').click()">
+                                            <div>
+                                                📷<br>
+                                                Change<br>
+                                                profile photo
+                                            </div>
+                                        </div>
+
+                                        <!-- Crop Modal -->
+
+                                    </div>
+                                </div>
+
+
+
+
+                                <div class="user-info">
+                                    <asp:Label runat="server" ID="user_Name"></asp:Label>
+                                    <br />
+                                    <asp:Label CssClass="font-weight-bolder" runat="server" ID="designation"></asp:Label>
+                                </div>
+
+                                <hr>
+
+                                <div class="container mt-4">
+                                    <h5 class="mb-3">Account Settings</h5>
+                                    <p class="text-muted mb-4">Here you can change your account information</p>
+
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">First Name</label>
+                                            <asp:TextBox Enabled="false" runat="server" ID="fName" type="text" class="form-control" placeholder="First Name"></asp:TextBox>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Last Name</label>
+                                            <asp:TextBox Enabled="false" runat="server" ID="lName" type="text" class="form-control" placeholder="Last Name"></asp:TextBox>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Username*</label>
+                                            <asp:TextBox runat="server" ID="userNameIn" type="text" class="form-control" placeholder="@parkson.adela"></asp:TextBox>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Email Address*</label>
+                                            <asp:TextBox runat="server" ID="email" type="email" class="form-control" placeholder="adela@simmple.com" TextMode="Email"></asp:TextBox>
+                                        </div>
+
+
+
+                                        <div class="col-md-12">
+                                            <label class="form-label">Contact</label>
+                                            <asp:TextBox runat="server" type="contact" ID="contact" class="form-control" placeholder="Enter Contact" TextMode="Phone" MaxLength="10"></asp:TextBox>
+                                        </div>
+
+                                        <div class="col-md-12">
+
+                                            <a href="#" id="changePasswordLink" onclick="showPasswordFields()">Change Password</a>
+                                            <div id="passwordFieldsContainer" style="display: none;">
+                                                <label class="form-label">Enter Password</label>
+                                                <div class="input-group mt-2">
+                                                    <asp:TextBox runat="server" type="password" class="form-control" placeholder="Enter Password" ID="passwordField"></asp:TextBox>
+                                                    <span class="input-group-text" id="togglePasswordContainer">
+                                                        <i class="fas fa-eye" style="cursor: pointer;" onclick="togglePasswordVisibility()"></i>
+                                                    </span>
+                                                </div>
+                                                <div id="reEnterPasswordContainer" class=" mt-3">
+                                                    <label class="form-label">Re-enter Password</label>
+                                                    <div class="input-group">
+                                                        <asp:TextBox runat="server" type="password" class="form-control" placeholder="Re-enter Password" ID="reEnterPasswordField" oninput="validatePasswords()"></asp:TextBox>
+                                                        <span class="input-group-text" id="toggleReEnterPasswordContainer">
+                                                            <i class="fas fa-eye" style="cursor: pointer;" onclick="toggleReEnterPasswordVisibility()"></i>
+                                                        </span>
+                                                    </div>
+                                                    <small id="passwordValidationMessage" class="text-danger" style="display: none;">Passwords do not match</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </ContentTemplate>
+                            <Triggers>
+                                <asp:AsyncPostBackTrigger ControlID="openUpModel" EventName="ServerClick" />
+                                <asp:AsyncPostBackTrigger ControlID="btn_save" EventName="Click" />
+                                <asp:AsyncPostBackTrigger ControlID="btn_close" EventName="Click" />
+
+                            </Triggers>
+                        </asp:UpdatePanel>
+                    </div>
+                    <div class="modal-footer">
+                        <div class="mt-4 text-end d-flex" style="gap: 4px;">
+                            <asp:Button ID="btn_save" runat="server" Text="Update" class="btn btn-primary" OnClick="btn_save_Click" />
+                            <asp:UpdatePanel runat="server" UpdateMode="Conditional">
+                                <ContentTemplate>
+                                    <asp:Button ID="btn_close" runat="server" Text="Close" class="btn btn-primary" UseSubmitBehavior="False" data-dismiss="modal" />
+
+                                </ContentTemplate>
+                            </asp:UpdatePanel>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+            <!-- /.modal-body -->
+        </div>
+        <!-- Scroll to Top Button-->
+                   <input type="file" id="fileInput" accept="image/*" style="display: none" />
+        <div id="cropModal">
+            <div id="cropBox">
+                <p><strong>Drag the image to adjust</strong></p>
+                <img id="preview" />
+                <div class="btn-group">
+                    <asp:Button runat="server" class="btn-upload" OnClientClick="uploadCroppedImage()" Text="Upload ✅" UseSubmitBehavior="False"></asp:Button>
+                    <button class="btn-cancel" onclick="closeModal()">Cancel ❌</button>
+                </div>
+
+            </div>
+        </div>
+    </form>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+    <!-- Bootstrap core JavaScript-->
+    <script src="vendor/jquery/jquery.min.js"></script>
+    <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Core plugin JavaScript-->
+    <script src="vendor/jquery-easing/jquery.easing.min.js"></script>
+
+    <!-- Custom scripts for all pages-->
+    <script src="js/sb-admin-2.min.js"></script>
+    <script src="js/site_master_js.js"></script> 
+
+
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <script>
+
+
+        const fileInput = document.getElementById('fileInput');
+        const profileImage = document.getElementById('profileImage2');
+        const cropModal = document.getElementById('cropModal');
+        const preview = document.getElementById('preview');
+        let cropper;
+
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+                preview.src = reader.result;
+                cropModal.style.display = 'flex';
+                if (cropper) cropper.destroy();
+                cropper = new Cropper(preview, {
+                    aspectRatio: 1,
+                    viewMode: 1,
+                    dragMode: 'move',
+                    responsive: true,
+                    zoomable: true,
+                });
+            };
+            reader.readAsDataURL(file);
+        });
+
+        function closeModal() {
+            cropModal.style.display = 'none';
+            cropper.destroy();
+        }
+
+        function uploadCroppedImage() {
+            const canvas = cropper.getCroppedCanvas({
+                width: 150,
+                height: 150,
+            });
+
+            const dataUrl = canvas.toDataURL('image/png');
+            const ownerId = document.getElementById('<%= userID.ClientID %>').value;
+            // Update image preview
+            profileImage.src = dataUrl;
+            closeModal();
+
+            // Send to server with imageData and ownerId
+            fetch('UploadImageHandler.ashx', {
+                method: 'POST',
+                body: JSON.stringify({ imageData: dataUrl, ownerId: ownerId }),
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+                .then(response => response.text())
+                .then(data => console.log("Server:", data))
+                .catch(error => console.error("Upload failed:", error));
+        }
+
+        function SuccessEntry() {
+            Swal.fire({
+                icon: 'success',
+                title: 'Success',
+                text: 'Profile updated successfully!',
+                confirmButtonText: 'OK'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $('#edit_model2').modal('hide'); // Close the modal
+                    $('body').removeClass('modal-open'); // Remove modal-open class from body
+                    $('.modal-backdrop').remove(); // Remove modal backdrop
+                    // Optionally, refresh UpdatePanel or form to reset state
+                    __doPostBack('<%= upnlCountry.ClientID %>', '');
+                }
+            });
+        }
+
+        //document.addEventListener("DOMContentLoaded", function () {
+        //    const toggleButton = document.getElementById("sidebarTogglee");
+        //    const sidebar = document.querySelector(".sidebar"); // Adjust selector as needed
+
+        //    toggleButton.addEventListener("click", function (e) {
+        //        console.log("toggle clicked")
+        //        e.preventDefault(); // Prevent default form behavior
+        //        sidebar.classList.toggle("toggled");
+        //    });
+        //});
+
+    </script>
+
+    <script>
+        function bindSidebarToggle() {
+            $("#sidebarToggle, #sidebarToggleTop").off('click').on('click', function (e) {
+                console.log("CLICK detected", new Date().getTime());
+                $("body").toggleClass("sidebar-toggled");
+                $(".sidebar").toggleClass("toggled");
+                if ($(".sidebar").hasClass("toggled")) {
+                    $('.sidebar .collapse').collapse('hide');
+                }
+            });
+        }
+        $(document).ready(function () {
+            // Close open collapse menus when clicking outside sidebar
+            $(document).on("click", function (e) {
+                const $target = $(e.target);
+
+                // if click is NOT inside sidebar or its children
+                if (!$target.closest(".sidebar").length) {
+                    $(".sidebar .collapse.show").collapse("hide");
+                    //$("body").removeClass("sidebar-toggled");
+                    //$(".sidebar").removeClass("toggled");
+                    console.log("clicking bodyy")
+                }
+            });
+        });
+
+
+    </script>
+
+
+
+
+    <%--<%-- <!-- Bootstrap core JavaScript-
+        <script src="vendor/jquery/jquery.min.js"></script>
+        <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+
+        <!-- Core plugin JavaScript
+        <script src="vendor/jquery-easing/jquery.easing.min.js"></script>
+
+        <!-- Custom scripts for all pages
+        <script src="js/sb-admin-2.min.js"></script>
+
+
+
+         <%-- <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+         <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script type="text/javascript">
+        function SuccessEntry() {
+            console.log("swal firing")
+            Swal.fire({
+                title: '✅ Success!',
+                text: 'Saved Successfully',
+                icon: 'success',
+                showConfirmButton: true,
+                confirmButtonColor: '#3085d6',
+                confirmButtonText: 'OK',
+                timer: 2000,
+                timerProgressBar: true,
+
+                didOpen: () => {
+                    Swal.showLoading()
+                },
+                willClose: () => {
+                    location.reload();
+
+                }
+            });
+        }
+        var lastFocusedElement = null;
+
+        // Track last focused input before postback
+        document.addEventListener('focusin', function (e) {
+            if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") {
+                lastFocusedElement = e.target.name || e.target.id;
+            }
+        });
+
+        // Refocus and move cursor to end after postback
+        function refocusAfterPostback() {
+            if (!lastFocusedElement) return;
+
+            var input = document.getElementsByName(lastFocusedElement)[0] || document.getElementById(lastFocusedElement);
+            if (input) {
+                input.focus();
+
+                // Move cursor to end of text
+                var length = input.value.length;
+                input.setSelectionRange(length, length);
+            }
+        }
+    </script>
+    <script>
+        let shouldToggleBack = false;
+
+        $('#accordionSidebar').hover(
+            function () {
+                // Hover in
+                if ($(this).hasClass('toggled')) {
+                    console.log('Hovered into sidebar while it is toggled');
+                    $(this).removeClass('toggled');
+                    shouldToggleBack = true;
+                } else {
+                    shouldToggleBack = false;
+                }
+            },
+            function () {
+                // Hover out
+                console.log('Hovered out of sidebar');
+                if (shouldToggleBack) {
+                    $(this).addClass('toggled');
+                    shouldToggleBack = false; // Reset flag to avoid future unintended toggles
+                }
+            }
+        );
+
+
+        function showPasswordFields() {
+            // Hide the "Change Password" link
+            const changePasswordLink = document.getElementById('changePasswordLink');
+            changePasswordLink.style.display = 'none';
+
+            // Show the password fields container
+            const passwordFieldsContainer = document.getElementById('passwordFieldsContainer');
+            passwordFieldsContainer.style.display = 'block';
+        }
+
+        function togglePasswordVisibility() {
+            const passwordField = document.getElementById('passwordField');
+            const toggleIcon = document.querySelector('#togglePasswordContainer i');
+
+            if (passwordField.type === 'password') {
+                passwordField.type = 'text';
+                toggleIcon.classList.remove('fa-eye');
+                toggleIcon.classList.add('fa-eye-slash');
+            } else {
+                passwordField.type = 'password';
+                toggleIcon.classList.remove('fa-eye-slash');
+                toggleIcon.classList.add('fa-eye');
+            }
+        }
+
+        function toggleReEnterPasswordVisibility() {
+            const reEnterPasswordField = document.getElementById('reEnterPasswordField');
+            const toggleIcon = document.querySelector('#toggleReEnterPasswordContainer i');
+
+            if (reEnterPasswordField.type === 'password') {
+                reEnterPasswordField.type = 'text';
+                toggleIcon.classList.remove('fa-eye');
+                toggleIcon.classList.add('fa-eye-slash');
+            } else {
+                reEnterPasswordField.type = 'password';
+                toggleIcon.classList.remove('fa-eye-slash');
+                toggleIcon.classList.add('fa-eye');
+            }
+        }
+
+        function validatePasswords() {
+            const passwordField = document.getElementById('passwordField');
+            const reEnterPasswordField = document.getElementById('reEnterPasswordField');
+            const validationMessage = document.getElementById('passwordValidationMessage');
+
+            if (reEnterPasswordField.value === passwordField.value) {
+                validationMessage.style.display = 'none';
+                reEnterPasswordField.classList.remove('is-invalid');
+                reEnterPasswordField.classList.add('is-valid');
+            } else {
+                validationMessage.style.display = 'block';
+                reEnterPasswordField.classList.remove('is-valid');
+                reEnterPasswordField.classList.add('is-invalid');
+            }
+        }
+    </script>
+    <script>
+        function removeFocusAfterTyping() {
+            clearTimeout(window.typingTimer);
+            const input = document.querySelector('input[type="Search"]');
+            window.typingTimer = setTimeout(function () {
+                if (input) input.blur();
+            }, 500);
+            input.focus();
+        }
+
+
+        document.addEventListener("DOMContentLoaded", function () {
+            const toggleButton = document.getElementById("sidebarTogglee");
+            const sidebar = document.querySelector(".sidebar"); // Adjust selector as needed
+
+            toggleButton.addEventListener("click", function (e) {
+                e.preventDefault(); // Prevent default form behavior
+                sidebar.classList.toggle("toggled");
+            });
+        });
+
+        document.addEventListener("DOMContentLoaded", function () {
+            let collapsibleMenus = document.querySelectorAll(".collapse");
+            let menuItems = document.querySelectorAll(".collapse-item");
+            let dashboardLinks = document.querySelectorAll(".nav-link[href='dashboard.aspx'], .nav-link[href='admin_dashboard.aspx'], .nav-link[href='login1.aspx']"); // Includes Logout
+
+            // Restore last open menu
+            let lastOpenMenu = sessionStorage.getItem("lastOpenMenu");
+            if (lastOpenMenu) {
+                let openMenu = document.getElementById(lastOpenMenu);
+                if (openMenu) {
+                    openMenu.classList.add("show");
+                }
+            }
+
+            // Restore last clicked menu item
+            let lastClickedItem = sessionStorage.getItem("lastClickedItem");
+            if (lastClickedItem) {
+                menuItems.forEach(item => {
+                    item.classList.remove("active"); // Remove active class from all
+                    if (item.getAttribute("href") === lastClickedItem) {
+                        item.classList.add("active"); // Set active class on last clicked item
+                    }
+                });
+            }
+
+            // Handle menu open/close behavior
+            collapsibleMenus.forEach(menu => {
+                let id = menu.id;
+
+                menu.addEventListener("shown.bs.collapse", function () {
+                    sessionStorage.setItem("lastOpenMenu", id);
+
+                    // Close all other menus
+                    collapsibleMenus.forEach(otherMenu => {
+                        if (otherMenu.id !== id) {
+                            otherMenu.classList.remove("show");
+                            sessionStorage.removeItem(otherMenu.id);
+                        }
+                    });
+                });
+
+                menu.addEventListener("hidden.bs.collapse", function () {
+                    if (sessionStorage.getItem("lastOpenMenu") === id) {
+                        sessionStorage.removeItem("lastOpenMenu");
+                    }
+                });
+            });
+
+            // Handle menu item clicks and allow navigation
+            menuItems.forEach(item => {
+                item.addEventListener("click", function (event) {
+                    let clickedHref = this.getAttribute("href");
+
+                    // Save last clicked menu item
+                    sessionStorage.setItem("lastClickedItem", clickedHref);
+
+                    let parentCollapse = this.closest(".collapse");
+                    if (parentCollapse) {
+                        sessionStorage.setItem("lastOpenMenu", parentCollapse.id);
+                    }
+
+                    // Highlight the active menu item
+                    menuItems.forEach(i => i.classList.remove("active"));
+                    this.classList.add("active");
+
+                    // **Allow page navigation**
+                    if (clickedHref !== "#" && clickedHref !== "") {
+                        window.location.href = clickedHref;
+                    }
+                });
+            });
+
+            // **Handle Admin Dashboard & Logout Click: Collapse Master Tab**
+            if (dashboardLinks.length > 0) {
+                dashboardLinks.forEach(link => {
+                    link.addEventListener("click", function () {
+                        sessionStorage.removeItem("lastOpenMenu"); // Clear stored menu
+                    });
+                });
+            }
+        });
+
+
+        function resetForm() {
+
+
+            const form = document.getElementById("myForm");
+
+            // Reset the entire form (works for most input types)
+            form.reset();
+
+            // Additionally, manually clear all input fields to ensure complete reset
+            form.querySelectorAll("input, textarea, select").forEach(input => {
+                switch (input.type) {
+                    case 'text':
+                    case 'email':
+                    case 'password':
+                    case 'number':
+                    case 'date':
+                    case 'search':
+                    case 'tel':
+                    case 'url':
+                    case 'textarea':
+                        input.value = '';
+                        break;
+                    case 'checkbox':
+
+                    case 'radio':
+                        input.checked = false;
+                        break;
+                    case 'select-one':
+                    case 'select-multiple':
+                        input.selectedIndex = 0;
+                        break;
+                }
+            });
+        }
+
+
+        (function () {
+            'use strict';
+
+            const forms = document.querySelectorAll('.needs-validation');
+
+            Array.prototype.slice.call(forms).forEach(function (form) {
+                let submittedOnce = false;
+
+                function validateField(input) {
+                    const tag = input.tagName.toLowerCase();
+                    const type = input.type.toLowerCase();
+                    const value = input.value.trim();
+                    const validTypes = ['text', 'email', 'password', 'search', 'tel', 'url'];
+
+                    // Common whitespace check
+                    if ((validTypes.includes(type) || tag === 'textarea') && input.required) {
+                        if (value === '') {
+                            input.setCustomValidity('Whitespace is not allowed');
+                            showInvalid(input);
+                            return;
+                        } else {
+                            input.setCustomValidity('');
+                        }
+                    }
+
+                    // Additional type-based validations
+                    if (type === 'email' && value !== '') {
+                        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                        if (!emailRegex.test(value)) {
+                            input.setCustomValidity('Please enter a valid email address');
+                            showInvalid(input);
+                            return;
+                        } else {
+                            input.setCustomValidity('');
+                        }
+                    }
+
+                    if (type === 'url' && value !== '') {
+                        try {
+                            new URL(value); // throws if invalid
+                            input.setCustomValidity('');
+                        } catch {
+                            input.setCustomValidity('Please enter a valid URL');
+                            showInvalid(input);
+                            return;
+                        }
+                    }
+
+                    if (type === 'tel' && value !== '') {
+                        const phoneRegex = /^\d{10}$/; // Only digits, exactly 10
+                        if (!phoneRegex.test(value)) {
+                            input.setCustomValidity('Phone number must be exactly 10 digits');
+                            showInvalid(input);
+                            return;
+                        } else {
+                            input.setCustomValidity('');
+                        }
+                    }
+
+                    // Dropdown (select) validation
+                    //if (tag === 'select' && input.required) {
+                    //    if (input.value === '0') {
+                    //        input.setCustomValidity('Please select a valid option');
+                    //        showInvalid(input);
+                    //        return;
+                    //    } else {
+                    //        input.setCustomValidity('');
+                    //    }
+                    //}
+
+                    // Final validation state
+                    if (!input.checkValidity()) {
+                        showInvalid(input);
+                    } else {
+                        showValid(input);
+                    }
+                }
+
+                function showInvalid(input) {
+                    input.classList.remove('is-valid');
+                    input.classList.add('is-invalid');
+                }
+
+                function showValid(input) {
+                    input.classList.remove('is-invalid');
+                    input.classList.add('is-valid');
+                }
+
+                form.addEventListener('submit', function (event) {
+                    submittedOnce = true;
+                    let hasCustomError = false;
+
+                    form.querySelectorAll('input, textarea').forEach(function (input) {
+                        validateField(input);
+                        if (!input.checkValidity()) {
+                            hasCustomError = true;
+                        }
+                    });
+
+                    if (hasCustomError) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
+
+                    form.classList.add('was-validated');
+                }, false);
+
+                // Live validation 
+                form.querySelectorAll('input, textarea').forEach(function (input) {
+                    input.addEventListener('input', function () {
+                        if (submittedOnce) {
+                            validateField(input);
+                        }
+                    });
+                });
+            });
+        })();
+
+    </script>--%>
+</body>
+</html>

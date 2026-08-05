@@ -1,0 +1,108 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<xs:schema id="village_receipt" targetNamespace="http://tempuri.org/village_receipt.xsd" xmlns:mstns="http://tempuri.org/village_receipt.xsd" xmlns="http://tempuri.org/village_receipt.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata" xmlns:msprop="urn:schemas-microsoft-com:xml-msprop" attributeFormDefault="qualified" elementFormDefault="qualified">
+  <xs:annotation>
+    <xs:appinfo source="urn:schemas-microsoft-com:xml-msdatasource">
+      <DataSource DefaultConnectionIndex="0" FunctionsComponentName="QueriesTableAdapter" Modifier="AutoLayout, AnsiClass, Class, Public" SchemaSerializationMode="IncludeSchema" xmlns="urn:schemas-microsoft-com:xml-msdatasource">
+        <Connections>
+          <Connection AppSettingsObjectName="Web.config" AppSettingsPropertyName="DBCS1" ConnectionStringObject="" IsAppSettingsProperty="true" Modifier="Assembly" Name="DBCS1 (Web.config)" ParameterPrefix="@" PropertyReference="AppConfig.System.Configuration.ConfigurationManager.0.ConnectionStrings.DBCS1.ConnectionString" Provider="System.Data.SqlClient" />
+        </Connections>
+        <Tables>
+          <TableAdapter BaseClass="System.ComponentModel.Component" DataAccessorModifier="AutoLayout, AnsiClass, Class, Public" DataAccessorName="village_receiptTableAdapter" GeneratorDataComponentClassName="village_receiptTableAdapter" Name="village_receipt" UserDataComponentName="village_receiptTableAdapter">
+            <MainSource>
+              <DbSource ConnectionRef="DBCS1 (Web.config)" DbObjectName="society.dbo.village_receipt" DbObjectType="View" FillMethodModifier="Public" FillMethodName="Fill" GenerateMethods="Both" GenerateShortCommands="false" GeneratorGetMethodName="GetData" GeneratorSourceName="Fill" GetMethodModifier="Public" GetMethodName="GetData" QueryType="Rowset" ScalarCallRetval="System.Object, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" UseOptimisticConcurrency="false" UserGetMethodName="GetData" UserSourceName="Fill">
+                <SelectCommand>
+                  <DbCommand CommandType="Text" ModifiedByUser="false">
+                    <CommandText>SELECT house_no, name, pay_mode, village_id, village_name, address, receipt_no, active_status, house_receipt_id, paid_amount, chq_amt, chqno FROM dbo.village_receipt</CommandText>
+                    <Parameters />
+                  </DbCommand>
+                </SelectCommand>
+              </DbSource>
+            </MainSource>
+            <Mappings>
+              <Mapping SourceColumn="house_no" DataSetColumn="house_no" />
+              <Mapping SourceColumn="name" DataSetColumn="name" />
+              <Mapping SourceColumn="pay_mode" DataSetColumn="pay_mode" />
+              <Mapping SourceColumn="village_id" DataSetColumn="village_id" />
+              <Mapping SourceColumn="village_name" DataSetColumn="village_name" />
+              <Mapping SourceColumn="address" DataSetColumn="address" />
+              <Mapping SourceColumn="receipt_no" DataSetColumn="receipt_no" />
+              <Mapping SourceColumn="active_status" DataSetColumn="active_status" />
+              <Mapping SourceColumn="house_receipt_id" DataSetColumn="house_receipt_id" />
+              <Mapping SourceColumn="paid_amount" DataSetColumn="paid_amount" />
+              <Mapping SourceColumn="chq_amt" DataSetColumn="chq_amt" />
+              <Mapping SourceColumn="chqno" DataSetColumn="chqno" />
+            </Mappings>
+            <Sources />
+          </TableAdapter>
+        </Tables>
+        <Sources />
+      </DataSource>
+    </xs:appinfo>
+  </xs:annotation>
+  <xs:element name="village_receipt" msdata:IsDataSet="true" msdata:UseCurrentLocale="true" msprop:EnableTableAdapterManager="True" msprop:Generator_DataSetName="village_receipt" msprop:Generator_UserDSName="village_receipt">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element name="village_receipt" msprop:Generator_TableClassName="village_receiptDataTable" msprop:Generator_TableVarName="tablevillage_receipt" msprop:Generator_TablePropName="_village_receipt" msprop:Generator_RowDeletingName="village_receiptRowDeleting" msprop:Generator_RowChangingName="village_receiptRowChanging" msprop:Generator_RowEvHandlerName="village_receiptRowChangeEventHandler" msprop:Generator_RowDeletedName="village_receiptRowDeleted" msprop:Generator_UserTableName="village_receipt" msprop:Generator_RowChangedName="village_receiptRowChanged" msprop:Generator_RowEvArgName="village_receiptRowChangeEvent" msprop:Generator_RowClassName="village_receiptRow">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="house_no" msprop:Generator_ColumnVarNameInTable="columnhouse_no" msprop:Generator_ColumnPropNameInRow="house_no" msprop:Generator_ColumnPropNameInTable="house_noColumn" msprop:Generator_UserColumnName="house_no" type="xs:int" minOccurs="0" />
+              <xs:element name="name" msprop:Generator_ColumnVarNameInTable="columnname" msprop:Generator_ColumnPropNameInRow="name" msprop:Generator_ColumnPropNameInTable="nameColumn" msprop:Generator_UserColumnName="name" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="pay_mode" msprop:Generator_ColumnVarNameInTable="columnpay_mode" msprop:Generator_ColumnPropNameInRow="pay_mode" msprop:Generator_ColumnPropNameInTable="pay_modeColumn" msprop:Generator_UserColumnName="pay_mode" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="village_id" msprop:Generator_ColumnVarNameInTable="columnvillage_id" msprop:Generator_ColumnPropNameInRow="village_id" msprop:Generator_ColumnPropNameInTable="village_idColumn" msprop:Generator_UserColumnName="village_id" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="village_name" msprop:Generator_ColumnVarNameInTable="columnvillage_name" msprop:Generator_ColumnPropNameInRow="village_name" msprop:Generator_ColumnPropNameInTable="village_nameColumn" msprop:Generator_UserColumnName="village_name" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="address" msprop:Generator_ColumnVarNameInTable="columnaddress" msprop:Generator_ColumnPropNameInRow="address" msprop:Generator_ColumnPropNameInTable="addressColumn" msprop:Generator_UserColumnName="address" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="receipt_no" msprop:Generator_ColumnVarNameInTable="columnreceipt_no" msprop:Generator_ColumnPropNameInRow="receipt_no" msprop:Generator_ColumnPropNameInTable="receipt_noColumn" msprop:Generator_UserColumnName="receipt_no" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="active_status" msprop:Generator_ColumnVarNameInTable="columnactive_status" msprop:Generator_ColumnPropNameInRow="active_status" msprop:Generator_ColumnPropNameInTable="active_statusColumn" msprop:Generator_UserColumnName="active_status" type="xs:int" minOccurs="0" />
+              <xs:element name="house_receipt_id" msprop:Generator_ColumnVarNameInTable="columnhouse_receipt_id" msprop:Generator_ColumnPropNameInRow="house_receipt_id" msprop:Generator_ColumnPropNameInTable="house_receipt_idColumn" msprop:Generator_UserColumnName="house_receipt_id" type="xs:int" minOccurs="0" />
+              <xs:element name="paid_amount" msdata:ReadOnly="true" msprop:Generator_ColumnVarNameInTable="columnpaid_amount" msprop:Generator_ColumnPropNameInRow="paid_amount" msprop:Generator_ColumnPropNameInTable="paid_amountColumn" msprop:Generator_UserColumnName="paid_amount" type="xs:decimal" minOccurs="0" />
+              <xs:element name="chq_amt" msdata:ReadOnly="true" msprop:Generator_ColumnVarNameInTable="columnchq_amt" msprop:Generator_ColumnPropNameInRow="chq_amt" msprop:Generator_ColumnPropNameInTable="chq_amtColumn" msprop:Generator_UserColumnName="chq_amt" type="xs:int" minOccurs="0" />
+              <xs:element name="chqno" msprop:Generator_ColumnVarNameInTable="columnchqno" msprop:Generator_ColumnPropNameInRow="chqno" msprop:Generator_ColumnPropNameInTable="chqnoColumn" msprop:Generator_UserColumnName="chqno" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

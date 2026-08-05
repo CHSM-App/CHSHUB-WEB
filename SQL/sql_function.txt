@@ -1,0 +1,168 @@
+Function:
+   1)  *-- table-valued function --*
+1)USE [society]
+GO
+
+/****** Object:  UserDefinedFunction [dbo].[SplitString]    Script Date: 03-08-2026 17:18:15 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+CREATE FUNCTION [dbo].[SplitString]
+(
+    @Input NVARCHAR(MAX),
+    @Delimiter CHAR(1)
+)
+RETURNS @Output TABLE (Value NVARCHAR(MAX))
+AS
+BEGIN
+    DECLARE @Start INT, @End INT;
+    SET @Start = 1;
+    IF SUBSTRING(@Input, LEN(@Input), 1) <> @Delimiter
+        SET @Input = @Input + @Delimiter;
+
+    SET @End = CHARINDEX(@Delimiter, @Input, @Start);
+    WHILE @End > 0
+    BEGIN
+        INSERT INTO @Output (Value)
+        VALUES (LTRIM(RTRIM(SUBSTRING(@Input, @Start, @End - @Start))));
+        SET @Start = @End + 1;
+        SET @End = CHARINDEX(@Delimiter, @Input, @Start);
+    END
+    RETURN;
+END
+GO
+
+
+2)*-----Sacalar-valued function-----*
+
+ 1)USE [society]
+GO
+
+/****** Object:  UserDefinedFunction [dbo].[GetRelativeTime]    Script Date: 03-08-2026 17:21:39 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE FUNCTION [dbo].[GetRelativeTime] (@InputDateTime DATETIME)
+RETURNS NVARCHAR(MAX)
+AS
+BEGIN
+    DECLARE @Now DATETIME = GETDATE();
+	Declare @date nvarchar(max)=null
+    DECLARE @DifferenceInSeconds INT = DATEDIFF(SECOND, @InputDateTime, @Now);
+    DECLARE @DifferenceInMinutes INT = DATEDIFF(MINUTE, @InputDateTime, @Now);
+    DECLARE @DifferenceInHours INT = DATEDIFF(HOUR, @InputDateTime, @Now);
+    DECLARE @DifferenceInDays INT = DATEDIFF(DAY, @InputDateTime, @Now);
+
+    IF @DifferenceInSeconds < 60
+        set @date= CAST(@DifferenceInSeconds AS NVARCHAR) + ' seconds ago';
+    ELSE IF @DifferenceInMinutes < 60
+        set @date= CAST(@DifferenceInMinutes AS NVARCHAR) + ' minutes ago';
+    ELSE IF @DifferenceInHours < 24
+         set @date= CAST(@DifferenceInHours AS NVARCHAR) + ' hours ago';
+	ELSE IF @DifferenceInDays < 2
+        set @date= 'YesterDay';
+    ELSE IF @DifferenceInDays < 7
+        set @date= CAST(@DifferenceInDays AS NVARCHAR) + ' days ago';
+	
+    ELSE
+        set @date= FORMAT(@InputDateTime, 'MMMM dd, yyyy');
+		Return @date
+END;
+GO
+
+
+2)USE [society]
+GO
+
+/****** Object:  UserDefinedFunction [dbo].[InitCap]    Script Date: 03-08-2026 17:21:56 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+CREATE FUNCTION [dbo].[InitCap] ( @InputString varchar(4000) ) 
+RETURNS VARCHAR(4000)
+AS
+BEGIN
+
+DECLARE @Index          INT
+DECLARE @Char           CHAR(1)
+DECLARE @PrevChar       CHAR(1)
+DECLARE @OutputString   VARCHAR(255)
+
+SET @OutputString = LOWER(@InputString)
+SET @Index = 1
+
+WHILE @Index <= LEN(@InputString)
+BEGIN
+    SET @Char     = SUBSTRING(@InputString, @Index, 1)
+    SET @PrevChar = CASE WHEN @Index = 1 THEN ' '
+                         ELSE SUBSTRING(@InputString, @Index - 1, 1)
+                    END
+
+    IF @PrevChar IN (' ', ';', ':', '!', '?', ',', '.', '_', '-', '/', '&', '''', '(')
+    BEGIN
+        IF @PrevChar != '''' OR UPPER(@Char) != 'S'
+            SET @OutputString = STUFF(@OutputString, @Index, 1, UPPER(@Char))
+    END
+
+    SET @Index = @Index + 1
+END
+
+RETURN @OutputString
+
+END
+GO
+
+
+3)USE [society]
+GO
+
+/****** Object:  UserDefinedFunction [dbo].[set_fa_year]    Script Date: 03-08-2026 17:22:15 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
+CREATE FUNCTION [dbo].[set_fa_year] 
+(
+	-- Add the parameters for the function here
+	@set_date varchar(1)='E', -- 'S-Satrt Date E- End Date A-Start of Application
+	@selected_date smalldatetime
+)
+RETURNS smalldatetime
+AS
+BEGIN
+	DECLARE @retdate smalldatetime
+	
+	if month(@selected_date) >=4 and month(@selected_date)<=12
+		begin
+		if @set_date ='S' select @retdate= convert(smalldatetime,'01/04/' + convert(varchar(4),year(@selected_date)),103)
+		if @set_date ='E' select @retdate= convert(smalldatetime,'31/03/' + convert(varchar(4),year(@selected_date)+1),103)		
+		end
+		
+	if month(@selected_date) >=1 and month(@selected_date)<=3
+		begin
+		if @set_date ='S' select @retdate= convert(smalldatetime,'01/04/' + convert(varchar(4),year(@selected_date)-1),103)
+		if @set_date ='E' select @retdate= convert(smalldatetime,'31/03/' + convert(varchar(4),year(@selected_date)),103)
+		end
+	RETURN @retdate
+
+END
+GO
+
+
+

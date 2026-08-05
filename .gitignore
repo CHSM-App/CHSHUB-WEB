@@ -1,0 +1,38 @@
+# Secrets — never commit
+.env
+*.env
+!.env.example
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Archives / bundles — never commit (GitHub rejects files over 100 MB)
+*.zip
+*.7z
+*.rar
+*.tar
+*.tar.gz
+*.tgz
+
+# Runtime-uploaded resident data (photos, documents, ID proofs)
+backend/uploads/
+backend/routes/ProfileImages/
+backend/routes/Documents/
+backend/routes/VisitorImage/
+backend/routes/FamilyMembers/
+backend/routes/HelpdeskImages/
+backend/routes/ProductImages/
+
+# Logs
+*.log
+logs/
+
+# OS / editor cruft
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store

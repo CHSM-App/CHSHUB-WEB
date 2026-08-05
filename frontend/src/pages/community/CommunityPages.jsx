@@ -1,0 +1,1410 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import * as M from '@/api/modules';
+import { api } from '@/api/client';
+import DataGrid from '@/components/DataGrid.jsx';
+import { ConfirmDialog, EmptyState, ErrorNotice, Modal, Spinner } from '@/components/ui.jsx';
+import {
+  CheckboxField,
+  FileUploadField,
+  PageHeader,
+  SelectField,
+  StatCard,
+  Tabs,
+  TextAreaField,
+  TextField,
+} from '@/components/FormControls.jsx';
+
+const money = (v) =>
+  v == null || v === '' ? '—' : Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const day = (v) => (v ? new Date(v).toLocaleDateString() : '—');
+
+/* ------------------------------------------------------ facility booking */
+
+/** Fields follow facility_booking.aspx's form, in its order. */
+const EMPTY_BOOKING = {
+  facilityId: '',
+  bookDate: '',
+  ownerId: '',
+  flatNo: '',
+  flatId: '',
+  name: '',
+  address: '',
+  contact: '',
+  fromDate: '',
+  toDate: '',
+  fromTime: '',
+  toTime: '',
+  amount: '',
+  note: '',
+  societyIn: false,
+};
+
+/**
+ * Facility bookings — replaces facility_booking.aspx.
+ *
+ * The committee can book on a resident's behalf, as the legacy page allowed;
+ * residents also book from the mobile app. Availability is shown per facility.
+ */
+export function FacilityBookingsPage() {
+  const [rows, setRows] = useState([]);
+  const [facilities, setFacilities] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [search, setSearch] = useState('');
+  const [confirming, setConfirming] = useState(null);
+  const [form, setForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState(null);
+  const [lookups, setLookups] = useState({ facilities: [], residents: [] });
+  // Per-day cost of the chosen facility; the total is derived from it.
+  const [facilityCost, setFacilityCost] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await M.community.facilityBookings(search ? { search } : undefined);
+      setRows(data.items ?? []);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [search]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // Lookups do not depend on the search term, so they load once rather than on
+  // every keystroke.
+  useEffect(() => {
+    M.facilities
+      .list()
+      .then((d) => setFacilities(d.items ?? []))
+      .catch(() => {});
+    M.community
+      .facilityBookingLookups()
+      .then(setLookups)
+      .catch(() => {});
+  }, []);
+
+  /** Picking a resident fills their contact and address, as the legacy page did. */
+  const pickResident = (e) => {
+    const ownerId = e.target.value;
+    const r = lookups.residents.find((x) => String(x.owner_id) === String(ownerId));
+    setForm((p) => ({
+      ...p,
+      ownerId,
+      ...(r
+        ? {
+            flatId: r.flat_id ?? '',
+            // fill_owner carries no flat_no, so the id doubles as the label.
+            flatNo: String(r.flat_id ?? ''),
+            name: r.name ?? '',
+            contact: r.contact ?? '',
+            address: r.address ?? '',
+          }
+        : {}),
+    }));
+  };
+
+  /** Choosing a facility pulls its per-day charge, as the legacy page did. */
+  const pickFacility = async (e) => {
+    const facilityId = e.target.value;
+    setForm((p) => ({ ...p, facilityId }));
+    if (!facilityId) {
+      setFacilityCost(null);
+      return;
+    }
+    try {
+      const d = await M.community.facilityCharge(facilityId);
+      setFacilityCost(d.charge ? Number(d.charge.cost) : null);
+    } catch {
+      setFacilityCost(null);
+    }
+  };
+
+  /*
+   * Charges, exactly as facility_booking.aspx computes them
+   * (facility_booking.aspx.cs:505-535):
+   *
+   *   cost 0                -> "Free"
+   *   otherwise             -> cost x days + 18% GST, days inclusive of both
+   *                            ends, and "Invalid date range" if To precedes From.
+   *
+   * The legacy box was a read-only multi-line field showing the working, with
+   * the figure after "=" being what got saved. Same here: the breakdown is
+   * shown and the total is what the form submits.
+   */
+  const charge = useMemo(() => {
+    if (facilityCost == null) return null;
+    if (facilityCost === 0) return { free: true, total: 0, text: 'Free' };
+
+    // Before any date is chosen, price it as a single day so the charge shows
+    // as soon as the facility is picked, rather than staying blank.
+    const from = form?.fromDate ? new Date(form.fromDate) : null;
+    const to = form?.toDate ? new Date(form.toDate) : from;
+    const days = from ? Math.floor((to - from) / 86400000) + 1 : 1;
+    if (days < 1) return { invalid: true, text: 'Invalid date range' };
+
+    const base = facilityCost * days;
+    const gst = (base * 18) / 100;
+    return {
+      total: base + gst,
+      text: `${base} + 18% GST (${gst}) = ${base + gst}`,
+      days,
+    };
+  }, [facilityCost, form?.fromDate, form?.toDate]);
+
+  const saveBooking = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setFormError(null);
+    try {
+      // Save the computed total, not the breakdown text.
+      await M.community.createFacilityBooking({ ...form, amount: charge?.total ?? 0 });
+      setForm(null);
+      await load();
+    } catch (err) {
+      setFormError(err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const revenue = rows.reduce((s, r) => s + Number(r.amount || 0), 0);
+
+  return (
+    <section>
+      <PageHeader title="Facility bookings" subtitle={`${rows.length} booking(s)`}>
+        <input
+          className="field-input w-56"
+          placeholder="Search bookings…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          aria-label="Search bookings"
+        />
+        <button type="button" className="btn-primary" onClick={() => setForm({ ...EMPTY_BOOKING })}>
+          Add
+        </button>
+      </PageHeader>
+
+      <div className="mb-4 grid gap-3 sm:grid-cols-3">
+        <StatCard label="Bookings" value={rows.length} />
+        <StatCard label="Revenue" value={money(revenue)} tone="positive" />
+        <StatCard label="Facilities" value={facilities.length} />
+      </div>
+
+      <ErrorNotice error={error} onRetry={load} />
+
+      <div className="card overflow-hidden">
+        <DataGrid
+          columns={[
+            // Columns as facility_booking.aspx's grid has them:
+            // Name · Building · Unit · Phone · Facility · Date · Time · Charges.
+            { key: 'name', label: 'Name' },
+            { key: 'build_name', label: 'Building' },
+            { key: 'Unit', label: 'Unit' },
+            { key: 'pre_mob', label: 'Phone' },
+            { key: 'facility_name', label: 'Facility' },
+            { key: 'to_date', label: 'Date', render: day },
+            {
+              key: 'from_time',
+              label: 'Time',
+              render: (v, r) => (v ? `${v} – ${r.to_time ?? ''}` : '—'),
+            },
+            { key: 'amount', label: 'Charges', align: 'right', render: money },
+          ]}
+          rows={rows}
+          idKey="facility_book_id"
+          loading={loading}
+          exportName="facility-bookings"
+          emptyTitle="No bookings"
+          actions={(row) => (
+            <button
+              type="button"
+              className="btn-danger"
+              onClick={() =>
+                setConfirming({
+                  title: 'Cancel booking',
+                  message: `Cancel the ${row.facility_name} booking for ${row.name}?`,
+                  run: () => M.community.cancelBooking(row.facility_book_id),
+                })
+              }
+            >
+              Cancel
+            </button>
+          )}
+        />
+      </div>
+
+      <ConfirmDialog
+        open={Boolean(confirming)}
+        title={confirming?.title}
+        message={confirming?.message}
+        confirmLabel="Cancel booking"
+        busy={busy}
+        onCancel={() => setConfirming(null)}
+        onConfirm={async () => {
+          setBusy(true);
+          try {
+            await confirming.run();
+            await load();
+          } catch (err) {
+            setError(err);
+          } finally {
+            setBusy(false);
+            setConfirming(null);
+          }
+        }}
+      />
+
+      {/* Add — facility_booking.aspx's booking form. */}
+      <Modal
+        open={Boolean(form)}
+        title="Book a facility"
+        onClose={() => setForm(null)}
+        footer={
+          <>
+            <button type="button" className="btn-secondary" onClick={() => setForm(null)}>
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="booking-form"
+              className="btn-primary"
+              disabled={
+                saving ||
+                !form?.facilityId ||
+                !form?.name?.trim() ||
+                !form?.fromDate ||
+                // Legacy showed "Invalid date range" and refused to price it.
+                Boolean(charge?.invalid)
+              }
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+          </>
+        }
+      >
+        {form ? (
+          <form id="booking-form" onSubmit={saveBooking} className="grid gap-4 sm:grid-cols-2" noValidate>
+            {/*
+              Field order and labels follow facility_booking.aspx:
+              Facilities · Date · Name · Flat no · Name · Address · Contact No ·
+              From Date · To Date · From Time · To Time · Charges ·
+              Note to Admin · In Society.
+            */}
+            <SelectField
+              label="Facilities"
+              name="facilityId"
+              required
+              placeholder="Select"
+              options={lookups.facilities}
+              valueKey="facility_id"
+              labelKey="name"
+              value={form.facilityId}
+              onChange={pickFacility}
+            />
+            <TextField
+              label="Date"
+              name="bookDate"
+              type="date"
+              required
+              value={form.bookDate}
+              onChange={(e) => setForm((p) => ({ ...p, bookDate: e.target.value }))}
+            />
+
+            {/* The legacy "Name" picker over residents; the plain Name box
+                below it is the booking name, which it pre-fills. */}
+            <SelectField
+              label="Resident"
+              name="ownerId"
+              placeholder="Select"
+              hint="Fills in flat, name, address and contact"
+              options={lookups.residents}
+              valueKey="owner_id"
+              labelKey="name"
+              value={form.ownerId}
+              onChange={pickResident}
+            />
+            {/*
+              Read-only, as on the legacy page: txt_flat is filled from the
+              chosen resident and the save uses the hidden flat_id behind it
+              (facility_booking.aspx.cs:156, 243), never the typed text.
+            */}
+            <TextField
+              label="Flat no"
+              name="flatNo"
+              readOnly
+              placeholder="Select a resident"
+              value={form.flatNo}
+              onChange={() => {}}
+            />
+
+            <TextField
+              label="Name"
+              name="name"
+              required
+              placeholder="Enter Name"
+              value={form.name}
+              onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+            />
+            <TextField
+              label="Contact No"
+              name="contact"
+              required
+              placeholder="Enter Mobile no"
+              value={form.contact}
+              onChange={(e) => setForm((p) => ({ ...p, contact: e.target.value }))}
+            />
+            <TextField
+              label="Address"
+              name="address"
+              required
+              className="sm:col-span-2"
+              placeholder="Enter Address"
+              value={form.address}
+              onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))}
+            />
+
+            <TextField
+              label="From Date"
+              name="fromDate"
+              type="date"
+              required
+              value={form.fromDate}
+              onChange={(e) => setForm((p) => ({ ...p, fromDate: e.target.value }))}
+            />
+            <TextField
+              label="To Date"
+              name="toDate"
+              type="date"
+              value={form.toDate}
+              onChange={(e) => setForm((p) => ({ ...p, toDate: e.target.value }))}
+            />
+            <TextField
+              label="From Time"
+              name="fromTime"
+              type="time"
+              required
+              value={form.fromTime}
+              onChange={(e) => setForm((p) => ({ ...p, fromTime: e.target.value }))}
+            />
+            <TextField
+              label="To Time"
+              name="toTime"
+              type="time"
+              required
+              value={form.toTime}
+              onChange={(e) => setForm((p) => ({ ...p, toTime: e.target.value }))}
+            />
+
+            {/* Read-only and computed, as on the legacy page: it shows the
+                working and the total after "=" is what is saved. */}
+            <TextField
+              label="Charges"
+              name="amount"
+              readOnly
+              hint={
+                charge?.days > 1
+                  ? `${charge.days} days at ${money(facilityCost)} per day, plus 18% GST`
+                  : 'One day at the facility charge, plus 18% GST'
+              }
+              placeholder="Select a facility"
+              value={charge?.text ?? ''}
+              onChange={() => {}}
+            />
+            <TextField
+              label="Note to Admin"
+              name="note"
+              placeholder="Enter Note"
+              value={form.note}
+              onChange={(e) => setForm((p) => ({ ...p, note: e.target.value }))}
+            />
+
+            <CheckboxField
+              label="In Society"
+              name="societyIn"
+              className="sm:col-span-2"
+              checked={form.societyIn}
+              onChange={(e) => setForm((p) => ({ ...p, societyIn: e.target.checked }))}
+            />
+
+            <div className="sm:col-span-2">
+              <ErrorNotice error={formError} />
+            </div>
+          </form>
+        ) : null}
+      </Modal>
+    </section>
+  );
+}
+
+/* ---------------------------------------------------------------- polls */
+
+/** Audience groups offered by Vote.aspx's ddlAudience. */
+const POLL_AUDIENCES = [
+  { value: '1', label: 'All members' },
+  { value: '2', label: 'Associate committee' },
+  { value: '3', label: 'Managing committee' },
+];
+
+// Vote.aspx required at least two options, so the form starts with two blanks.
+const EMPTY_POLL = {
+  topic: '',
+  description: '',
+  expiryDate: '',
+  audience: '1',
+  allowMultipleVotes: false,
+  oneVotePerUnit: false,
+  options: ['', ''],
+};
+
+/** Polls with per-option vote counts. Replaces Vote.aspx. */
+export function PollsPage() {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const [form, setForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState(null);
+  const [confirming, setConfirming] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await M.community.polls();
+      setRows(data.items ?? []);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const openPoll = async (row) => {
+    setDetail({ loading: true, poll: row });
+    try {
+      const data = await M.community.pollVotes(row.PollId);
+      setDetail({ loading: false, poll: row, options: data.items ?? [] });
+    } catch (err) {
+      setError(err);
+      setDetail(null);
+    }
+  };
+
+  const totalVotes = detail?.options?.reduce((s, o) => s + Number(o.votes || 0), 0) ?? 0;
+
+  const setOption = (i, value) =>
+    setForm((p) => ({ ...p, options: p.options.map((o, idx) => (idx === i ? value : o)) }));
+
+  const savePoll = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setFormError(null);
+    try {
+      await M.community.createPoll({
+        ...form,
+        options: form.options.map((o) => o.trim()).filter(Boolean),
+      });
+      setForm(null);
+      await load();
+    } catch (err) {
+      setFormError(err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section>
+      <PageHeader title="Polls" subtitle={`${rows.length} active poll(s)`}>
+        <button type="button" className="btn-primary" onClick={() => setForm({ ...EMPTY_POLL })}>
+          Start Poll
+        </button>
+      </PageHeader>
+
+      <ErrorNotice error={error} onRetry={load} />
+
+      <div className="card overflow-hidden">
+        <DataGrid
+          columns={[
+            { key: 'Topic', label: 'Topic' },
+            { key: 'Description', label: 'Description' },
+            { key: 'ExpiryDate', label: 'Expires', render: day },
+            { key: 'total_votes', label: 'Votes', align: 'right' },
+          ]}
+          rows={rows}
+          idKey="PollId"
+          loading={loading}
+          exportName="polls"
+          emptyTitle="No active polls"
+          actions={(row) => (
+            <>
+              <button type="button" className="btn-secondary mr-2" onClick={() => openPoll(row)}>
+                Results
+              </button>
+              <button
+                type="button"
+                className="btn-danger"
+                onClick={() =>
+                  setConfirming({
+                    title: 'Delete poll',
+                    message: `Delete "${row.Topic}"? Votes cast on it are removed too.`,
+                    run: () => M.community.removePoll(row.PollId),
+                  })
+                }
+              >
+                Delete
+              </button>
+            </>
+          )}
+        />
+      </div>
+
+      <Modal
+        open={Boolean(detail)}
+        title={detail?.poll?.Topic ?? 'Poll'}
+        onClose={() => setDetail(null)}
+        footer={
+          <button type="button" className="btn-secondary" onClick={() => setDetail(null)}>
+            Close
+          </button>
+        }
+      >
+        {detail?.loading ? (
+          <Spinner />
+        ) : detail?.options?.length ? (
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600">{detail.poll?.Description}</p>
+            <p className="text-sm font-medium text-slate-800">{totalVotes} vote(s) cast</p>
+            <ul className="space-y-2">
+              {detail.options.map((o) => {
+                const pct = totalVotes ? Math.round((Number(o.votes || 0) / totalVotes) * 100) : 0;
+                return (
+                  <li key={o.OptionId}>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-700">{o.text}</span>
+                      <span className="font-medium text-slate-800">
+                        {o.votes} ({pct}%)
+                      </span>
+                    </div>
+                    <div className="mt-1 h-2 rounded-full bg-slate-100">
+                      <div className="h-2 rounded-full bg-blue-600" style={{ width: `${pct}%` }} />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : (
+          <EmptyState title="No votes recorded yet" />
+        )}
+      </Modal>
+
+      {/* Start Poll — Vote.aspx's create form. */}
+      <Modal
+        open={Boolean(form)}
+        title="Start a poll"
+        onClose={() => setForm(null)}
+        footer={
+          <>
+            <button type="button" className="btn-secondary" onClick={() => setForm(null)}>
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="poll-form"
+              className="btn-primary"
+              disabled={
+                saving ||
+                !form?.topic.trim() ||
+                !form?.expiryDate ||
+                form?.options.filter((o) => o.trim()).length < 2
+              }
+            >
+              {saving ? 'Starting…' : 'Start Poll'}
+            </button>
+          </>
+        }
+      >
+        {form ? (
+          <form id="poll-form" onSubmit={savePoll} className="space-y-4">
+            <TextField
+              label="Topic"
+              name="topic"
+              required
+              value={form.topic}
+              onChange={(e) => setForm((p) => ({ ...p, topic: e.target.value }))}
+            />
+            <TextAreaField
+              label="Description"
+              name="description"
+              rows={3}
+              value={form.description}
+              onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+            />
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <TextField
+                label="Expiry date"
+                name="expiryDate"
+                type="date"
+                required
+                min={new Date().toISOString().slice(0, 10)}
+                value={form.expiryDate}
+                onChange={(e) => setForm((p) => ({ ...p, expiryDate: e.target.value }))}
+              />
+              <SelectField
+                label="Audience"
+                name="audience"
+                placeholder=""
+                options={POLL_AUDIENCES}
+                value={form.audience}
+                onChange={(e) => setForm((p) => ({ ...p, audience: e.target.value }))}
+              />
+            </div>
+
+            <div>
+              <p className="field-label">Options</p>
+              <p className="mb-2 text-xs" style={{ color: '#6b7280' }}>
+                At least two. Commas are not allowed — options are stored as one
+                comma-separated value.
+              </p>
+              <div className="space-y-2">
+                {form.options.map((o, i) => (
+                  <div key={i} className="flex gap-2">
+                    <input
+                      className="field-input"
+                      aria-label={`Option ${i + 1}`}
+                      placeholder={`Option ${i + 1}`}
+                      value={o}
+                      onChange={(e) => setOption(i, e.target.value)}
+                    />
+                    {form.options.length > 2 ? (
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        aria-label={`Remove option ${i + 1}`}
+                        onClick={() =>
+                          setForm((p) => ({ ...p, options: p.options.filter((_, idx) => idx !== i) }))
+                        }
+                      >
+                        ✕
+                      </button>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="btn-secondary mt-2 text-xs"
+                onClick={() => setForm((p) => ({ ...p, options: [...p.options, ''] }))}
+              >
+                Add option
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <CheckboxField
+                label="Allow multiple votes"
+                name="allowMultipleVotes"
+                checked={form.allowMultipleVotes}
+                onChange={(e) => setForm((p) => ({ ...p, allowMultipleVotes: e.target.checked }))}
+              />
+              <CheckboxField
+                label="One vote per unit"
+                name="oneVotePerUnit"
+                checked={form.oneVotePerUnit}
+                onChange={(e) => setForm((p) => ({ ...p, oneVotePerUnit: e.target.checked }))}
+              />
+            </div>
+
+            <ErrorNotice error={formError} />
+          </form>
+        ) : null}
+      </Modal>
+
+      <ConfirmDialog
+        open={Boolean(confirming)}
+        title={confirming?.title}
+        message={confirming?.message}
+        onCancel={() => setConfirming(null)}
+        onConfirm={async () => {
+          try {
+            await confirming.run();
+            await load();
+          } catch (err) {
+            setError(err);
+          } finally {
+            setConfirming(null);
+          }
+        }}
+      />
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------- messages */
+
+/** Resident messages to the committee. Replaces Messages_master.aspx. */
+export function MessagesPage() {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [viewing, setViewing] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await api.get('/community/messages');
+      setRows(data.items ?? []);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const unread = rows.filter((r) => Number(r.view_status) === 0).length;
+
+  return (
+    <section>
+      <PageHeader title="Resident messages" subtitle={`${rows.length} message(s) · ${unread} unread`} />
+
+      <ErrorNotice error={error} onRetry={load} />
+
+      <div className="card overflow-hidden">
+        <DataGrid
+          columns={[
+            { key: 'message_sub', label: 'Subject' },
+            { key: 'owner_name', label: 'From' },
+            { key: 'date', label: 'Date', render: day },
+            {
+              key: 'view_status',
+              label: 'Status',
+              render: (v) =>
+                Number(v) === 0 ? (
+                  <span className="rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                    Unread
+                  </span>
+                ) : (
+                  <span className="text-xs text-slate-500">Read</span>
+                ),
+            },
+          ]}
+          rows={rows}
+          idKey="r_id"
+          loading={loading}
+          exportName="resident-messages"
+          emptyTitle="No messages"
+          actions={(row) => (
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={async () => {
+                setViewing(row);
+                // Opening marks it read, as the legacy grid did.
+                if (Number(row.view_status) === 0) {
+                  try {
+                    await api.put(`/community/messages/${row.r_id}/read`);
+                    await load();
+                  } catch {
+                    /* non-critical */
+                  }
+                }
+              }}
+            >
+              Read
+            </button>
+          )}
+        />
+      </div>
+
+      <Modal
+        open={Boolean(viewing)}
+        title={viewing?.message_sub ?? 'Message'}
+        onClose={() => setViewing(null)}
+        footer={
+          <button type="button" className="btn-secondary" onClick={() => setViewing(null)}>
+            Close
+          </button>
+        }
+      >
+        {viewing ? (
+          <div className="space-y-3">
+            <dl className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-slate-500">From</dt>
+                <dd className="text-slate-800">{viewing.owner_name}</dd>
+              </div>
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-slate-500">Date</dt>
+                <dd className="text-slate-800">{day(viewing.date)}</dd>
+              </div>
+            </dl>
+            <p className="rounded-md bg-slate-50 p-3 text-sm text-slate-700">{viewing.message}</p>
+          </div>
+        ) : null}
+      </Modal>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------ documents */
+
+/** Society documents with upload. Replaces upload_doc_search.aspx. */
+export function DocumentsPage() {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [search, setSearch] = useState('');
+  const [form, setForm] = useState(null);
+  const [confirming, setConfirming] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await M.documents.list(search ? { search } : undefined);
+      setRows(data.items ?? []);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [search]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const save = async (event) => {
+    event.preventDefault();
+    if (!form.filePath) {
+      setError(new Error('Upload a file first'));
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post('/uploads/record/society-document', {
+        docName: form.docName,
+        tag: form.tag,
+        description: form.description,
+        filePath: form.filePath,
+      });
+      setForm(null);
+      await load();
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section>
+      <PageHeader title="Society documents" subtitle={`${rows.length} document(s)`}>
+        <input
+          className="field-input w-56"
+          placeholder="Search documents…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          aria-label="Search documents"
+        />
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={() => setForm({ docName: '', tag: '', description: '', filePath: '' })}
+        >
+          Upload document
+        </button>
+      </PageHeader>
+
+      {!form ? <ErrorNotice error={error} onRetry={load} /> : null}
+
+      <div className="card overflow-hidden">
+        <DataGrid
+          columns={[
+            { key: 'doc_name', label: 'Document' },
+            { key: 'Tag', label: 'Tag' },
+            { key: 'Description', label: 'Description' },
+            { key: 'date', label: 'Uploaded', render: day },
+          ]}
+          rows={rows}
+          idKey="file_id"
+          loading={loading}
+          exportName="society-documents"
+          emptyTitle="No documents uploaded"
+          actions={(row) => (
+            <button
+              type="button"
+              className="btn-danger"
+              onClick={() =>
+                setConfirming({
+                  title: 'Delete document',
+                  message: `Delete ${row.doc_name}?`,
+                  run: () => M.documents.remove(row.file_id),
+                })
+              }
+            >
+              Delete
+            </button>
+          )}
+        />
+      </div>
+
+      <Modal
+        open={Boolean(form)}
+        title="Upload document"
+        onClose={() => setForm(null)}
+        footer={
+          <>
+            <button type="button" className="btn-secondary" onClick={() => setForm(null)} disabled={busy}>
+              Cancel
+            </button>
+            <button type="submit" form="doc-form" className="btn-primary" disabled={busy}>
+              {busy ? 'Saving…' : 'Save'}
+            </button>
+          </>
+        }
+      >
+        {form ? (
+          <form id="doc-form" onSubmit={save} className="grid gap-4 sm:grid-cols-2" noValidate>
+            <TextField
+              label="Document name"
+              name="docName"
+              required
+              value={form.docName}
+              onChange={(e) => {
+                const { value } = e.target;
+                setForm((p) => ({ ...p, docName: value }));
+              }}
+            />
+            <TextField
+              label="Tag"
+              name="tag"
+              value={form.tag}
+              onChange={(e) => {
+                const { value } = e.target;
+                setForm((p) => ({ ...p, tag: value }));
+              }}
+            />
+            <TextAreaField
+              label="Description"
+              name="description"
+              rows={2}
+              className="sm:col-span-2"
+              value={form.description}
+              onChange={(e) => {
+                const { value } = e.target;
+                setForm((p) => ({ ...p, description: value }));
+              }}
+            />
+            <FileUploadField
+              label="File"
+              category="society-documents"
+              className="sm:col-span-2"
+              hint="JPEG, PNG or PDF, up to 10 MB"
+              currentPath={form.filePath}
+              onUploaded={(f) => f && setForm((p) => ({ ...p, filePath: f.path }))}
+            />
+            <div className="sm:col-span-2">
+              <ErrorNotice error={error} />
+            </div>
+          </form>
+        ) : null}
+      </Modal>
+
+      <ConfirmDialog
+        open={Boolean(confirming)}
+        title={confirming?.title}
+        message={confirming?.message}
+        busy={busy}
+        onCancel={() => setConfirming(null)}
+        onConfirm={async () => {
+          setBusy(true);
+          try {
+            await confirming.run();
+            await load();
+          } catch (err) {
+            setError(err);
+          } finally {
+            setBusy(false);
+            setConfirming(null);
+          }
+        }}
+      />
+    </section>
+  );
+}
+
+/* -------------------------------------------------------------- visitors */
+
+/**
+ * visitor_search.aspx swapped in a different panel per visitor type, but every
+ * panel wrote the same three columns — company, location and vehicle_no. Only
+ * the labels differed, so the type drives labels and which inputs are shown
+ * rather than a separate form per type.
+ */
+const VISITOR_TYPES = {
+  Guest: [
+    { name: 'location', label: 'Address' },
+    { name: 'purpose', label: 'Purpose of visit' },
+  ],
+  Cab: [
+    { name: 'company', label: 'Cab company' },
+    { name: 'vehicleNo', label: 'Vehicle number' },
+    { name: 'location', label: 'Pickup / drop location' },
+  ],
+  Delivery: [
+    { name: 'company', label: 'Delivery company' },
+    { name: 'vehicleNo', label: 'Vehicle number' },
+    { name: 'purpose', label: 'Package description' },
+  ],
+  Service: [
+    { name: 'company', label: 'Service company' },
+    { name: 'vehicleNo', label: 'Vehicle number' },
+    { name: 'purpose', label: 'Nature of work' },
+  ],
+};
+
+const EMPTY_VISITOR = {
+  name: '',
+  type: 'Guest',
+  contactNo: '',
+  flatId: '',
+  buildId: '',
+  company: '',
+  vehicleNo: '',
+  location: '',
+  purpose: '',
+  inDate: '',
+  inTime: '',
+};
+
+/** Visitor log with in/out detail. Replaces visitor_search.aspx. */
+export function VisitorsPage() {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const [tab, setTab] = useState('all');
+  const [form, setForm] = useState(null); // null = closed; object = open
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState(null);
+  const [confirming, setConfirming] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await M.community.visitors();
+      setRows(data.items ?? []);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const visible = useMemo(() => {
+    if (tab === 'inside') return rows.filter((r) => r.in_date && !r.out_date);
+    if (tab === 'expected') return rows.filter((r) => !r.in_date);
+    return rows;
+  }, [rows, tab]);
+
+  const openNew = () =>
+    setForm({ ...EMPTY_VISITOR, inDate: new Date().toISOString().slice(0, 10) });
+
+  const openEdit = (row) =>
+    setForm({
+      visitor_id: row.visitor_id,
+      name: row.v_name ?? '',
+      type: row.type ?? 'Guest',
+      contactNo: row.contact_no ?? '',
+      flatId: row.flat_id ?? '',
+      buildId: row.build_id ?? '',
+      company: row.company ?? '',
+      vehicleNo: row.vehicle_no ?? '',
+      location: row.location ?? '',
+      purpose: row.purpose ?? '',
+      inDate: row.in_date ?? '',
+      inTime: row.in_time ?? '',
+    });
+
+  const save = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setFormError(null);
+    try {
+      if (form.visitor_id) await M.community.updateVisitor(form.visitor_id, form);
+      else await M.community.createVisitor(form);
+      setForm(null);
+      await load();
+    } catch (err) {
+      setFormError(err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const runConfirmed = async () => {
+    if (!confirming) return;
+    try {
+      await confirming.run();
+      await load();
+    } catch (err) {
+      setError(err);
+    } finally {
+      setConfirming(null);
+    }
+  };
+
+  // Which extra inputs this type shows — see VISITOR_TYPES.
+  const typeFields = form ? (VISITOR_TYPES[form.type] ?? VISITOR_TYPES.Guest) : [];
+
+  return (
+    <section>
+      <PageHeader title="Visitors" subtitle={`${visible.length} visitor(s)`}>
+        <button type="button" className="btn-primary" onClick={openNew}>
+          Register visitor
+        </button>
+      </PageHeader>
+
+      <div className="mb-4 grid gap-3 sm:grid-cols-3">
+        <StatCard label="Total (30 days)" value={rows.length} />
+        <StatCard
+          label="Currently inside"
+          value={rows.filter((r) => r.in_date && !r.out_date).length}
+          tone="warning"
+        />
+        <StatCard label="Expected" value={rows.filter((r) => !r.in_date).length} />
+      </div>
+
+      <Tabs
+        tabs={[
+          { id: 'all', label: 'All', count: rows.length },
+          { id: 'inside', label: 'Inside', count: rows.filter((r) => r.in_date && !r.out_date).length },
+          { id: 'expected', label: 'Expected', count: rows.filter((r) => !r.in_date).length },
+        ]}
+        active={tab}
+        onChange={setTab}
+        className="mb-4"
+      />
+
+      <ErrorNotice error={error} onRetry={load} />
+
+      <div className="card overflow-hidden">
+        <DataGrid
+          columns={[
+            { key: 'v_name', label: 'Visitor' },
+            { key: 'type', label: 'Type' },
+            { key: 'unit', label: 'Unit' },
+            { key: 'contact_no', label: 'Contact' },
+            { key: 'in_date', label: 'In' },
+            { key: 'in_time', label: 'Time in' },
+            { key: 'out_time', label: 'Time out' },
+            { key: 'purpose', label: 'Purpose' },
+          ]}
+          rows={visible}
+          idKey="visitor_id"
+          loading={loading}
+          exportName="visitors"
+          emptyTitle="No visitors"
+          actions={(row) => (
+            <>
+              <button
+                type="button"
+                className="btn-secondary mr-2"
+                onClick={() => setDetail(row)}
+              >
+                View
+              </button>
+              <button
+                type="button"
+                className="btn-secondary mr-2"
+                onClick={() => openEdit(row)}
+              >
+                Edit
+              </button>
+              {row.in_date && !row.out_date ? (
+                <button
+                  type="button"
+                  className="btn-secondary mr-2"
+                  onClick={() =>
+                    setConfirming({
+                      title: 'Check out visitor',
+                      message: `Record ${row.v_name} leaving now?`,
+                      run: () => M.community.checkoutVisitor(row.visitor_id),
+                    })
+                  }
+                >
+                  Check out
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="btn-danger"
+                onClick={() =>
+                  setConfirming({
+                    title: 'Delete visitor',
+                    message: `Delete the record for ${row.v_name}?`,
+                    run: () => M.community.removeVisitor(row.visitor_id),
+                  })
+                }
+              >
+                Delete
+              </button>
+            </>
+          )}
+        />
+      </div>
+
+      <Modal
+        open={Boolean(detail)}
+        title={detail?.v_name ?? 'Visitor'}
+        onClose={() => setDetail(null)}
+        footer={
+          <button type="button" className="btn-secondary" onClick={() => setDetail(null)}>
+            Close
+          </button>
+        }
+      >
+        {detail ? (
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+            {[
+              ['Visitor', detail.v_name],
+              ['Type', detail.type],
+              ['Company', detail.company],
+              ['Unit', detail.unit],
+              ['Resident', detail.UserName],
+              ['Contact', detail.contact_no],
+              ['Vehicle', detail.vehicle_no],
+              ['Purpose', detail.purpose],
+              ['In', `${detail.in_date ?? '—'} ${detail.in_time ?? ''}`],
+              ['Out', `${detail.out_date ?? '—'} ${detail.out_time ?? ''}`],
+              ['Approved by', detail.Approver_Name],
+              ['Gate OTP', detail.gateOtp],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <dt className="text-xs uppercase tracking-wide text-slate-500">{label}</dt>
+                <dd className="mt-0.5 text-slate-800">{value || '—'}</dd>
+              </div>
+            ))}
+          </dl>
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={Boolean(form)}
+        title={form?.visitor_id ? 'Edit visitor' : 'Register visitor'}
+        onClose={() => setForm(null)}
+        footer={
+          <>
+            <button type="button" className="btn-secondary" onClick={() => setForm(null)}>
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="visitor-form"
+              className="btn-primary"
+              disabled={saving || !form?.name.trim()}
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+          </>
+        }
+      >
+        {form ? (
+          <form id="visitor-form" className="grid gap-3 sm:grid-cols-2" onSubmit={save}>
+            <TextField
+              label="Visitor name"
+              name="v_name"
+              required
+              value={form.name}
+              onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+            />
+            <SelectField
+              label="Visitor type"
+              name="type"
+              required
+              placeholder=""
+              options={Object.keys(VISITOR_TYPES).map((t) => ({ value: t, label: t }))}
+              value={form.type}
+              onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))}
+            />
+
+            <TextField
+              label="Contact number"
+              name="contact_no"
+              value={form.contactNo}
+              onChange={(e) => setForm((p) => ({ ...p, contactNo: e.target.value }))}
+            />
+            <TextField
+              label="Flat ID"
+              name="flat_id"
+              type="number"
+              hint="Unit being visited"
+              value={form.flatId}
+              onChange={(e) => setForm((p) => ({ ...p, flatId: e.target.value }))}
+            />
+
+            {/* Inputs that depend on the visitor type. */}
+            {typeFields.map((f) => (
+              <TextField
+                key={f.name}
+                label={f.label}
+                name={f.name}
+                value={form[f.name] ?? ''}
+                onChange={(e) => setForm((p) => ({ ...p, [f.name]: e.target.value }))}
+              />
+            ))}
+
+            <TextField
+              label="In date"
+              name="in_date"
+              type="date"
+              value={form.inDate}
+              onChange={(e) => setForm((p) => ({ ...p, inDate: e.target.value }))}
+            />
+            <TextField
+              label="In time"
+              name="in_time"
+              type="time"
+              value={form.inTime}
+              onChange={(e) => setForm((p) => ({ ...p, inTime: e.target.value }))}
+            />
+
+            <div className="sm:col-span-2">
+              <ErrorNotice error={formError} />
+            </div>
+          </form>
+        ) : null}
+      </Modal>
+
+      <ConfirmDialog
+        open={Boolean(confirming)}
+        title={confirming?.title}
+        message={confirming?.message}
+        onCancel={() => setConfirming(null)}
+        onConfirm={runConfirmed}
+      />
+    </section>
+  );
+}

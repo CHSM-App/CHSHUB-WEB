@@ -1,0 +1,3886 @@
+TABLES 
+
+1)  USE [society]
+GO
+
+/****** Object:  Table [dbo].[account_setting]    Script Date: 03-08-2026 14:51:49 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[account_setting](
+	[acc_set_id] [int] IDENTITY(1,1) NOT NULL,
+	[society_id] [nvarchar](10) NOT NULL,
+	[mem_open_bal] [bit] NULL,
+	[mem_charge_btn] [bit] NULL,
+	[mem_charge_allocation] [bit] NULL,
+	[receipt_btn] [bit] NULL,
+	[gst_round] [bit] NULL,
+	[charge_round] [bit] NULL,
+	[payment_voucher] [bit] NULL,
+	[debit_note_voucher] [bit] NULL,
+	[credit_note_voucher] [bit] NULL,
+	[general_voucher] [bit] NULL,
+	[receipt_voucher] [bit] NULL,
+	[build_wise_payment] [bit] NULL,
+	[remainder_email_dues] [bit] NULL,
+	[rate_per_sqfeet] [decimal](10, 2) NULL,
+	[two_wheeler_rate] [decimal](10, 2) NULL,
+	[four_wheeler_rate] [decimal](10, 2) NULL,
+	[auto_bill_generation] [bit] NULL,
+	[bill_gen_date] [int] NULL,
+	[bill_due_period] [int] NULL,
+	[interest_rate] [int] NULL,
+ CONSTRAINT [PK_account_setting_1] PRIMARY KEY CLUSTERED 
+(
+	[acc_set_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[account_setting]  WITH CHECK ADD  CONSTRAINT [FK__account_s__socie__3AD6B8E2] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[account_setting] CHECK CONSTRAINT [FK__account_s__socie__3AD6B8E2]
+GO
+
+
+
+
+2) USE [society]
+GO
+
+/****** Object:  Table [dbo].[account_setting_audit]    Script Date: 03-08-2026 14:55:19 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[account_setting_audit](
+	[audit_id] [int] IDENTITY(1,1) NOT NULL,
+	[acc_set_id] [int] NULL,
+	[society_id] [nvarchar](10) NULL,
+	[mem_open_bal] [bit] NULL,
+	[mem_charge_btn] [bit] NULL,
+	[mem_charge_allocation] [bit] NULL,
+	[receipt_btn] [bit] NULL,
+	[gst_round] [bit] NULL,
+	[charge_round] [bit] NULL,
+	[payment_voucher] [bit] NULL,
+	[debit_note_voucher] [bit] NULL,
+	[credit_note_voucher] [bit] NULL,
+	[general_voucher] [bit] NULL,
+	[receipt_voucher] [bit] NULL,
+	[build_wise_payment] [bit] NULL,
+	[remainder_email_dues] [bit] NULL,
+	[rate_per_sqfeet] [decimal](10, 2) NULL,
+	[two_wheeler_rate] [decimal](10, 2) NULL,
+	[four_wheeler_rate] [decimal](10, 2) NULL,
+	[auto_bill_generation] [bit] NULL,
+	[bill_gen_date] [int] NULL,
+	[bill_due_period] [int] NULL,
+	[interest_rate] [int] NULL,
+	[action_type] [nvarchar](10) NULL,
+	[action_date] [datetime] NULL,
+	[action_by] [nvarchar](100) NULL,
+	[host_name] [nvarchar](100) NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[audit_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[account_setting_audit] ADD  DEFAULT (getdate()) FOR [action_date]
+GO
+
+
+
+
+3) USE [society]
+GO
+
+/****** Object:  Table [dbo].[Archieve_Square_Feet_Rate]    Script Date: 03-08-2026 14:56:45 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Archieve_Square_Feet_Rate](
+	[sq_rate_id] [int] NULL,
+	[house_type_id] [nvarchar](50) NULL,
+	[rate] [decimal](18, 2) NULL,
+	[applied_date] [date] NULL,
+	[status] [int] NULL,
+	[village_id] [nvarchar](10) NULL,
+	[active_status] [int] NULL,
+	[bill_gen_date] [date] NULL,
+	[due_date] [date] NULL,
+	[modified_u_id] [int] NULL,
+	[modified_date] [date] NULL,
+	[operation_details] [nvarchar](50) NULL
+) ON [PRIMARY]
+GO
+
+
+
+4)USE [society]
+GO
+
+/****** Object:  Table [dbo].[Archive_House_Tax]    Script Date: 03-08-2026 14:57:30 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Archive_House_Tax](
+	[house_tax_id] [int] NULL,
+	[house_no] [int] NULL,
+	[house_type] [nvarchar](50) NULL,
+	[from_date] [smalldatetime] NULL,
+	[to_date] [smalldatetime] NULL,
+	[house_tax_amount] [decimal](18, 2) NULL,
+	[village_id] [nvarchar](10) NULL,
+	[active_status] [int] NULL,
+	[receipt_no] [int] NULL,
+	[house_tax_archive_id] [int] NULL,
+	[comment] [int] NULL
+) ON [PRIMARY]
+GO
+
+
+
+5)USE [society]
+GO
+
+/****** Object:  Table [dbo].[Archive_Water_Tax]    Script Date: 03-08-2026 14:58:04 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Archive_Water_Tax](
+	[water_tax_archive_id] [nchar](10) NULL,
+	[water_tax_id] [nchar](10) NULL,
+	[house_no] [int] NULL,
+	[from_date] [smalldatetime] NULL,
+	[to_date] [smalldatetime] NULL,
+	[con_type_id] [nvarchar](50) NULL,
+	[water_connection_size] [int] NULL,
+	[active_status] [int] NULL,
+	[water_tax_amount] [decimal](18, 2) NULL,
+	[village_id] [nvarchar](50) NULL,
+	[receipt_no] [int] NULL,
+	[comment] [int] NULL
+) ON [PRIMARY]
+GO
+
+
+
+6)USE [society]
+GO
+
+/****** Object:  Table [dbo].[assest_master]    Script Date: 03-08-2026 14:58:48 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[assest_master](
+	[asset_id] [int] NOT NULL,
+	[a_name] [nvarchar](50) NOT NULL,
+	[qty] [float] NOT NULL,
+	[amount] [float] NOT NULL
+) ON [PRIMARY]
+GO
+
+
+
+7)USE [society]
+GO
+
+/****** Object:  Table [dbo].[auditor_question_master]    Script Date: 03-08-2026 14:59:11 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[auditor_question_master](
+	[audt_ques_id] [int] NOT NULL,
+	[question_desc] [nvarchar](max) NOT NULL,
+	[answer_desc] [nvarchar](500) NULL,
+	[answer_key] [int] NULL,
+	[status_id] [int] NULL,
+	[society_id] [nvarchar](10) NULL,
+	[audt_header_id] [int] NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[auditor_question_master]  WITH CHECK ADD  CONSTRAINT [fk_audit_header] FOREIGN KEY([audt_header_id])
+REFERENCES [dbo].[audt_header_lkp] ([audt_header_id])
+GO
+
+ALTER TABLE [dbo].[auditor_question_master] CHECK CONSTRAINT [fk_audit_header]
+GO
+
+ALTER TABLE [dbo].[auditor_question_master]  WITH CHECK ADD  CONSTRAINT [FK_auditor_question_audt_header] FOREIGN KEY([audt_header_id])
+REFERENCES [dbo].[audt_header_lkp] ([audt_header_id])
+GO
+
+ALTER TABLE [dbo].[auditor_question_master] CHECK CONSTRAINT [FK_auditor_question_audt_header]
+GO
+
+
+
+8)USE [society]
+GO
+
+/****** Object:  Table [dbo].[audt_header_lkp]    Script Date: 03-08-2026 14:59:43 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[audt_header_lkp](
+	[audt_header_id] [int] NOT NULL,
+	[audt_header_desc] [nvarchar](max) NOT NULL,
+	[status_id] [int] NULL,
+	[society_id] [nvarchar](10) NULL,
+	[SequenceOrder] [int] NULL,
+ CONSTRAINT [pk_audt_header_lkp] PRIMARY KEY CLUSTERED 
+(
+	[audt_header_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+
+9)USE [society]
+GO
+
+/****** Object:  Table [dbo].[balancesheet_head_lkp]    Script Date: 03-08-2026 15:00:08 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[balancesheet_head_lkp](
+	[bal_head_id] [int] NOT NULL,
+	[bal_header_desc] [nvarchar](max) NOT NULL,
+	[status_id] [int] NULL,
+	[village_id] [nvarchar](10) NULL,
+	[amount] [decimal](18, 2) NULL,
+	[Seq_order] [int] NULL,
+	[comp_id] [int] NULL,
+ CONSTRAINT [PK_balancesheet_head] PRIMARY KEY CLUSTERED 
+(
+	[bal_head_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+
+
+10)USE [society]
+GO
+
+/****** Object:  Table [dbo].[balancesheet_sub_point]    Script Date: 03-08-2026 15:00:30 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[balancesheet_sub_point](
+	[bal_sub_id] [int] NOT NULL,
+	[bal_head_id] [int] NOT NULL,
+	[bal_sub_desc] [nvarchar](50) NOT NULL,
+	[amount] [decimal](18, 2) NULL,
+	[status_id] [int] NULL,
+	[village_id] [nvarchar](10) NULL
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[balancesheet_sub_point]  WITH CHECK ADD  CONSTRAINT [FK_subpoint_head] FOREIGN KEY([bal_head_id])
+REFERENCES [dbo].[balancesheet_head_lkp] ([bal_head_id])
+GO
+
+ALTER TABLE [dbo].[balancesheet_sub_point] CHECK CONSTRAINT [FK_subpoint_head]
+GO
+
+
+
+11)USE [society]
+GO
+
+/****** Object:  Table [dbo].[balsheet_component_lkp]    Script Date: 03-08-2026 15:00:54 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[balsheet_component_lkp](
+	[comp_in] [int] NULL,
+	[comp_name] [nvarchar](50) NULL
+) ON [PRIMARY]
+GO
+
+
+
+12)USE [society]
+GO
+
+/****** Object:  Table [dbo].[bedroom]    Script Date: 03-08-2026 15:01:24 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[bedroom](
+	[bed_id] [int] NOT NULL,
+	[bed] [nvarchar](50) NOT NULL,
+ CONSTRAINT [PK_bedroom] PRIMARY KEY CLUSTERED 
+(
+	[bed_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+
+13)USE [society]
+GO
+
+/****** Object:  Table [dbo].[bill_charges]    Script Date: 03-08-2026 15:01:49 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[bill_charges](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[Bill_Charges_Id] [nvarchar](200) NULL,
+	[Setting_Charges_Id] [nvarchar](200) NULL,
+	[Society_Id] [nvarchar](10) NOT NULL,
+	[Charges_Type] [int] NOT NULL,
+	[bill_Id] [int] NOT NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[bill_charges]  WITH CHECK ADD  CONSTRAINT [FK_Maintenance_Society] FOREIGN KEY([Society_Id])
+REFERENCES [dbo].[society_master] ([society_id])
+ON UPDATE CASCADE
+ON DELETE CASCADE
+GO
+
+ALTER TABLE [dbo].[bill_charges] CHECK CONSTRAINT [FK_Maintenance_Society]
+GO
+
+
+
+14)USE [society]
+GO
+
+/****** Object:  Table [dbo].[bill_status]    Script Date: 03-08-2026 15:02:15 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[bill_status](
+	[status_id] [int] IDENTITY(1,1) NOT NULL,
+	[bill_status] [nvarchar](50) NULL,
+ CONSTRAINT [PK_bill_status] PRIMARY KEY CLUSTERED 
+(
+	[status_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[bill_status]  WITH CHECK ADD  CONSTRAINT [FK_bill_status_bill_status] FOREIGN KEY([status_id])
+REFERENCES [dbo].[bill_status] ([status_id])
+GO
+
+ALTER TABLE [dbo].[bill_status] CHECK CONSTRAINT [FK_bill_status_bill_status]
+GO
+
+
+
+15)USE [society]
+GO
+
+/****** Object:  Table [dbo].[building_master]    Script Date: 03-08-2026 15:02:38 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[building_master](
+	[build_id] [int] NOT NULL,
+	[name] [nvarchar](50) NULL,
+	[address1] [nvarchar](150) NULL,
+	[address2] [nvarchar](150) NULL,
+	[no_of_floore] [int] NULL,
+	[print_name] [nvarchar](250) NULL,
+	[registration_no] [nvarchar](50) NULL,
+	[society_id] [nvarchar](10) NULL,
+	[bank_name] [nvarchar](50) NULL,
+	[bank_add] [nvarchar](50) NULL,
+	[branch] [nvarchar](50) NULL,
+	[ifsc_code] [nvarchar](50) NULL,
+	[acc_no] [nvarchar](50) NULL,
+	[email] [nvarchar](50) NULL,
+	[active_status] [int] NULL,
+ CONSTRAINT [PK_building_master] PRIMARY KEY CLUSTERED 
+(
+	[build_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[building_master]  WITH CHECK ADD  CONSTRAINT [FK__building___socie__3BCADD1B] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[building_master] CHECK CONSTRAINT [FK__building___socie__3BCADD1B]
+GO
+
+
+
+16)USE [society]
+GO
+
+/****** Object:  Table [dbo].[car_polling]    Script Date: 03-08-2026 15:02:57 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[car_polling](
+	[car_id] [int] NOT NULL,
+	[c_name] [nvarchar](50) NULL,
+	[vehical_no] [nvarchar](50) NULL,
+	[seat] [nvarchar](50) NULL,
+	[time] [smalldatetime] NULL,
+	[date] [date] NULL,
+	[destination] [nvarchar](50) NULL,
+	[charges] [nvarchar](50) NULL,
+	[society_id] [nvarchar](10) NULL,
+	[active_status] [int] NULL
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[car_polling]  WITH CHECK ADD  CONSTRAINT [FK__car_polli__socie__3CBF0154] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[car_polling] CHECK CONSTRAINT [FK__car_polli__socie__3CBF0154]
+GO
+
+
+
+17)USE [society]
+GO
+
+/****** Object:  Table [dbo].[caretaker_master]    Script Date: 03-08-2026 15:03:18 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[caretaker_master](
+	[caretaker_id] [int] NOT NULL,
+	[c_name] [nvarchar](50) NULL,
+	[doc_id] [int] NULL,
+	[c_address] [nvarchar](50) NULL,
+	[area] [nvarchar](50) NULL,
+	[city] [nvarchar](50) NULL,
+	[pincode] [nvarchar](50) NULL,
+	[state_id] [int] NULL,
+	[mobile_no] [nvarchar](50) NULL,
+	[email] [nvarchar](50) NULL,
+	[doc_executed] [nvarchar](50) NULL,
+	[society_id] [nvarchar](10) NULL,
+	[wing_id] [int] NULL,
+	[flat_no] [nvarchar](50) NULL,
+	[active_status] [int] NULL
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[caretaker_master]  WITH CHECK ADD  CONSTRAINT [FK__caretaker__doc_i__6EC0713C] FOREIGN KEY([doc_id])
+REFERENCES [dbo].[doc_master] ([doc_id])
+GO
+
+ALTER TABLE [dbo].[caretaker_master] CHECK CONSTRAINT [FK__caretaker__doc_i__6EC0713C]
+GO
+
+ALTER TABLE [dbo].[caretaker_master]  WITH CHECK ADD  CONSTRAINT [FK__caretaker__doc_i__6FB49575] FOREIGN KEY([doc_id])
+REFERENCES [dbo].[doc_master] ([doc_id])
+GO
+
+ALTER TABLE [dbo].[caretaker_master] CHECK CONSTRAINT [FK__caretaker__doc_i__6FB49575]
+GO
+
+ALTER TABLE [dbo].[caretaker_master]  WITH CHECK ADD  CONSTRAINT [FK__caretaker__socie__3DB3258D] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[caretaker_master] CHECK CONSTRAINT [FK__caretaker__socie__3DB3258D]
+GO
+
+ALTER TABLE [dbo].[caretaker_master]  WITH CHECK ADD  CONSTRAINT [FK__caretaker__wing___690797E6] FOREIGN KEY([wing_id])
+REFERENCES [dbo].[wing_master] ([wing_id])
+GO
+
+ALTER TABLE [dbo].[caretaker_master] CHECK CONSTRAINT [FK__caretaker__wing___690797E6]
+GO
+
+ALTER TABLE [dbo].[caretaker_master]  WITH CHECK ADD  CONSTRAINT [FK__caretaker__wing___69FBBC1F] FOREIGN KEY([wing_id])
+REFERENCES [dbo].[wing_master] ([wing_id])
+GO
+
+ALTER TABLE [dbo].[caretaker_master] CHECK CONSTRAINT [FK__caretaker__wing___69FBBC1F]
+GO
+
+
+
+18)USE [society]
+GO
+
+/****** Object:  Table [dbo].[certificate]    Script Date: 03-08-2026 15:03:42 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[certificate](
+	[cert_id] [int] IDENTITY(1,1) NOT NULL,
+	[c_name] [nvarchar](50) NULL,
+ CONSTRAINT [PK_certificate] PRIMARY KEY CLUSTERED 
+(
+	[cert_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+
+
+19)USE [society]
+GO
+
+/****** Object:  Table [dbo].[committee_members]    Script Date: 03-08-2026 15:04:07 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[committee_members](
+	[member_id] [int] IDENTITY(1,1) NOT NULL,
+	[society_id] [nvarchar](10) NOT NULL,
+	[member_name] [nvarchar](100) NOT NULL,
+	[role] [nvarchar](50) NOT NULL,
+	[contact_no] [nvarchar](15) NULL,
+	[email] [nvarchar](100) NULL,
+	[is_active] [bit] NULL,
+	[joined_date] [date] NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[member_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[committee_members] ADD  DEFAULT ((1)) FOR [is_active]
+GO
+
+ALTER TABLE [dbo].[committee_members] ADD  DEFAULT (getdate()) FOR [joined_date]
+GO
+
+ALTER TABLE [dbo].[committee_members]  WITH CHECK ADD  CONSTRAINT [FK_committee_society] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[committee_members] CHECK CONSTRAINT [FK_committee_society]
+GO
+
+
+
+20)USE [society]
+GO
+
+/****** Object:  Table [dbo].[complaint_type]    Script Date: 03-08-2026 15:04:40 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[complaint_type](
+	[c_type_id] [int] NULL,
+	[c_type_name] [nvarchar](50) NULL,
+	[decription] [nvarchar](max) NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+
+21)USE [society]
+GO
+
+/****** Object:  Table [dbo].[connection_type]    Script Date: 03-08-2026 15:05:00 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[connection_type](
+	[con_type_id] [int] NULL,
+	[connection_type] [nvarchar](50) NULL
+) ON [PRIMARY]
+GO
+
+
+
+22)USE [society]
+GO
+
+/****** Object:  Table [dbo].[district]    Script Date: 03-08-2026 15:05:25 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[district](
+	[district_id] [int] NULL,
+	[district] [nvarchar](50) NULL,
+	[state_id] [int] NULL
+) ON [PRIMARY]
+GO
+
+
+
+23)USE [society]
+GO
+
+/****** Object:  Table [dbo].[division]    Script Date: 03-08-2026 15:05:48 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[division](
+	[division_id] [int] NULL,
+	[division] [nvarchar](50) NULL,
+	[district_id] [int] NULL
+) ON [PRIMARY]
+GO
+
+
+24)USE [society]
+GO
+
+/****** Object:  Table [dbo].[doc_master]    Script Date: 03-08-2026 15:06:26 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[doc_master](
+	[doc_id] [int] NOT NULL,
+	[doc_name] [nvarchar](50) NULL,
+	[society_id] [nvarchar](10) NULL,
+	[active_status] [int] NULL,
+ CONSTRAINT [PK_doc_master] PRIMARY KEY CLUSTERED 
+(
+	[doc_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+
+25)USE [society]
+GO
+
+/****** Object:  Table [dbo].[emergency_alert_history]    Script Date: 03-08-2026 15:06:49 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[emergency_alert_history](
+	[id] [int] IDENTITY(1,1) NOT NULL,
+	[society_id] [varchar](50) NOT NULL,
+	[alert_type] [varchar](20) NOT NULL,
+	[alert_title] [nvarchar](255) NOT NULL,
+	[message] [nvarchar](max) NOT NULL,
+	[alert_level] [varchar](20) NULL,
+	[alert_scope] [varchar](20) NOT NULL,
+	[target_buildings] [nvarchar](max) NULL,
+	[start_time] [time](7) NULL,
+	[end_time] [time](7) NULL,
+	[morning_start_time] [time](7) NULL,
+	[morning_end_time] [time](7) NULL,
+	[evening_start_time] [time](7) NULL,
+	[evening_end_time] [time](7) NULL,
+	[has_evening] [bit] NULL,
+	[building_schedules] [nvarchar](max) NULL,
+	[sent_by] [int] NOT NULL,
+	[sent_by_name] [nvarchar](255) NULL,
+	[sent_at] [datetime] NULL,
+	[status] [varchar](20) NULL,
+	[recipient_count] [int] NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[emergency_alert_history] ADD  DEFAULT ('medium') FOR [alert_level]
+GO
+
+ALTER TABLE [dbo].[emergency_alert_history] ADD  DEFAULT ((0)) FOR [has_evening]
+GO
+
+ALTER TABLE [dbo].[emergency_alert_history] ADD  DEFAULT (getdate()) FOR [sent_at]
+GO
+
+ALTER TABLE [dbo].[emergency_alert_history] ADD  DEFAULT ('sent') FOR [status]
+GO
+
+ALTER TABLE [dbo].[emergency_alert_history] ADD  DEFAULT ((0)) FOR [recipient_count]
+GO
+
+ALTER TABLE [dbo].[emergency_alert_history]  WITH CHECK ADD CHECK  (([alert_type]='custom' OR [alert_type]='water' OR [alert_type]='fire' OR [alert_type]='power' OR [alert_type]='gas'))
+GO
+
+ALTER TABLE [dbo].[emergency_alert_history]  WITH CHECK ADD CHECK  (([alert_level]='medium' OR [alert_level]='high' OR [alert_level]='critical'))
+GO
+
+ALTER TABLE [dbo].[emergency_alert_history]  WITH CHECK ADD CHECK  (([alert_scope]='building' OR [alert_scope]='society'))
+GO
+
+ALTER TABLE [dbo].[emergency_alert_history]  WITH CHECK ADD CHECK  (([status]='pending' OR [status]='failed' OR [status]='sent'))
+GO
+
+
+26)USE [society]
+GO
+
+/****** Object:  Table [dbo].[emergency_alert_preferences]    Script Date: 03-08-2026 15:07:15 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[emergency_alert_preferences](
+	[id] [int] IDENTITY(1,1) NOT NULL,
+	[society_id] [nvarchar](50) NOT NULL,
+	[alert_type] [nvarchar](20) NOT NULL,
+	[alert_scope] [nvarchar](20) NULL,
+	[selected_buildings] [nvarchar](max) NULL,
+	[selected_flats] [nvarchar](max) NULL,
+	[start_time] [time](7) NULL,
+	[end_time] [time](7) NULL,
+	[morning_start_time] [time](7) NULL,
+	[morning_end_time] [time](7) NULL,
+	[evening_start_time] [time](7) NULL,
+	[evening_end_time] [time](7) NULL,
+	[has_evening] [bit] NULL,
+	[alert_title] [nvarchar](200) NULL,
+	[message] [nvarchar](max) NULL,
+	[created_by] [int] NULL,
+	[created_at] [datetime] NULL,
+	[updated_at] [datetime] NULL,
+	[is_active] [bit] NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[emergency_alert_preferences] ADD  DEFAULT ((0)) FOR [has_evening]
+GO
+
+ALTER TABLE [dbo].[emergency_alert_preferences] ADD  DEFAULT (getdate()) FOR [created_at]
+GO
+
+ALTER TABLE [dbo].[emergency_alert_preferences] ADD  DEFAULT ((1)) FOR [is_active]
+GO
+
+
+
+27)USE [society]
+GO
+
+/****** Object:  Table [dbo].[EmergencyContact]    Script Date: 03-08-2026 15:07:36 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[EmergencyContact](
+	[contact_id] [int] NULL,
+	[name] [nvarchar](50) NULL,
+	[contact] [nvarchar](50) NULL
+) ON [PRIMARY]
+GO
+
+
+28)USE [society]
+GO
+
+/****** Object:  Table [dbo].[event_master]    Script Date: 03-08-2026 15:11:37 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[event_master](
+	[event_id] [int] NOT NULL,
+	[from_date] [date] NULL,
+	[to_date] [date] NULL,
+	[event_name] [nvarchar](150) NULL,
+	[description] [nvarchar](300) NULL,
+	[society_id] [nvarchar](10) NULL,
+	[status] [int] NULL,
+	[active_status] [int] NULL,
+	[created_at] [smalldatetime] NULL,
+ CONSTRAINT [PK_event_master] PRIMARY KEY CLUSTERED 
+(
+	[event_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[event_master] ADD  DEFAULT (getdate()) FOR [created_at]
+GO
+
+
+
+29)USE [society]
+GO
+
+/****** Object:  Table [dbo].[facilities]    Script Date: 03-08-2026 15:12:05 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[facilities](
+	[facility_id] [int] NOT NULL,
+	[name] [nvarchar](50) NULL,
+	[cost] [decimal](18, 2) NULL,
+	[description] [nvarchar](max) NULL,
+	[society_id] [nvarchar](10) NULL,
+	[slot] [int] NULL,
+	[status] [int] NULL,
+	[active_status] [int] NULL,
+	[capacity] [int] NULL,
+	[isActive] [bit] NULL,
+ CONSTRAINT [PK_facilities] PRIMARY KEY CLUSTERED 
+(
+	[facility_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+
+30)USE [society]
+GO
+
+/****** Object:  Table [dbo].[facility_booking]    Script Date: 03-08-2026 15:12:27 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[facility_booking](
+	[facility_book_id] [int] NOT NULL,
+	[book_date] [date] NULL,
+	[from_date] [date] NULL,
+	[to_date] [date] NULL,
+	[name] [nvarchar](50) NULL,
+	[flat_id] [int] NULL,
+	[address] [nvarchar](50) NULL,
+	[contact] [nvarchar](50) NULL,
+	[society_in] [int] NULL,
+	[from_time] [time](7) NULL,
+	[to_time] [time](7) NULL,
+	[society_id] [nvarchar](10) NULL,
+	[amount] [decimal](18, 2) NULL,
+	[note] [nvarchar](500) NULL,
+	[facility_id] [int] NOT NULL,
+	[active_status] [int] NULL,
+	[capacity] [int] NULL,
+	[transaction_ref] [nvarchar](100) NULL
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[facility_booking]  WITH CHECK ADD  CONSTRAINT [FK_facility_booking_facilities] FOREIGN KEY([facility_id])
+REFERENCES [dbo].[facilities] ([facility_id])
+GO
+
+ALTER TABLE [dbo].[facility_booking] CHECK CONSTRAINT [FK_facility_booking_facilities]
+GO
+
+
+31)USE [society]
+GO
+
+/****** Object:  Table [dbo].[file_upload_ext]    Script Date: 03-08-2026 15:12:52 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[file_upload_ext](
+	[upload_file_id] [int] IDENTITY(1,1) NOT NULL,
+	[flat_id] [int] NULL,
+	[file_save] [nvarchar](350) NULL,
+	[date] [smalldatetime] NULL,
+	[active_status] [int] NULL
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[file_upload_ext]  WITH CHECK ADD  CONSTRAINT [FK__file_uplo__flat___7B264821] FOREIGN KEY([flat_id])
+REFERENCES [dbo].[flat_master] ([flat_id])
+GO
+
+ALTER TABLE [dbo].[file_upload_ext] CHECK CONSTRAINT [FK__file_uplo__flat___7B264821]
+GO
+
+ALTER TABLE [dbo].[file_upload_ext]  WITH CHECK ADD  CONSTRAINT [FK__file_uplo__flat___7C1A6C5A] FOREIGN KEY([flat_id])
+REFERENCES [dbo].[flat_master] ([flat_id])
+GO
+
+ALTER TABLE [dbo].[file_upload_ext] CHECK CONSTRAINT [FK__file_uplo__flat___7C1A6C5A]
+GO
+
+ALTER TABLE [dbo].[file_upload_ext]  WITH CHECK ADD  CONSTRAINT [FK__file_uplo__flat___7D0E9093] FOREIGN KEY([flat_id])
+REFERENCES [dbo].[flat_master] ([flat_id])
+GO
+
+ALTER TABLE [dbo].[file_upload_ext] CHECK CONSTRAINT [FK__file_uplo__flat___7D0E9093]
+GO
+
+
+32)USE [society]
+GO
+
+/****** Object:  Table [dbo].[flat_master]    Script Date: 03-08-2026 15:13:25 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[flat_master](
+	[flat_id] [int] NOT NULL,
+	[society_id] [nvarchar](10) NULL,
+	[wing_id] [int] NULL,
+	[usage_id] [int] NULL,
+	[bed_id] [int] NULL,
+	[flat_type_id] [int] NULL,
+	[flat_no] [nvarchar](10) NULL,
+	[sq_ft] [nvarchar](10) NULL,
+	[terrace_sq_ft] [nvarchar](10) NULL,
+	[intercom_no] [nvarchar](50) NULL,
+	[flat_status] [nvarchar](50) NULL,
+	[active_status] [int] NULL,
+	[is_rented] [bit] NULL,
+ CONSTRAINT [PK_flat_master] PRIMARY KEY CLUSTERED 
+(
+	[flat_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[flat_master]  WITH CHECK ADD  CONSTRAINT [FK__flat_mast__bed_i__03BB8E22] FOREIGN KEY([bed_id])
+REFERENCES [dbo].[bedroom] ([bed_id])
+GO
+
+ALTER TABLE [dbo].[flat_master] CHECK CONSTRAINT [FK__flat_mast__bed_i__03BB8E22]
+GO
+
+ALTER TABLE [dbo].[flat_master]  WITH CHECK ADD  CONSTRAINT [FK__flat_mast__ft_id__1C873BEC] FOREIGN KEY([flat_type_id])
+REFERENCES [dbo].[types] ([flat_type_id])
+GO
+
+ALTER TABLE [dbo].[flat_master] CHECK CONSTRAINT [FK__flat_mast__ft_id__1C873BEC]
+GO
+
+ALTER TABLE [dbo].[flat_master]  WITH CHECK ADD  CONSTRAINT [FK__flat_mast__socie__29AC2CE0] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[flat_master] CHECK CONSTRAINT [FK__flat_mast__socie__29AC2CE0]
+GO
+
+ALTER TABLE [dbo].[flat_master]  WITH CHECK ADD  CONSTRAINT [FK__flat_mast__usage__00DF2177] FOREIGN KEY([usage_id])
+REFERENCES [dbo].[flat_usage] ([usage_id])
+GO
+
+ALTER TABLE [dbo].[flat_master] CHECK CONSTRAINT [FK__flat_mast__usage__00DF2177]
+GO
+
+ALTER TABLE [dbo].[flat_master]  WITH CHECK ADD  CONSTRAINT [FK__flat_mast__wing___7E02B4CC] FOREIGN KEY([wing_id])
+REFERENCES [dbo].[wing_master] ([wing_id])
+GO
+
+ALTER TABLE [dbo].[flat_master] CHECK CONSTRAINT [FK__flat_mast__wing___7E02B4CC]
+GO
+
+
+
+33)USE [society]
+GO
+
+/****** Object:  Table [dbo].[flat_usage]    Script Date: 03-08-2026 15:13:46 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[flat_usage](
+	[usage_id] [int] IDENTITY(1,1) NOT NULL,
+	[usage] [nvarchar](50) NULL,
+ CONSTRAINT [PK_flat_usage] PRIMARY KEY CLUSTERED 
+(
+	[usage_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+
+
+34)USE [society]
+GO
+
+/****** Object:  Table [dbo].[HelpDeskComments]    Script Date: 03-08-2026 15:14:09 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[HelpDeskComments](
+	[comment_id] [int] NOT NULL,
+	[helpdesk_id] [int] NULL,
+	[owner_id] [int] NULL,
+	[flat_id] [int] NULL,
+	[description] [nvarchar](max) NULL,
+	[dateTime] [smalldatetime] NULL,
+	[status] [int] NULL,
+	[active_status] [int] NULL,
+	[type] [nvarchar](50) NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[HelpDeskComments]  WITH CHECK ADD  CONSTRAINT [FK__HelpDeskC__helpd__078C1F06] FOREIGN KEY([helpdesk_id])
+REFERENCES [dbo].[HelpdeskRequest] ([helpdesk_id])
+GO
+
+ALTER TABLE [dbo].[HelpDeskComments] CHECK CONSTRAINT [FK__HelpDeskC__helpd__078C1F06]
+GO
+
+
+35)USE [society]
+GO
+
+/****** Object:  Table [dbo].[HelpdeskImages]    Script Date: 03-08-2026 15:14:33 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[HelpdeskImages](
+	[image_id] [int] IDENTITY(1,1) NOT NULL,
+	[helpdesk_id] [int] NULL,
+	[documents] [nvarchar](max) NULL,
+	[active_status] [int] NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[HelpdeskImages]  WITH CHECK ADD  CONSTRAINT [FK__HelpdeskI__helpd__0880433F] FOREIGN KEY([helpdesk_id])
+REFERENCES [dbo].[HelpdeskRequest] ([helpdesk_id])
+GO
+
+ALTER TABLE [dbo].[HelpdeskImages] CHECK CONSTRAINT [FK__HelpdeskI__helpd__0880433F]
+GO
+
+
+
+36)USE [society]
+GO
+
+/****** Object:  Table [dbo].[HelpdeskRequest]    Script Date: 03-08-2026 15:14:55 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[HelpdeskRequest](
+	[helpdesk_id] [int] NOT NULL,
+	[query] [nvarchar](max) NULL,
+	[flat_id] [int] NULL,
+	[category] [int] NULL,
+	[req_service_date] [smalldatetime] NULL,
+	[urgency] [int] NULL,
+	[status] [int] NULL,
+	[date] [smalldatetime] NULL,
+	[active_status] [int] NULL,
+	[type] [nvarchar](50) NULL,
+	[created_at] [smalldatetime] NULL,
+	[owner_id] [int] NULL,
+	[logintype] [nvarchar](50) NULL,
+ CONSTRAINT [PK_HelpdeskRequest] PRIMARY KEY CLUSTERED 
+(
+	[helpdesk_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[HelpdeskRequest] ADD  DEFAULT (getdate()) FOR [created_at]
+GO
+
+
+
+37)USE [society]
+GO
+
+/****** Object:  Table [dbo].[HelpdeskStatus]    Script Date: 03-08-2026 15:15:15 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[HelpdeskStatus](
+	[id] [int] NULL,
+	[status] [nvarchar](50) NULL
+) ON [PRIMARY]
+GO
+
+
+38)USE [society]
+GO
+
+/****** Object:  Table [dbo].[HelperReview]    Script Date: 03-08-2026 15:15:46 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[HelperReview](
+	[review_id] [int] NOT NULL,
+	[usefull_contact_id] [int] NULL,
+	[owner_id] [int] NULL,
+	[review] [nvarchar](100) NULL,
+	[rating] [float] NULL,
+	[date] [date] NULL,
+	[mem_id] [int] NULL,
+	[society_id] [nvarchar](10) NULL,
+	[active_status] [int] NULL
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[HelperReview]  WITH CHECK ADD  CONSTRAINT [FK__HelperRev__socie__4830B400] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[HelperReview] CHECK CONSTRAINT [FK__HelperRev__socie__4830B400]
+GO
+
+
+39)USE [society]
+GO
+
+/****** Object:  Table [dbo].[helperWorkAt]    Script Date: 03-08-2026 15:16:12 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[helperWorkAt](
+	[helper_work_id] [int] NOT NULL,
+	[usefull_contact_id] [int] NULL,
+	[flat_id] [int] NULL,
+	[society_id] [nvarchar](10) NULL,
+	[active_status] [int] NULL
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[helperWorkAt]  WITH CHECK ADD  CONSTRAINT [FK__helperWor__flat___4FD1D5C8] FOREIGN KEY([flat_id])
+REFERENCES [dbo].[flat_master] ([flat_id])
+GO
+
+ALTER TABLE [dbo].[helperWorkAt] CHECK CONSTRAINT [FK__helperWor__flat___4FD1D5C8]
+GO
+
+ALTER TABLE [dbo].[helperWorkAt]  WITH CHECK ADD  CONSTRAINT [FK__helperWor__flat___50C5FA01] FOREIGN KEY([flat_id])
+REFERENCES [dbo].[flat_master] ([flat_id])
+GO
+
+ALTER TABLE [dbo].[helperWorkAt] CHECK CONSTRAINT [FK__helperWor__flat___50C5FA01]
+GO
+
+ALTER TABLE [dbo].[helperWorkAt]  WITH CHECK ADD  CONSTRAINT [FK__helperWor__socie__51BA1E3A] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[helperWorkAt] CHECK CONSTRAINT [FK__helperWor__socie__51BA1E3A]
+GO
+
+
+40)USE [society]
+GO
+
+/****** Object:  Table [dbo].[house]    Script Date: 03-08-2026 15:16:40 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[house](
+	[house_id] [int] NOT NULL,
+	[house_no] [nvarchar](50) NULL,
+	[audt_modify_id] [int] NULL,
+	[house_type] [int] NULL,
+	[area] [decimal](18, 0) NULL,
+	[village_id] [nvarchar](50) NULL,
+	[gharpatti_charges] [decimal](18, 2) NULL,
+	[no_of_tab] [int] NULL,
+	[water_charges] [decimal](18, 2) NULL,
+	[waste_charges] [decimal](18, 0) NULL,
+ CONSTRAINT [PK_house] PRIMARY KEY CLUSTERED 
+(
+	[house_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY],
+ CONSTRAINT [UQ_house_house_no] UNIQUE NONCLUSTERED 
+(
+	[house_no] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY],
+ CONSTRAINT [UQ_house_no] UNIQUE NONCLUSTERED 
+(
+	[house_no] ASC,
+	[village_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+
+41)USE [society]
+GO
+
+/****** Object:  Table [dbo].[house$ARC]    Script Date: 03-08-2026 15:17:03 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[house$ARC](
+	[house_hist_id] [int] IDENTITY(1,1) NOT NULL,
+	[house_id] [int] NOT NULL,
+	[village_id] [nvarchar](50) NULL,
+	[audt_modify_id] [int] NOT NULL,
+	[modification_date] [date] NOT NULL,
+	[action_type] [nvarchar](50) NOT NULL,
+	[area] [decimal](18, 0) NULL,
+	[gharpatti_charges] [decimal](18, 2) NULL,
+	[no_of_tab] [int] NULL,
+	[water_charges] [decimal](18, 2) NULL,
+	[waste_charges] [decimal](18, 0) NULL
+) ON [PRIMARY]
+GO
+
+
+42)USE [society]
+GO
+
+/****** Object:  Table [dbo].[house_owner]    Script Date: 03-08-2026 15:17:52 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[house_owner](
+	[village_owner_id] [int] NULL,
+	[house_id] [int] NOT NULL,
+	[address] [nvarchar](50) NULL,
+	[pre_mob] [nvarchar](50) NULL,
+	[village_id] [nvarchar](10) NULL,
+	[alter_mob] [nvarchar](100) NULL,
+	[active_status] [int] NULL,
+	[name] [nvarchar](50) NULL,
+	[id_proof] [nvarchar](max) NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[house_owner]  WITH CHECK ADD  CONSTRAINT [FK_house_owner] FOREIGN KEY([house_id])
+REFERENCES [dbo].[house] ([house_id])
+GO
+
+ALTER TABLE [dbo].[house_owner] CHECK CONSTRAINT [FK_house_owner]
+GO
+
+ALTER TABLE [dbo].[house_owner]  WITH CHECK ADD  CONSTRAINT [FK_house_owner_delete] FOREIGN KEY([house_id])
+REFERENCES [dbo].[house] ([house_id])
+GO
+
+ALTER TABLE [dbo].[house_owner] CHECK CONSTRAINT [FK_house_owner_delete]
+GO
+
+
+43)USE [society]
+GO
+
+/****** Object:  Table [dbo].[house_tax]    Script Date: 03-08-2026 15:59:20 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[house_tax](
+	[house_tax_id] [int] NULL,
+	[house_no] [int] NULL,
+	[house_type] [nvarchar](50) NULL,
+	[from_date] [smalldatetime] NULL,
+	[to_date] [smalldatetime] NULL,
+	[house_tax_amount] [decimal](18, 2) NULL,
+	[village_id] [nvarchar](10) NULL,
+	[active_status] [int] NULL,
+	[house_tax_bill_no] [int] NULL,
+	[due] [decimal](18, 2) NULL,
+	[advance] [float] NULL,
+	[bill_gen_date] [date] NULL,
+	[due_date] [date] NULL
+) ON [PRIMARY]
+GO
+
+
+44)USE [society]
+GO
+
+/****** Object:  Table [dbo].[house_tax_history]    Script Date: 03-08-2026 15:59:42 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[house_tax_history](
+	[house_tax_id] [int] NULL,
+	[house_no] [int] NULL,
+	[house_type] [nvarchar](50) NULL,
+	[from_date] [smalldatetime] NULL,
+	[to_date] [smalldatetime] NULL,
+	[house_tax_amount] [decimal](18, 2) NULL,
+	[village_id] [nvarchar](10) NULL,
+	[active_status] [int] NULL,
+	[house_tax_bill_no] [int] NULL,
+	[due] [decimal](18, 2) NULL,
+	[advance] [float] NULL
+) ON [PRIMARY]
+GO
+
+
+45)USE [society]
+GO
+
+/****** Object:  Table [dbo].[house_tax_receipt]    Script Date: 03-08-2026 16:00:03 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[house_tax_receipt](
+	[house_receipt_id] [int] IDENTITY(1,1) NOT NULL,
+	[receipt_no] [nvarchar](50) NULL,
+	[village_id] [nvarchar](50) NOT NULL,
+	[house_id] [int] NOT NULL,
+	[payment_type] [int] NULL,
+	[pay_date] [date] NULL,
+	[pay_mode] [int] NULL,
+	[Amount_paid] [decimal](18, 2) NULL,
+	[payment_status] [int] NULL,
+	[chqdate] [date] NULL,
+	[chqno] [nvarchar](50) NULL,
+	[Transation_ref] [nvarchar](50) NULL,
+	[remark] [nvarchar](200) NULL
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[house_tax_receipt]  WITH CHECK ADD  CONSTRAINT [FK_house_house_tax_receipt] FOREIGN KEY([house_id])
+REFERENCES [dbo].[house] ([house_id])
+GO
+
+ALTER TABLE [dbo].[house_tax_receipt] CHECK CONSTRAINT [FK_house_house_tax_receipt]
+GO
+
+
+46)USE [society]
+GO
+
+/****** Object:  Table [dbo].[house_type]    Script Date: 03-08-2026 16:00:23 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[house_type](
+	[house_type_id] [int] NULL,
+	[house_type] [nvarchar](50) NULL
+) ON [PRIMARY]
+GO
+
+
+47)USE [society]
+GO
+
+/****** Object:  Table [dbo].[Inventory]    Script Date: 03-08-2026 16:00:59 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Inventory](
+	[inventory_id] [int] NOT NULL,
+	[in_name] [nvarchar](100) NOT NULL,
+	[qty] [float] NOT NULL,
+	[slot] [int] NOT NULL,
+	[charges] [float] NOT NULL,
+	[society_id] [nvarchar](10) NULL,
+	[active_status] [int] NULL
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[Inventory]  WITH CHECK ADD  CONSTRAINT [FK__inventory__socie__1D7B6025] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[Inventory] CHECK CONSTRAINT [FK__inventory__socie__1D7B6025]
+GO
+
+
+48)USE [society]
+GO
+
+/****** Object:  Table [dbo].[inventory_master]    Script Date: 03-08-2026 16:01:18 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[inventory_master](
+	[item_id] [int] NOT NULL,
+	[item_name] [varchar](100) NOT NULL,
+	[total_amount] [decimal](18, 2) NULL,
+	[tax] [decimal](18, 2) NULL,
+	[quantity] [int] NULL,
+	[unit] [varchar](20) NULL,
+	[society_id] [nvarchar](10) NOT NULL,
+	[purchase_date] [date] NULL,
+	[purchase_cost] [decimal](10, 2) NULL,
+	[vendor_id] [int] NULL,
+	[condition_status] [int] NULL,
+	[last_audit_date] [date] NULL,
+	[remarks] [text] NULL,
+	[created_at] [datetime] NULL,
+	[updated_at] [datetime] NULL,
+	[vendor_bill_id] [int] NULL,
+	[warranty] [int] NULL,
+ CONSTRAINT [PK__inventor__52020FDD35597BB8] PRIMARY KEY CLUSTERED 
+(
+	[item_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[inventory_master] ADD  CONSTRAINT [DF__inventory__quant__0DB9F9A8]  DEFAULT ((0)) FOR [quantity]
+GO
+
+ALTER TABLE [dbo].[inventory_master] ADD  CONSTRAINT [DF__inventory__vendo__0EAE1DE1]  DEFAULT ((0)) FOR [vendor_id]
+GO
+
+ALTER TABLE [dbo].[inventory_master] ADD  CONSTRAINT [DF__inventory__condi__0FA2421A]  DEFAULT ((0)) FOR [condition_status]
+GO
+
+ALTER TABLE [dbo].[inventory_master] ADD  CONSTRAINT [DF__inventory__creat__10966653]  DEFAULT (getdate()) FOR [created_at]
+GO
+
+ALTER TABLE [dbo].[inventory_master]  WITH CHECK ADD  CONSTRAINT [FK_inventory_society] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[inventory_master] CHECK CONSTRAINT [FK_inventory_society]
+GO
+
+
+49)USE [society]
+GO
+
+/****** Object:  Table [dbo].[ledger]    Script Date: 03-08-2026 16:01:39 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[ledger](
+	[led_id] [int] NOT NULL,
+	[led_description] [nvarchar](max) NULL,
+	[led_status] [nvarchar](50) NULL,
+	[society_id] [nvarchar](10) NULL,
+	[date] [date] NULL,
+	[active_status] [int] NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[ledger]  WITH CHECK ADD  CONSTRAINT [FK__ledger__society___2057CCD0] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[ledger] CHECK CONSTRAINT [FK__ledger__society___2057CCD0]
+GO
+
+
+50)USE [society]
+GO
+
+/****** Object:  Table [dbo].[loan]    Script Date: 03-08-2026 16:02:02 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[loan](
+	[loan_id] [int] NOT NULL,
+	[flat_id] [int] NULL,
+	[bank] [nvarchar](50) NULL,
+	[noc_issued] [nvarchar](50) NULL,
+	[type_id] [int] NULL,
+	[society_noc] [date] NULL,
+	[loan_clearance] [date] NULL,
+	[cert_id] [int] NULL,
+	[society_id] [nvarchar](10) NULL,
+	[active_status] [int] NULL
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[loan]  WITH CHECK ADD  CONSTRAINT [FK__loan__cert_id__2AA05119] FOREIGN KEY([cert_id])
+REFERENCES [dbo].[certificate] ([cert_id])
+GO
+
+ALTER TABLE [dbo].[loan] CHECK CONSTRAINT [FK__loan__cert_id__2AA05119]
+GO
+
+ALTER TABLE [dbo].[loan]  WITH CHECK ADD  CONSTRAINT [FK__loan__flat_id__2F650636] FOREIGN KEY([flat_id])
+REFERENCES [dbo].[flat_master] ([flat_id])
+GO
+
+ALTER TABLE [dbo].[loan] CHECK CONSTRAINT [FK__loan__flat_id__2F650636]
+GO
+
+ALTER TABLE [dbo].[loan]  WITH CHECK ADD  CONSTRAINT [FK__loan__society_id__214BF109] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[loan] CHECK CONSTRAINT [FK__loan__society_id__214BF109]
+GO
+
+ALTER TABLE [dbo].[loan]  WITH CHECK ADD  CONSTRAINT [FK__loan__type_id__2D7CBDC4] FOREIGN KEY([type_id])
+REFERENCES [dbo].[loan_type] ([type_id])
+GO
+
+ALTER TABLE [dbo].[loan] CHECK CONSTRAINT [FK__loan__type_id__2D7CBDC4]
+GO
+
+ALTER TABLE [dbo].[loan]  WITH CHECK ADD  CONSTRAINT [FK__loan__type_id__2E70E1FD] FOREIGN KEY([type_id])
+REFERENCES [dbo].[loan_type] ([type_id])
+GO
+
+ALTER TABLE [dbo].[loan] CHECK CONSTRAINT [FK__loan__type_id__2E70E1FD]
+GO
+
+
+51)USE [society]
+GO
+
+/****** Object:  Table [dbo].[loan_type]    Script Date: 03-08-2026 16:02:25 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[loan_type](
+	[type_id] [int] IDENTITY(1,1) NOT NULL,
+	[loan_type] [nvarchar](50) NULL,
+ CONSTRAINT [PK_loan_type] PRIMARY KEY CLUSTERED 
+(
+	[type_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+
+52)USE [society]
+GO
+
+/****** Object:  Table [dbo].[maintenance_cal]    Script Date: 03-08-2026 16:02:49 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[maintenance_cal](
+	[maintenance_id] [int] NOT NULL,
+	[bill_id] [int] NOT NULL,
+	[bill_no] [int] NULL,
+	[gen_date] [smalldatetime] NULL,
+	[due_date] [date] NULL,
+	[total_amount] [decimal](10, 2) NULL,
+	[flat_id] [int] NULL,
+	[m_date] [date] NULL,
+	[due] [decimal](10, 2) NULL,
+	[amt_forward] [float] NULL,
+	[interest_forward] [float] NULL,
+	[tax_interest_amt] [float] NULL,
+	[advance] [float] NULL,
+	[bill_type] [int] NULL,
+	[society_id] [nvarchar](10) NULL,
+	[generate_status] [bit] NULL,
+	[status] [int] NULL,
+ CONSTRAINT [PK_maintenance_cal] PRIMARY KEY CLUSTERED 
+(
+	[maintenance_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+
+53)USE [society]
+GO
+
+/****** Object:  Table [dbo].[maintenance_charges]    Script Date: 03-08-2026 16:03:11 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[maintenance_charges](
+	[charge_id] [int] IDENTITY(1,1) NOT NULL,
+	[society_id] [nvarchar](10) NOT NULL,
+	[user_id] [int] NULL,
+	[charges] [nvarchar](200) NOT NULL,
+	[amount] [decimal](18, 2) NOT NULL,
+	[status] [bit] NOT NULL,
+	[created_at] [datetime] NOT NULL,
+	[charges_type] [bit] NULL,
+ CONSTRAINT [PK__maintena__F3F52EBC476F81BC] PRIMARY KEY CLUSTERED 
+(
+	[charge_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[maintenance_charges] ADD  CONSTRAINT [DF__maintenan__amoun__5EFF0ABF]  DEFAULT ((0)) FOR [amount]
+GO
+
+ALTER TABLE [dbo].[maintenance_charges] ADD  CONSTRAINT [DF__maintenan__statu__5FF32EF8]  DEFAULT ((1)) FOR [status]
+GO
+
+ALTER TABLE [dbo].[maintenance_charges] ADD  CONSTRAINT [DF__maintenan__creat__60E75331]  DEFAULT (getdate()) FOR [created_at]
+GO
+
+
+54)USE [society]
+GO
+
+/****** Object:  Table [dbo].[maintenance_charges_audit]    Script Date: 03-08-2026 16:03:36 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[maintenance_charges_audit](
+	[audit_id] [int] IDENTITY(1,1) NOT NULL,
+	[charge_id] [int] NULL,
+	[society_id] [nvarchar](10) NULL,
+	[user_id] [int] NULL,
+	[charges] [nvarchar](200) NULL,
+	[amount] [decimal](18, 2) NULL,
+	[status] [bit] NULL,
+	[charges_type] [bit] NULL,
+	[action_type] [nvarchar](50) NULL,
+	[action_date] [datetime] NULL,
+ CONSTRAINT [PK__society___5AF33E33D26B98B5] PRIMARY KEY CLUSTERED 
+(
+	[audit_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[maintenance_charges_audit] ADD  CONSTRAINT [DF__society_c__actio__63C3BFDC]  DEFAULT (getdate()) FOR [action_date]
+GO
+
+
+55)USE [society]
+GO
+
+/****** Object:  Table [dbo].[married_status]    Script Date: 03-08-2026 16:03:56 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[married_status](
+	[married_id] [int] NOT NULL,
+	[married_name] [varchar](50) NULL,
+ CONSTRAINT [PK_married_status] PRIMARY KEY CLUSTERED 
+(
+	[married_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+
+56)USE [society]
+GO
+
+/****** Object:  Table [dbo].[meeting_extension]    Script Date: 03-08-2026 16:04:22 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[meeting_extension](
+	[meet_ex_id] [int] IDENTITY(1,1) NOT NULL,
+	[meet_id] [int] NULL,
+	[details] [nvarchar](1000) NULL,
+	[society_id] [nvarchar](10) NULL,
+	[active_status] [int] NULL,
+ CONSTRAINT [PK_meeting_extension] PRIMARY KEY CLUSTERED 
+(
+	[meet_ex_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[meeting_extension]  WITH CHECK ADD FOREIGN KEY([meet_id])
+REFERENCES [dbo].[meeting_master] ([meet_id])
+GO
+
+ALTER TABLE [dbo].[meeting_extension]  WITH CHECK ADD  CONSTRAINT [FK__meeting_e__socie__318258D2] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[meeting_extension] CHECK CONSTRAINT [FK__meeting_e__socie__318258D2]
+GO
+
+
+57)USE [society]
+GO
+
+/****** Object:  Table [dbo].[meeting_master]    Script Date: 03-08-2026 16:04:43 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[meeting_master](
+	[meet_id] [int] NOT NULL,
+	[meeting_date] [date] NULL,
+	[meeting_time] [datetime] NULL,
+	[subject] [nvarchar](50) NULL,
+	[details] [nvarchar](300) NULL,
+	[society_id] [nvarchar](10) NULL,
+	[active_status] [int] NULL,
+	[created_at] [smalldatetime] NULL,
+ CONSTRAINT [PK_meeting_master] PRIMARY KEY CLUSTERED 
+(
+	[meet_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[meeting_master] ADD  DEFAULT (getdate()) FOR [created_at]
+GO
+
+ALTER TABLE [dbo].[meeting_master]  WITH CHECK ADD  CONSTRAINT [FK__meeting_m__socie__32767D0B] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[meeting_master] CHECK CONSTRAINT [FK__meeting_m__socie__32767D0B]
+GO
+
+
+58)USE [society]
+GO
+
+/****** Object:  Table [dbo].[new_maintenance]    Script Date: 03-08-2026 16:05:24 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[new_maintenance](
+	[n_m_id] [int] NOT NULL,
+	[society_id] [nvarchar](10) NULL,
+	[m_date] [date] NULL,
+	[m_total] [decimal](18, 2) NULL,
+	[status] [bit] NULL,
+	[final_amount] [decimal](18, 2) NULL,
+	[active_status] [bit] NULL,
+	[bill_type] [bit] NULL,
+ CONSTRAINT [PK_new_maintenance] PRIMARY KEY CLUSTERED 
+(
+	[n_m_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[new_maintenance]  WITH CHECK ADD  CONSTRAINT [FK__new_maint__socie__336AA144] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[new_maintenance] CHECK CONSTRAINT [FK__new_maint__socie__336AA144]
+GO
+
+
+59)USE [society]
+GO
+
+/****** Object:  Table [dbo].[notice_master]    Script Date: 03-08-2026 16:05:43 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[notice_master](
+	[notice_id] [int] NOT NULL,
+	[date] [date] NULL,
+	[name] [nvarchar](150) NULL,
+	[description] [nvarchar](500) NULL,
+	[valid_to] [date] NULL,
+	[society_id] [nvarchar](10) NULL,
+	[active_status] [int] NULL,
+	[recipients_id] [int] NULL,
+	[created_at] [smalldatetime] NULL,
+ CONSTRAINT [PK_notice_master] PRIMARY KEY CLUSTERED 
+(
+	[notice_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[notice_master] ADD  CONSTRAINT [DF__notice_ma__creat__3D3402A0]  DEFAULT (getdate()) FOR [created_at]
+GO
+
+ALTER TABLE [dbo].[notice_master]  WITH CHECK ADD  CONSTRAINT [FK__notice_ma__socie__373B3228] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[notice_master] CHECK CONSTRAINT [FK__notice_ma__socie__373B3228]
+GO
+
+
+60)USE [society]
+GO
+
+/****** Object:  Table [dbo].[notice_recipients]    Script Date: 03-08-2026 16:06:06 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[notice_recipients](
+	[recipients_id] [int] NULL,
+	[recipients] [nvarchar](50) NULL
+) ON [PRIMARY]
+GO
+
+
+61)USE [society]
+GO
+
+/****** Object:  Table [dbo].[notify_status]    Script Date: 03-08-2026 16:06:34 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[notify_status](
+	[notification_id] [int] NULL,
+	[notification_type] [nvarchar](50) NULL,
+	[user_id] [int] NULL,
+	[user_type] [nvarchar](50) NULL,
+	[seen_status] [int] NULL,
+	[society_id] [nvarchar](50) NULL,
+	[title] [nvarchar](50) NULL,
+	[body] [nvarchar](500) NULL,
+	[notify_status_id] [int] NULL,
+	[timestamp] [smalldatetime] NULL
+) ON [PRIMARY]
+GO
+
+
+62)USE [society]
+GO
+
+/****** Object:  Table [dbo].[OtherCredits]    Script Date: 03-08-2026 16:07:01 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[OtherCredits](
+	[Id] [int] IDENTITY(1,1) NOT NULL,
+	[Description] [nvarchar](255) NOT NULL,
+	[Amount] [decimal](18, 2) NOT NULL,
+	[PaymentDate] [datetime] NOT NULL,
+	[CreatedDate] [datetime] NOT NULL,
+	[ModifiedDate] [datetime] NULL,
+	[society_id] [nvarchar](10) NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[Id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[OtherCredits] ADD  DEFAULT (getdate()) FOR [PaymentDate]
+GO
+
+ALTER TABLE [dbo].[OtherCredits] ADD  DEFAULT (getdate()) FOR [CreatedDate]
+GO
+
+ALTER TABLE [dbo].[OtherCredits]  WITH CHECK ADD  CONSTRAINT [fkcreditsociety] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[OtherCredits] CHECK CONSTRAINT [fkcreditsociety]
+GO
+
+
+63)USE [society]
+GO
+
+/****** Object:  Table [dbo].[owner_documents]    Script Date: 03-08-2026 16:07:26 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[owner_documents](
+	[document_id] [int] IDENTITY(1,1) NOT NULL,
+	[flat_id] [int] NOT NULL,
+	[doc_name] [varchar](255) NULL,
+	[doc_path] [varchar](500) NOT NULL,
+	[upload_date] [datetime] NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[document_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[owner_documents] ADD  DEFAULT (getdate()) FOR [upload_date]
+GO
+
+ALTER TABLE [dbo].[owner_documents]  WITH CHECK ADD FOREIGN KEY([flat_id])
+REFERENCES [dbo].[flat_master] ([flat_id])
+GO
+
+ALTER TABLE [dbo].[owner_documents]  WITH CHECK ADD  CONSTRAINT [fk_doc_flat] FOREIGN KEY([flat_id])
+REFERENCES [dbo].[flat_master] ([flat_id])
+ON UPDATE CASCADE
+ON DELETE CASCADE
+GO
+
+ALTER TABLE [dbo].[owner_documents] CHECK CONSTRAINT [fk_doc_flat]
+GO
+
+
+64)USE [society]
+GO
+
+/****** Object:  Table [dbo].[owner_master]    Script Date: 03-08-2026 16:10:57 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[owner_master](
+	[owner_id] [int] NOT NULL,
+	[society_id] [nvarchar](10) NULL,
+	[type] [nvarchar](10) NULL,
+	[poss_date] [date] NULL,
+	[name] [varchar](150) NULL,
+	[pre_mob] [nvarchar](50) NULL,
+	[alter_mob] [nvarchar](50) NULL,
+	[email] [nvarchar](150) NULL,
+	[married_id] [int] NULL,
+	[flat_type_id] [int] NULL,
+	[dob] [date] NULL,
+	[flat_id] [int] NULL,
+	[occup] [nvarchar](50) NULL,
+	[monthly_income] [nvarchar](150) NULL,
+	[off_addr1] [nvarchar](150) NULL,
+	[off_addr2] [nvarchar](150) NULL,
+	[off_tel] [nvarchar](150) NULL,
+	[id_proof] [nvarchar](max) NULL,
+	[photo_name] [nvarchar](max) NULL,
+	[wing_id] [int] NULL,
+	[aggrement_date] [date] NULL,
+	[aggrement_period_from] [date] NULL,
+	[aggrement_period_to] [date] NULL,
+	[police_verification_date] [date] NULL,
+	[gender] [nvarchar](50) NULL,
+	[language] [nvarchar](50) NULL,
+	[home_no] [nvarchar](50) NULL,
+	[mask_phone] [int] NULL,
+	[mask_email] [int] NULL,
+	[share_gate] [int] NULL,
+	[login_status] [int] NULL,
+	[token] [nvarchar](max) NULL,
+	[active_status] [int] NULL,
+	[doc_id] [int] NULL,
+	[app_notify] [int] NULL,
+	[call_notify] [int] NULL,
+	[profile_image] [nvarchar](max) NULL,
+	[agreement_path] [nvarchar](max) NULL,
+	[police_verification_path] [nvarchar](max) NULL,
+ CONSTRAINT [PK_owner_master] PRIMARY KEY CLUSTERED 
+(
+	[owner_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[owner_master]  WITH CHECK ADD  CONSTRAINT [FK__owner_mas__flat___4B422AD5] FOREIGN KEY([flat_id])
+REFERENCES [dbo].[flat_master] ([flat_id])
+GO
+
+ALTER TABLE [dbo].[owner_master] CHECK CONSTRAINT [FK__owner_mas__flat___4B422AD5]
+GO
+
+ALTER TABLE [dbo].[owner_master]  WITH CHECK ADD  CONSTRAINT [FK__owner_mas__ft_id__4959E263] FOREIGN KEY([flat_type_id])
+REFERENCES [dbo].[types] ([flat_type_id])
+GO
+
+ALTER TABLE [dbo].[owner_master] CHECK CONSTRAINT [FK__owner_mas__ft_id__4959E263]
+GO
+
+ALTER TABLE [dbo].[owner_master]  WITH CHECK ADD  CONSTRAINT [FK__owner_mas__socie__4865BE2A] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[owner_master] CHECK CONSTRAINT [FK__owner_mas__socie__4865BE2A]
+GO
+
+ALTER TABLE [dbo].[owner_master]  WITH CHECK ADD  CONSTRAINT [FK__owner_mas__wing___4C364F0E] FOREIGN KEY([wing_id])
+REFERENCES [dbo].[wing_master] ([wing_id])
+GO
+
+ALTER TABLE [dbo].[owner_master] CHECK CONSTRAINT [FK__owner_mas__wing___4C364F0E]
+GO
+
+ALTER TABLE [dbo].[owner_master]  WITH CHECK ADD  CONSTRAINT [FK__owner_mas__wing___4D2A7347] FOREIGN KEY([wing_id])
+REFERENCES [dbo].[wing_master] ([wing_id])
+GO
+
+ALTER TABLE [dbo].[owner_master] CHECK CONSTRAINT [FK__owner_mas__wing___4D2A7347]
+GO
+
+ALTER TABLE [dbo].[owner_master]  WITH CHECK ADD  CONSTRAINT [FK__owner_mas__wing___4E1E9780] FOREIGN KEY([wing_id])
+REFERENCES [dbo].[wing_master] ([wing_id])
+GO
+
+ALTER TABLE [dbo].[owner_master] CHECK CONSTRAINT [FK__owner_mas__wing___4E1E9780]
+GO
+
+
+65)USE [society]
+GO
+
+/****** Object:  Table [dbo].[Owner_Messages]    Script Date: 03-08-2026 16:11:22 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Owner_Messages](
+	[r_id] [int] IDENTITY(1,1) NOT NULL,
+	[flat_id] [int] NULL,
+	[message] [nvarchar](max) NULL,
+	[type] [nvarchar](50) NULL,
+	[society_id] [nvarchar](50) NULL,
+	[date] [date] NULL,
+	[owner_id] [int] NULL,
+	[owner_type] [int] NULL,
+	[message_sub] [nvarchar](50) NULL,
+	[view_status] [int] NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+
+66)USE [society]
+GO
+
+/****** Object:  Table [dbo].[panic_alert]    Script Date: 03-08-2026 16:11:47 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[panic_alert](
+	[panic_id] [int] IDENTITY(1,1) NOT NULL,
+	[type] [nvarchar](50) NULL,
+	[contact] [nvarchar](50) NULL,
+	[name] [nvarchar](50) NULL,
+	[owner_id] [int] NULL
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[panic_alert]  WITH CHECK ADD  CONSTRAINT [FK__panic_ale__owner__4F12BBB9] FOREIGN KEY([owner_id])
+REFERENCES [dbo].[owner_master] ([owner_id])
+GO
+
+ALTER TABLE [dbo].[panic_alert] CHECK CONSTRAINT [FK__panic_ale__owner__4F12BBB9]
+GO
+
+
+67)USE [society]
+GO
+
+/****** Object:  Table [dbo].[park_allotment]    Script Date: 03-08-2026 16:12:11 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[park_allotment](
+	[allo_id] [int] NULL,
+	[date] [smalldatetime] NULL,
+	[p3] [nvarchar](50) NULL,
+	[G1] [nvarchar](50) NULL,
+	[P1] [nvarchar](50) NULL,
+	[P2] [nvarchar](50) NULL,
+	[P4] [nvarchar](50) NULL,
+	[P7] [nvarchar](50) NULL,
+	[P6] [nvarchar](50) NULL,
+	[G2] [nvarchar](50) NULL,
+	[G3] [nvarchar](50) NULL,
+	[G4] [nvarchar](50) NULL,
+	[P9] [nvarchar](50) NULL
+) ON [PRIMARY]
+GO
+
+
+68)USE [society]
+GO
+
+/****** Object:  Table [dbo].[parking]    Script Date: 03-08-2026 16:12:34 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[parking](
+	[place_id] [int] NOT NULL,
+	[park_for] [int] NULL,
+	[parking_no] [nvarchar](50) NULL,
+	[society_id] [nvarchar](10) NULL,
+	[active_status] [int] NULL,
+ CONSTRAINT [PK_parking] PRIMARY KEY CLUSTERED 
+(
+	[place_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[parking]  WITH CHECK ADD  CONSTRAINT [FK__parking__society__5006DFF2] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[parking] CHECK CONSTRAINT [FK__parking__society__5006DFF2]
+GO
+
+
+69)USE [society]
+GO
+
+/****** Object:  Table [dbo].[parking_master]    Script Date: 03-08-2026 16:12:54 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[parking_master](
+	[parking_id] [int] NOT NULL,
+	[name] [nvarchar](50) NULL,
+	[park_for] [nvarchar](50) NULL,
+	[park_type] [nvarchar](50) NULL,
+	[place_id] [int] NULL,
+	[from_date] [date] NULL,
+	[to_date] [date] NULL,
+	[society_id] [nvarchar](10) NULL,
+	[contact_no] [nchar](10) NULL,
+	[vehicle_no] [nvarchar](20) NULL,
+	[model_name] [nvarchar](50) NULL,
+	[description] [nvarchar](50) NULL,
+	[sticker_no] [nvarchar](50) NULL,
+	[flat_id] [int] NULL,
+	[owner_id] [int] NULL,
+	[status] [nvarchar](50) NULL,
+	[active_status] [int] NULL
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[parking_master]  WITH CHECK ADD  CONSTRAINT [FK__parking_m__flat___54CB950F] FOREIGN KEY([flat_id])
+REFERENCES [dbo].[flat_master] ([flat_id])
+GO
+
+ALTER TABLE [dbo].[parking_master] CHECK CONSTRAINT [FK__parking_m__flat___54CB950F]
+GO
+
+ALTER TABLE [dbo].[parking_master]  WITH CHECK ADD  CONSTRAINT [FK__parking_m__flat___55BFB948] FOREIGN KEY([flat_id])
+REFERENCES [dbo].[flat_master] ([flat_id])
+GO
+
+ALTER TABLE [dbo].[parking_master] CHECK CONSTRAINT [FK__parking_m__flat___55BFB948]
+GO
+
+ALTER TABLE [dbo].[parking_master]  WITH CHECK ADD  CONSTRAINT [FK__parking_m__owner__56B3DD81] FOREIGN KEY([owner_id])
+REFERENCES [dbo].[owner_master] ([owner_id])
+GO
+
+ALTER TABLE [dbo].[parking_master] CHECK CONSTRAINT [FK__parking_m__owner__56B3DD81]
+GO
+
+ALTER TABLE [dbo].[parking_master]  WITH CHECK ADD  CONSTRAINT [FK__parking_m__place__52E34C9D] FOREIGN KEY([place_id])
+REFERENCES [dbo].[parking] ([place_id])
+GO
+
+ALTER TABLE [dbo].[parking_master] CHECK CONSTRAINT [FK__parking_m__place__52E34C9D]
+GO
+
+ALTER TABLE [dbo].[parking_master]  WITH CHECK ADD  CONSTRAINT [FK__parking_m__socie__53D770D6] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[parking_master] CHECK CONSTRAINT [FK__parking_m__socie__53D770D6]
+GO
+
+
+70)USE [society]
+GO
+
+/****** Object:  Table [dbo].[pay_mode]    Script Date: 03-08-2026 16:13:13 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[pay_mode](
+	[pay_id] [int] IDENTITY(1,1) NOT NULL,
+	[pay_mode] [nvarchar](50) NULL,
+ CONSTRAINT [PK_pay_mode] PRIMARY KEY CLUSTERED 
+(
+	[pay_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+
+71)USE [society]
+GO
+
+/****** Object:  Table [dbo].[pdc_reminder]    Script Date: 03-08-2026 16:13:38 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[pdc_reminder](
+	[pdc_rem_id] [int] NOT NULL,
+	[owner_id] [int] NOT NULL,
+	[wing_id] [int] NOT NULL,
+	[chqno] [int] NOT NULL,
+	[che_amount] [float] NOT NULL,
+	[che_date] [smalldatetime] NULL,
+	[che_dep] [int] NOT NULL,
+	[che_ret] [int] NOT NULL,
+	[che_can] [int] NOT NULL,
+	[society_id] [nvarchar](10) NULL,
+	[owner_due] [float] NULL,
+	[active_status] [int] NULL,
+	[bank_name] [nvarchar](100) NULL
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[pdc_reminder]  WITH CHECK ADD  CONSTRAINT [FK__pdc_remin__owner__57A801BA] FOREIGN KEY([owner_id])
+REFERENCES [dbo].[owner_master] ([owner_id])
+GO
+
+ALTER TABLE [dbo].[pdc_reminder] CHECK CONSTRAINT [FK__pdc_remin__owner__57A801BA]
+GO
+
+ALTER TABLE [dbo].[pdc_reminder]  WITH CHECK ADD  CONSTRAINT [FK__pdc_remin__socie__5A846E65] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[pdc_reminder] CHECK CONSTRAINT [FK__pdc_remin__socie__5A846E65]
+GO
+
+ALTER TABLE [dbo].[pdc_reminder]  WITH CHECK ADD FOREIGN KEY([wing_id])
+REFERENCES [dbo].[wing_master] ([wing_id])
+GO
+
+
+72)USE [society]
+GO
+
+/****** Object:  Table [dbo].[person_type]    Script Date: 03-08-2026 16:14:06 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[person_type](
+	[p_type_id] [int] NULL,
+	[p_type_name] [nvarchar](50) NULL
+) ON [PRIMARY]
+GO
+
+
+73)USE [society]
+GO
+
+/****** Object:  Table [dbo].[poll_Options]    Script Date: 03-08-2026 16:14:57 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[poll_Options](
+	[PollId] [nchar](10) NOT NULL,
+	[Options] [nvarchar](200) NULL,
+	[OptionId] [nchar](10) NOT NULL
+) ON [PRIMARY]
+GO
+
+
+74)USE [society]
+GO
+
+/****** Object:  Table [dbo].[poll_voting]    Script Date: 03-08-2026 16:15:24 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[poll_voting](
+	[Society_id] [nvarchar](10) NULL,
+	[user_Id] [int] NULL,
+	[Poll_id] [int] NULL,
+	[option_id] [int] NULL,
+	[user_type] [nvarchar](10) NULL,
+	[voting_id] [int] NOT NULL,
+ CONSTRAINT [PK__poll_vot__4C1EEC84EF231A0B] PRIMARY KEY CLUSTERED 
+(
+	[voting_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+
+75)USE [society]
+GO
+
+/****** Object:  Table [dbo].[Polls]    Script Date: 03-08-2026 16:15:43 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Polls](
+	[PollId] [int] NOT NULL,
+	[user_id] [int] NULL,
+	[Topic] [nvarchar](200) NULL,
+	[Description] [nvarchar](max) NULL,
+	[ExpiryDate] [date] NULL,
+	[AllowMultipleVotes] [int] NULL,
+	[OneVotePerUnit] [int] NULL,
+	[Audience] [nvarchar](50) NULL,
+	[Expiredate] [datetime] NULL,
+	[options] [nvarchar](max) NULL,
+	[society_id] [nvarchar](50) NULL,
+ CONSTRAINT [PK__Polls__E1949E6A1EA33B8D] PRIMARY KEY CLUSTERED 
+(
+	[PollId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[Polls] ADD  CONSTRAINT [DF__Polls__Expiredat__5C57A83E]  DEFAULT (getdate()) FOR [Expiredate]
+GO
+
+
+76)USE [society]
+GO
+
+/****** Object:  Table [dbo].[Product_Images]    Script Date: 03-08-2026 16:16:03 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Product_Images](
+	[pro_image_id] [int] IDENTITY(1,1) NOT NULL,
+	[product_id] [int] NULL,
+	[image_path] [nvarchar](max) NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[Product_Images]  WITH CHECK ADD  CONSTRAINT [FK__Product_I__produ__5C6CB6D7] FOREIGN KEY([product_id])
+REFERENCES [dbo].[Product_Sell] ([product_id])
+GO
+
+ALTER TABLE [dbo].[Product_Images] CHECK CONSTRAINT [FK__Product_I__produ__5C6CB6D7]
+GO
+
+
+77)USE [society]
+GO
+
+/****** Object:  Table [dbo].[Product_Sell]    Script Date: 03-08-2026 16:16:22 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Product_Sell](
+	[product_id] [int] NOT NULL,
+	[product_name] [nvarchar](50) NULL,
+	[description] [nvarchar](max) NULL,
+	[price] [nvarchar](50) NULL,
+	[warranty] [nvarchar](50) NULL,
+	[status] [nvarchar](50) NULL,
+	[available_quantity] [nvarchar](50) NULL,
+	[society_id] [nvarchar](10) NULL,
+	[owner_id] [int] NULL,
+	[contact_no] [nvarchar](50) NULL,
+	[posted_date] [smalldatetime] NULL,
+	[availability] [int] NULL,
+	[active_status] [int] NULL,
+	[type] [nvarchar](50) NULL,
+ CONSTRAINT [PK_Product_Sell] PRIMARY KEY CLUSTERED 
+(
+	[product_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+
+78)USE [society]
+GO
+
+/****** Object:  Table [dbo].[receipt]    Script Date: 03-08-2026 16:16:43 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[receipt](
+	[receipt_id] [int] NOT NULL,
+	[society_id] [nvarchar](10) NOT NULL,
+	[flat_id] [int] NOT NULL,
+	[receipt_no] [nvarchar](50) NOT NULL,
+	[receipt_date] [smalldatetime] NOT NULL,
+	[pay_mode] [nvarchar](20) NOT NULL,
+	[cheque_no] [nvarchar](30) NULL,
+	[cheque_date] [date] NULL,
+	[bank_name] [nvarchar](100) NULL,
+	[transaction_ref] [nvarchar](100) NULL,
+	[paid_amount] [decimal](10, 2) NOT NULL,
+	[remarks] [nvarchar](255) NULL,
+	[status] [int] NOT NULL,
+	[created_by] [nvarchar](50) NOT NULL,
+	[bill_details] [nvarchar](20) NULL,
+ CONSTRAINT [PK__maintena__91F52C1F311ADFC7] PRIMARY KEY CLUSTERED 
+(
+	[receipt_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY],
+ CONSTRAINT [UQ_transaction_ref] UNIQUE NONCLUSTERED 
+(
+	[transaction_ref] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[receipt] ADD  CONSTRAINT [DF__maintenan__recei__72D0F942]  DEFAULT (getdate()) FOR [receipt_date]
+GO
+
+ALTER TABLE [dbo].[receipt]  WITH CHECK ADD  CONSTRAINT [FK_flatMaster_receipt] FOREIGN KEY([flat_id])
+REFERENCES [dbo].[flat_master] ([flat_id])
+GO
+
+ALTER TABLE [dbo].[receipt] CHECK CONSTRAINT [FK_flatMaster_receipt]
+GO
+
+
+79)USE [society]
+GO
+
+/****** Object:  Table [dbo].[RefreshTokens]    Script Date: 03-08-2026 16:17:08 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[RefreshTokens](
+	[id] [int] IDENTITY(1,1) NOT NULL,
+	[user_mobile] [nvarchar](50) NOT NULL,
+	[refresh_token] [nvarchar](max) NOT NULL,
+	[device_info] [nvarchar](500) NULL,
+	[created_at] [datetime2](7) NULL,
+	[expires_at] [datetime2](7) NOT NULL,
+	[revoked] [bit] NULL,
+ CONSTRAINT [PK__RefreshT__3213E83FB9F7E0CC] PRIMARY KEY CLUSTERED 
+(
+	[id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[RefreshTokens] ADD  CONSTRAINT [DF__RefreshTo__creat__7E0DA1C4]  DEFAULT (getdate()) FOR [created_at]
+GO
+
+ALTER TABLE [dbo].[RefreshTokens] ADD  CONSTRAINT [DF__RefreshTo__revok__7F01C5FD]  DEFAULT ((0)) FOR [revoked]
+GO
+
+
+80)USE [society]
+GO
+
+/****** Object:  Table [dbo].[request]    Script Date: 03-08-2026 16:17:30 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[request](
+	[req_id] [int] NULL,
+	[request] [nvarchar](250) NULL,
+	[req_date] [smalldatetime] NULL,
+	[reply] [nvarchar](250) NULL,
+	[reply_date] [smalldatetime] NULL,
+	[request_by] [int] NULL,
+	[reply_by] [int] NULL
+) ON [PRIMARY]
+GO
+
+
+81)USE [society]
+GO
+
+/****** Object:  Table [dbo].[Rights_details]    Script Date: 03-08-2026 16:17:48 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Rights_details](
+	[Right_id] [int] NULL,
+	[Department_no] [int] NULL,
+	[user_id] [int] NULL,
+	[Activity_id] [int] NULL,
+	[add_check] [int] NULL,
+	[modify_check] [int] NULL,
+	[delete_check] [int] NULL,
+	[view_check] [int] NULL,
+	[activity_name] [nvarchar](50) NULL
+) ON [PRIMARY]
+GO
+
+
+82)USE [society]
+GO
+
+/****** Object:  Table [dbo].[Security_Alert]    Script Date: 03-08-2026 16:18:09 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Security_Alert](
+	[security_id] [int] IDENTITY(1,1) NOT NULL,
+	[flat_id] [int] NULL,
+	[type] [nvarchar](50) NULL,
+	[society_id] [nvarchar](50) NULL,
+	[date] [date] NULL
+) ON [PRIMARY]
+GO
+
+
+83)USE [society]
+GO
+
+/****** Object:  Table [dbo].[servent_maid_master]    Script Date: 03-08-2026 16:18:29 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[servent_maid_master](
+	[servent_id] [int] NOT NULL,
+	[s_name] [nvarchar](50) NULL,
+	[s_address_1] [nvarchar](250) NULL,
+	[s_address_2] [nvarchar](250) NULL,
+	[mobile_no1] [nvarchar](10) NULL,
+	[mobile_no2] [nvarchar](10) NULL,
+	[cloth_wash] [int] NULL,
+	[cloth_wash_charge] [float] NULL,
+	[b_wash] [int] NULL,
+	[b_wash_charge] [float] NULL,
+	[f_wash] [int] NULL,
+	[f_wash_charge] [float] NULL,
+	[baby_set] [int] NULL,
+	[b_set_charge] [float] NULL,
+	[meal] [int] NULL,
+	[meal_charge] [float] NULL,
+	[remark] [nvarchar](500) NULL,
+	[society_id] [nvarchar](10) NULL,
+	[active_status] [int] NULL,
+	[type] [int] NULL,
+ CONSTRAINT [PK_servent_maid_master] PRIMARY KEY CLUSTERED 
+(
+	[servent_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+
+84)USE [society]
+GO
+
+/****** Object:  Table [dbo].[shop_maintenance]    Script Date: 03-08-2026 16:18:51 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[shop_maintenance](
+	[shop_maint_id] [int] NOT NULL,
+	[mrep_no] [nvarchar](50) NULL,
+	[m_date] [date] NULL,
+	[led_id] [int] NULL,
+	[other_details] [nvarchar](max) NULL,
+	[amt] [int] NULL,
+	[pay_method] [nvarchar](50) NULL,
+	[cheq_no] [nvarchar](50) NULL,
+	[cheq_date] [date] NULL,
+	[society_id] [nvarchar](50) NULL,
+	[active_status] [int] NULL,
+ CONSTRAINT [PK_shop_maintenance] PRIMARY KEY CLUSTERED 
+(
+	[shop_maint_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+
+85)USE [society]
+GO
+
+/****** Object:  Table [dbo].[slot_master]    Script Date: 03-08-2026 16:19:12 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[slot_master](
+	[facility_id] [int] NOT NULL,
+	[slot_id] [int] IDENTITY(1,1) NOT NULL,
+	[start_time] [time](7) NULL,
+	[end_time] [time](7) NULL,
+	[society_id] [nvarchar](10) NULL,
+	[active_status] [int] NULL,
+ CONSTRAINT [PK_slot_master] PRIMARY KEY CLUSTERED 
+(
+	[slot_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[slot_master]  WITH CHECK ADD  CONSTRAINT [FK__slot_mast__socie__6CA31EA0] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[slot_master] CHECK CONSTRAINT [FK__slot_mast__socie__6CA31EA0]
+GO
+
+
+86)USE [society]
+GO
+
+/****** Object:  Table [dbo].[Society_Charges]    Script Date: 03-08-2026 16:19:33 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Society_Charges](
+	[charge_id] [int] NOT NULL,
+	[society_id] [nvarchar](10) NULL,
+	[amount] [decimal](18, 2) NULL,
+	[active_status] [int] NULL,
+	[total_unit] [int] NULL
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[Society_Charges]  WITH CHECK ADD  CONSTRAINT [FK__Society_C__socie__6D9742D9] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[Society_Charges] CHECK CONSTRAINT [FK__Society_C__socie__6D9742D9]
+GO
+
+
+87)USE [society]
+GO
+
+/****** Object:  Table [dbo].[society_expense]    Script Date: 03-08-2026 16:19:54 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[society_expense](
+	[expense_id] [int] NOT NULL,
+	[invoice_no] [nvarchar](50) NULL,
+	[date] [date] NULL,
+	[ex_type] [bit] NULL,
+	[ex_name] [nvarchar](50) NULL,
+	[ex_details] [nvarchar](max) NULL,
+	[comments] [nvarchar](max) NULL,
+	[amount] [float] NULL,
+	[tax] [float] NULL,
+	[tds] [float] NULL,
+	[f_amount] [float] NULL,
+	[society_id] [nvarchar](10) NULL,
+	[status] [bit] NULL,
+	[regular] [bit] NULL,
+	[active_status] [bit] NULL,
+ CONSTRAINT [PK_society_expense] PRIMARY KEY CLUSTERED 
+(
+	[expense_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+
+88)USE [society]
+GO
+
+/****** Object:  Table [dbo].[society_master]    Script Date: 03-08-2026 16:20:13 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[society_master](
+	[society_master_id] [int] IDENTITY(1,1) NOT NULL,
+	[name] [nvarchar](250) NULL,
+	[establish_date] [date] NULL,
+	[registration_no] [nvarchar](50) NULL,
+	[off_address1] [nvarchar](150) NULL,
+	[off_address2] [nvarchar](150) NULL,
+	[contact_no1] [nvarchar](50) NULL,
+	[email] [nvarchar](150) NULL,
+	[society_id] [nvarchar](10) NOT NULL,
+	[city] [nvarchar](50) NULL,
+	[state_id] [int] NULL,
+	[pincode] [nvarchar](50) NULL,
+	[tan_no] [nvarchar](50) NULL,
+	[gstin_no] [nvarchar](50) NULL,
+	[pan_no] [nvarchar](50) NULL,
+	[active_status] [int] NULL,
+	[home_no] [int] NULL,
+	[district_id] [int] NULL,
+	[division_id] [nvarchar](50) NULL,
+	[enrolment_date] [smalldatetime] NULL,
+	[status] [int] NULL,
+	[termination_date] [smalldatetime] NULL,
+ CONSTRAINT [PK_society_master] PRIMARY KEY CLUSTERED 
+(
+	[society_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[society_master]  WITH CHECK ADD  CONSTRAINT [FK__society_m__socie__4277DAAA] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[society_master] CHECK CONSTRAINT [FK__society_m__socie__4277DAAA]
+GO
+
+ALTER TABLE [dbo].[society_master]  WITH CHECK ADD  CONSTRAINT [FK__society_m__state__4183B671] FOREIGN KEY([state_id])
+REFERENCES [dbo].[state] ([state_id])
+GO
+
+ALTER TABLE [dbo].[society_master] CHECK CONSTRAINT [FK__society_m__state__4183B671]
+GO
+
+
+89)USE [society]
+GO
+
+/****** Object:  Table [dbo].[society_receipt]    Script Date: 03-08-2026 16:20:31 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[society_receipt](
+	[receipt_id] [int] NOT NULL,
+	[date] [date] NULL,
+	[total_amount] [decimal](18, 2) NULL,
+	[society_id] [nvarchar](10) NULL,
+	[bill_no] [int] NULL,
+	[paymode] [nvarchar](20) NULL,
+	[paid_amount] [decimal](18, 2) NULL
+) ON [PRIMARY]
+GO
+
+
+90)USE [society]
+GO
+
+/****** Object:  Table [dbo].[square_ft_rate]    Script Date: 03-08-2026 16:20:51 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[square_ft_rate](
+	[sq_rate_id] [int] NULL,
+	[house_type_id] [nvarchar](50) NULL,
+	[rate] [decimal](18, 2) NULL,
+	[applied_date] [date] NULL,
+	[status] [int] NULL,
+	[village_id] [nvarchar](10) NULL,
+	[active_status] [int] NULL,
+	[bill_gen_date] [date] NULL,
+	[due_date] [date] NULL
+) ON [PRIMARY]
+GO
+
+
+91)USE [society]
+GO
+
+/****** Object:  Table [dbo].[staff_entry_exit]    Script Date: 03-08-2026 16:21:11 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[staff_entry_exit](
+	[entry_exit_id] [int] IDENTITY(1,1) NOT NULL,
+	[staff_id] [int] NULL,
+	[in_date] [smalldatetime] NULL,
+	[in_time] [smalldatetime] NULL,
+	[out_time] [smalldatetime] NULL,
+	[out_date] [smalldatetime] NULL,
+	[in_user_id] [int] NULL,
+	[out_user_id] [int] NULL,
+	[society_id] [nvarchar](10) NULL,
+	[active_status] [int] NULL
+) ON [PRIMARY]
+GO
+
+
+92)USE [society]
+GO
+
+/****** Object:  Table [dbo].[Staff_Master]    Script Date: 03-08-2026 16:21:36 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Staff_Master](
+	[staff_id] [int] NOT NULL,
+	[name] [nvarchar](50) NULL,
+	[address] [nvarchar](50) NULL,
+	[contact_no] [nvarchar](10) NULL,
+	[email] [nvarchar](50) NULL,
+	[date_of_join] [date] NULL,
+	[society_id] [nvarchar](10) NULL,
+	[role_id] [int] NULL,
+	[image] [nvarchar](max) NULL,
+	[token] [nvarchar](max) NULL,
+	[active_status] [int] NULL,
+	[id_path] [nvarchar](max) NULL,
+	[salary] [decimal](10, 2) NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[Staff_Master]  WITH CHECK ADD  CONSTRAINT [FK__Staff_Mas__socie__0D0FEE32] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[Staff_Master] CHECK CONSTRAINT [FK__Staff_Mas__socie__0D0FEE32]
+GO
+
+ALTER TABLE [dbo].[Staff_Master]  WITH CHECK ADD  CONSTRAINT [FK_StaffMaster_StaffRole] FOREIGN KEY([role_id])
+REFERENCES [dbo].[staff_role] ([role_id])
+GO
+
+ALTER TABLE [dbo].[Staff_Master] CHECK CONSTRAINT [FK_StaffMaster_StaffRole]
+GO
+
+
+93)USE [society]
+GO
+
+/****** Object:  Table [dbo].[staff_role]    Script Date: 03-08-2026 16:21:57 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[staff_role](
+	[role_id] [int] IDENTITY(1,1) NOT NULL,
+	[role] [nvarchar](50) NULL,
+ CONSTRAINT [PK_staff_role] PRIMARY KEY CLUSTERED 
+(
+	[role_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+
+94)USE [society]
+GO
+
+/****** Object:  Table [dbo].[StaffAttendance]    Script Date: 03-08-2026 16:22:24 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[StaffAttendance](
+	[attendance_id] [int] IDENTITY(1,1) NOT NULL,
+	[staff_id] [int] NOT NULL,
+	[in_date] [date] NOT NULL,
+	[in_time] [time](7) NOT NULL,
+	[out_date] [date] NULL,
+	[out_time] [time](7) NULL,
+	[status] [int] NOT NULL,
+	[working_hours] [int] NULL,
+	[date] [date] NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[attendance_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[StaffAttendance] ADD  DEFAULT ((0)) FOR [status]
+GO
+
+
+95)USE [society]
+GO
+
+/****** Object:  Table [dbo].[state]    Script Date: 03-08-2026 16:22:46 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[state](
+	[state_id] [int] NOT NULL,
+	[state] [nvarchar](50) NULL,
+ CONSTRAINT [PK_state] PRIMARY KEY CLUSTERED 
+(
+	[state_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+
+96)USE [society]
+GO
+
+/****** Object:  Table [dbo].[suggestion_request_master]    Script Date: 03-08-2026 16:23:07 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[suggestion_request_master](
+	[sug_id] [int] NOT NULL,
+	[details] [nvarchar](500) NULL,
+	[society_id] [nvarchar](10) NULL,
+	[active_status] [int] NULL,
+	[subject] [nvarchar](50) NULL
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[suggestion_request_master]  WITH CHECK ADD  CONSTRAINT [FK__suggestio__socie__0E04126B] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[suggestion_request_master] CHECK CONSTRAINT [FK__suggestio__socie__0E04126B]
+GO
+
+
+97)USE [society]
+GO
+
+/****** Object:  Table [dbo].[taluka]    Script Date: 03-08-2026 16:23:36 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[taluka](
+	[taluka_id] [int] NULL,
+	[taluka] [nvarchar](50) NULL,
+	[district_id] [int] NULL
+) ON [PRIMARY]
+GO
+
+
+98)USE [society]
+GO
+
+/****** Object:  Table [dbo].[terms]    Script Date: 03-08-2026 16:24:00 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[terms](
+	[term_id] [int] NOT NULL,
+	[terms] [text] NULL,
+	[society_id] [nvarchar](10) NULL,
+	[active_status] [int] NULL,
+ CONSTRAINT [PK_terms] PRIMARY KEY CLUSTERED 
+(
+	[term_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[terms]  WITH CHECK ADD  CONSTRAINT [FK__terms__society_i__11D4A34F] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[terms] CHECK CONSTRAINT [FK__terms__society_i__11D4A34F]
+GO
+
+
+99)USE [society]
+GO
+
+/****** Object:  Table [dbo].[Threat_type]    Script Date: 03-08-2026 16:24:23 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Threat_type](
+	[threat_id] [int] NOT NULL,
+	[threat_name] [nvarchar](50) NULL,
+ CONSTRAINT [PK_Threat_type] PRIMARY KEY CLUSTERED 
+(
+	[threat_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+
+100)USE [society]
+GO
+
+/****** Object:  Table [dbo].[types]    Script Date: 03-08-2026 16:24:46 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[types](
+	[flat_type_id] [int] NOT NULL,
+	[flat_type] [nvarchar](50) NULL,
+ CONSTRAINT [PK_types] PRIMARY KEY CLUSTERED 
+(
+	[flat_type_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+
+101)USE [society]
+GO
+
+/****** Object:  Table [dbo].[upload_doc]    Script Date: 03-08-2026 16:25:14 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[upload_doc](
+	[file_id] [int] NOT NULL,
+	[file_save_path] [nvarchar](500) NULL,
+	[date] [smalldatetime] NULL,
+	[society_id] [nvarchar](10) NULL,
+	[active_status] [nchar](10) NULL,
+	[Description] [nvarchar](50) NULL,
+	[Tag] [nvarchar](20) NULL,
+	[doc_name] [nvarchar](20) NULL
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[upload_doc]  WITH CHECK ADD  CONSTRAINT [FK__upload_do__socie__1699586C] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[upload_doc] CHECK CONSTRAINT [FK__upload_do__socie__1699586C]
+GO
+
+
+102)USE [society]
+GO
+
+/****** Object:  Table [dbo].[usefull_contact]    Script Date: 03-08-2026 16:25:35 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[usefull_contact](
+	[usefull_contact_id] [int] NOT NULL,
+	[p_name] [nvarchar](50) NULL,
+	[p_type] [int] NULL,
+	[org_name] [nvarchar](50) NULL,
+	[contact_no] [nvarchar](10) NULL,
+	[contact_address] [nvarchar](250) NULL,
+	[address2] [nvarchar](250) NULL,
+	[email] [nvarchar](50) NULL,
+	[remark] [nvarchar](50) NULL,
+	[society_id] [nvarchar](10) NULL,
+	[active_status] [int] NULL,
+	[id_path] [nvarchar](max) NULL,
+ CONSTRAINT [PK_usefull_contact] PRIMARY KEY CLUSTERED 
+(
+	[usefull_contact_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[usefull_contact]  WITH CHECK ADD  CONSTRAINT [FK__usefull_c__socie__178D7CA5] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[usefull_contact] CHECK CONSTRAINT [FK__usefull_c__socie__178D7CA5]
+GO
+
+
+103)USE [society]
+GO
+
+/****** Object:  Table [dbo].[userAreaofWork]    Script Date: 03-08-2026 16:25:59 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[userAreaofWork](
+	[work_id] [int] NOT NULL,
+	[area_of_work] [nvarchar](50) NULL,
+	[owner_id] [int] NULL,
+	[o_ex_id] [int] NULL,
+	[active_status] [int] NULL
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[userAreaofWork]  WITH CHECK ADD  CONSTRAINT [FK__userAreao__o_ex___1975C517] FOREIGN KEY([o_ex_id])
+REFERENCES [dbo].[owner_extension] ([o_ex_id])
+GO
+
+ALTER TABLE [dbo].[userAreaofWork] CHECK CONSTRAINT [FK__userAreao__o_ex___1975C517]
+GO
+
+ALTER TABLE [dbo].[userAreaofWork]  WITH CHECK ADD  CONSTRAINT [FK__userAreao__owner__1881A0DE] FOREIGN KEY([owner_id])
+REFERENCES [dbo].[owner_master] ([owner_id])
+GO
+
+ALTER TABLE [dbo].[userAreaofWork] CHECK CONSTRAINT [FK__userAreao__owner__1881A0DE]
+GO
+
+
+104)USE [society]
+GO
+
+/****** Object:  Table [dbo].[userHobby]    Script Date: 03-08-2026 16:26:25 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[userHobby](
+	[user_hobby_id] [int] NOT NULL,
+	[hobby] [nvarchar](50) NULL,
+	[owner_id] [int] NULL,
+	[o_ex_id] [int] NULL,
+	[active_status] [int] NULL
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[userHobby]  WITH CHECK ADD  CONSTRAINT [FK__userHobby__o_ex___1B5E0D89] FOREIGN KEY([o_ex_id])
+REFERENCES [dbo].[owner_extension] ([o_ex_id])
+GO
+
+ALTER TABLE [dbo].[userHobby] CHECK CONSTRAINT [FK__userHobby__o_ex___1B5E0D89]
+GO
+
+ALTER TABLE [dbo].[userHobby]  WITH CHECK ADD  CONSTRAINT [FK__userHobby__owner__1A69E950] FOREIGN KEY([owner_id])
+REFERENCES [dbo].[owner_master] ([owner_id])
+GO
+
+ALTER TABLE [dbo].[userHobby] CHECK CONSTRAINT [FK__userHobby__owner__1A69E950]
+GO
+
+
+105)USE [society]
+GO
+
+/****** Object:  Table [dbo].[UserLogin]    Script Date: 03-08-2026 16:26:52 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[UserLogin](
+	[user_id] [int] NOT NULL,
+	[user_type_id] [int] NULL,
+	[name] [nvarchar](500) NULL,
+	[username] [nvarchar](50) NULL,
+	[password] [nvarchar](50) NULL,
+	[active_status] [int] NULL,
+	[society_id] [nvarchar](10) NULL,
+	[token] [nvarchar](max) NULL,
+	[status] [int] NULL,
+	[web_token] [nvarchar](max) NULL,
+	[village_id] [nvarchar](10) NULL,
+	[type] [nvarchar](50) NULL,
+	[contact_no] [nvarchar](20) NULL,
+	[email] [nvarchar](50) NULL,
+	[owner_id] [int] NULL,
+ CONSTRAINT [PK_UserLogin] PRIMARY KEY CLUSTERED 
+(
+	[user_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[UserLogin]  WITH CHECK ADD  CONSTRAINT [FK__UserLogin__socie__1C5231C2] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[UserLogin] CHECK CONSTRAINT [FK__UserLogin__socie__1C5231C2]
+GO
+
+
+106)USE [society]
+GO
+
+/****** Object:  Table [dbo].[UserType]    Script Date: 03-08-2026 16:27:12 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[UserType](
+	[UserTypeId] [int] NOT NULL,
+	[UserTypeName] [nvarchar](50) NULL,
+	[type] [int] NULL,
+ CONSTRAINT [PK_UserType] PRIMARY KEY CLUSTERED 
+(
+	[UserTypeId] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+
+107)USE [society]
+GO
+
+/****** Object:  Table [dbo].[Vehicle]    Script Date: 03-08-2026 16:27:33 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Vehicle](
+	[vehicle_id] [int] NOT NULL,
+	[vehicle_no] [nvarchar](50) NULL,
+	[model_name] [nvarchar](50) NULL,
+	[society_id] [nvarchar](50) NULL,
+	[flat_id] [int] NULL,
+	[vehicle_type] [nvarchar](30) NULL,
+	[park_place_id] [int] NULL
+) ON [PRIMARY]
+GO
+
+
+108)USE [society]
+GO
+
+/****** Object:  Table [dbo].[vendor_bill_approval]    Script Date: 03-08-2026 16:27:55 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[vendor_bill_approval](
+	[approval_id] [int] NOT NULL,
+	[bill_id] [int] NOT NULL,
+	[user_id] [int] NOT NULL,
+	[approval_status] [int] NULL,
+	[approval_date] [datetime] NULL,
+	[remarks] [nvarchar](255) NULL,
+ CONSTRAINT [PK__vendor_b__C94AE61A629AC4C2] PRIMARY KEY CLUSTERED 
+(
+	[approval_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[vendor_bill_approval] ADD  CONSTRAINT [DF__vendor_bi__appro__40457975]  DEFAULT ((1)) FOR [approval_status]
+GO
+
+ALTER TABLE [dbo].[vendor_bill_approval]  WITH CHECK ADD  CONSTRAINT [FK_billapproval_bill] FOREIGN KEY([bill_id])
+REFERENCES [dbo].[vendor_bills] ([bill_id])
+ON DELETE CASCADE
+GO
+
+ALTER TABLE [dbo].[vendor_bill_approval] CHECK CONSTRAINT [FK_billapproval_bill]
+GO
+
+
+109)USE [society]
+GO
+
+/****** Object:  Table [dbo].[vendor_bill_payments]    Script Date: 03-08-2026 16:28:15 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[vendor_bill_payments](
+	[payment_id] [int] NOT NULL,
+	[society_id] [nvarchar](10) NOT NULL,
+	[vendor_id] [int] NOT NULL,
+	[pay_mode] [nvarchar](20) NOT NULL,
+	[cheque_no] [nvarchar](30) NULL,
+	[cheque_date] [date] NULL,
+	[payment_date] [smalldatetime] NULL,
+	[bank_name] [nvarchar](100) NULL,
+	[transaction_ref] [nvarchar](100) NULL,
+	[paid_amount] [decimal](10, 2) NOT NULL,
+	[remarks] [nvarchar](255) NULL,
+	[status] [int] NOT NULL,
+	[created_by] [nvarchar](50) NOT NULL,
+	[bill_details] [nvarchar](max) NULL,
+	[payment_no] [nvarchar](20) NULL,
+	[bill_paid_amount] [nvarchar](max) NULL,
+	[file_path] [nvarchar](max) NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[vendor_bill_payments] ADD  CONSTRAINT [DF__vendor_bi__payme__002AF460]  DEFAULT (getdate()) FOR [payment_date]
+GO
+
+ALTER TABLE [dbo].[vendor_bill_payments]  WITH CHECK ADD  CONSTRAINT [FK_vendor_bill_payments_vendor_master] FOREIGN KEY([vendor_id])
+REFERENCES [dbo].[vendor_master] ([vendor_id])
+GO
+
+ALTER TABLE [dbo].[vendor_bill_payments] CHECK CONSTRAINT [FK_vendor_bill_payments_vendor_master]
+GO
+
+
+110)USE [society]
+GO
+
+/****** Object:  Table [dbo].[vendor_bills]    Script Date: 03-08-2026 16:28:43 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[vendor_bills](
+	[bill_id] [int] NOT NULL,
+	[society_id] [nvarchar](10) NOT NULL,
+	[bill_number] [nvarchar](50) NOT NULL,
+	[bill_date] [date] NOT NULL,
+	[vendor_id] [nvarchar](100) NULL,
+	[subtotal] [decimal](12, 2) NULL,
+	[tax_amount] [decimal](12, 2) NULL,
+	[total_amount] [decimal](12, 2) NOT NULL,
+	[status] [int] NULL,
+	[notes] [nvarchar](500) NULL,
+	[created_date] [datetime] NULL,
+	[updated_date] [datetime] NULL,
+	[created_by] [int] NOT NULL,
+	[service_type] [int] NULL,
+	[description] [varchar](max) NULL,
+	[due] [decimal](10, 2) NULL,
+	[warranty] [int] NULL,
+ CONSTRAINT [PK__vendor_b__D706DDB376BFC8AC] PRIMARY KEY CLUSTERED 
+(
+	[bill_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[vendor_bills] ADD  CONSTRAINT [DF__vendor_bi__subto__164F3FA9]  DEFAULT ((0)) FOR [subtotal]
+GO
+
+ALTER TABLE [dbo].[vendor_bills] ADD  CONSTRAINT [DF__vendor_bi__tax_a__174363E2]  DEFAULT ((0)) FOR [tax_amount]
+GO
+
+ALTER TABLE [dbo].[vendor_bills] ADD  CONSTRAINT [DF__vendor_bi__creat__192BAC54]  DEFAULT (getdate()) FOR [created_date]
+GO
+
+ALTER TABLE [dbo].[vendor_bills]  WITH CHECK ADD  CONSTRAINT [FK_vendor_bills_society] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[vendor_bills] CHECK CONSTRAINT [FK_vendor_bills_society]
+GO
+
+ALTER TABLE [dbo].[vendor_bills]  WITH CHECK ADD  CONSTRAINT [vendor_bill_status] FOREIGN KEY([status])
+REFERENCES [dbo].[bill_status] ([status_id])
+GO
+
+ALTER TABLE [dbo].[vendor_bills] CHECK CONSTRAINT [vendor_bill_status]
+GO
+
+
+111)USE [society]
+GO
+
+/****** Object:  Table [dbo].[vendor_master]    Script Date: 03-08-2026 16:29:15 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[vendor_master](
+	[vendor_id] [int] IDENTITY(1,1) NOT NULL,
+	[society_id] [nvarchar](10) NULL,
+	[vendor_name] [nvarchar](200) NOT NULL,
+	[contact_person] [nvarchar](100) NULL,
+	[contact_no] [nvarchar](30) NULL,
+	[email] [nvarchar](120) NULL,
+	[service_type] [nvarchar](100) NULL,
+	[gst_no] [nvarchar](50) NULL,
+	[address] [nvarchar](300) NULL,
+	[isActive] [bit] NULL,
+	[created_at] [datetime] NULL,
+ CONSTRAINT [PK__vendor_m__0F7D2B78F3A27EF8] PRIMARY KEY CLUSTERED 
+(
+	[vendor_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[vendor_master] ADD  CONSTRAINT [DF__vendor_ma__isAct__54817C4C]  DEFAULT ((1)) FOR [isActive]
+GO
+
+ALTER TABLE [dbo].[vendor_master] ADD  CONSTRAINT [DF__vendor_ma__creat__5575A085]  DEFAULT (getdate()) FOR [created_at]
+GO
+
+ALTER TABLE [dbo].[vendor_master]  WITH CHECK ADD  CONSTRAINT [FK_vendor_society] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[vendor_master] CHECK CONSTRAINT [FK_vendor_society]
+GO
+
+
+112)USE [society]
+GO
+
+/****** Object:  Table [dbo].[village_master]    Script Date: 03-08-2026 16:29:43 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[village_master](
+	[id] [int] IDENTITY(1,1) NOT NULL,
+	[name] [nvarchar](50) NULL,
+	[contact_no] [nvarchar](50) NULL,
+	[email] [nvarchar](150) NULL,
+	[village_id] [nvarchar](10) NULL,
+	[state_id] [int] NULL,
+	[pincode] [nvarchar](50) NULL,
+	[district_id] [int] NULL,
+	[active_status] [int] NULL,
+	[division] [nvarchar](50) NULL,
+	[enrolment_date] [smalldatetime] NULL,
+	[status] [int] NULL,
+	[termination_date] [smalldatetime] NULL,
+	[registration_no] [nvarchar](50) NULL,
+	[address] [nvarchar](50) NULL,
+	[division_id] [int] NULL
+) ON [PRIMARY]
+GO
+
+
+113)USE [society]
+GO
+
+/****** Object:  Table [dbo].[Village_payment_type]    Script Date: 03-08-2026 16:30:07 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Village_payment_type](
+	[payment_type] [int] NULL,
+	[payment_type_name] [nvarchar](50) NULL
+) ON [PRIMARY]
+GO
+
+
+114)USE [society]
+GO
+
+/****** Object:  Table [dbo].[Village_staff]    Script Date: 03-08-2026 16:30:28 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[Village_staff](
+	[staff_id] [int] IDENTITY(1,1) NOT NULL,
+	[village_id] [nvarchar](10) NOT NULL,
+	[staff_name] [nvarchar](50) NOT NULL,
+	[role_id] [int] NOT NULL,
+	[contact_no] [nvarchar](15) NULL,
+	[email] [nvarchar](50) NULL,
+	[is_active] [bit] NULL,
+	[joined_date] [date] NULL,
+	[address] [nvarchar](100) NULL,
+	[id_path] [nvarchar](max) NULL,
+	[salary] [decimal](10, 2) NULL
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[Village_staff]  WITH CHECK ADD  CONSTRAINT [FK_Village_staff_role] FOREIGN KEY([role_id])
+REFERENCES [dbo].[village_staff_role] ([role_id])
+GO
+
+ALTER TABLE [dbo].[Village_staff] CHECK CONSTRAINT [FK_Village_staff_role]
+GO
+
+
+115)USE [society]
+GO
+
+/****** Object:  Table [dbo].[village_staff_role]    Script Date: 03-08-2026 16:30:51 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[village_staff_role](
+	[role_id] [int] IDENTITY(1,1) NOT NULL,
+	[role] [nvarchar](50) NULL,
+ CONSTRAINT [PK_village_staff_role] PRIMARY KEY CLUSTERED 
+(
+	[role_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+
+116)USE [society]
+GO
+
+/****** Object:  Table [dbo].[visitor_master]    Script Date: 03-08-2026 16:31:13 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[visitor_master](
+	[visitor_id] [int] NOT NULL,
+	[v_name] [nvarchar](50) NULL,
+	[flat_id] [int] NULL,
+	[in_date] [smalldatetime] NULL,
+	[out_date] [smalldatetime] NULL,
+	[in_time] [smalldatetime] NULL,
+	[out_time] [smalldatetime] NULL,
+	[society_id] [nvarchar](10) NULL,
+	[build_id] [int] NULL,
+	[wing_id] [int] NULL,
+	[pre_date] [smalldatetime] NULL,
+	[vehicle_no] [nvarchar](50) NULL,
+	[preference] [nvarchar](50) NULL,
+	[type] [nvarchar](50) NULL,
+	[contact_no] [nvarchar](50) NULL,
+	[in_user_id] [int] NULL,
+	[out_user_id] [int] NULL,
+	[purpose] [nvarchar](max) NULL,
+	[image] [nvarchar](max) NULL,
+	[status] [int] NULL,
+	[Approver_Name] [nvarchar](50) NULL,
+	[active_status] [int] NULL,
+	[gateOtp] [int] NULL,
+	[company] [nvarchar](50) NULL,
+	[location] [nvarchar](50) NULL,
+	[created_at] [smalldatetime] NULL,
+	[owner_id] [int] NULL,
+	[Approval_id] [int] NULL,
+ CONSTRAINT [PK_visitor_master] PRIMARY KEY CLUSTERED 
+(
+	[visitor_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[visitor_master] ADD  DEFAULT (getdate()) FOR [created_at]
+GO
+
+ALTER TABLE [dbo].[visitor_master]  WITH CHECK ADD  CONSTRAINT [FK__visitor_m__socie__24E777C3] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[visitor_master] CHECK CONSTRAINT [FK__visitor_m__socie__24E777C3]
+GO
+
+ALTER TABLE [dbo].[visitor_master]  WITH CHECK ADD  CONSTRAINT [FK__visitor_m__wing___26CFC035] FOREIGN KEY([wing_id])
+REFERENCES [dbo].[wing_master] ([wing_id])
+GO
+
+ALTER TABLE [dbo].[visitor_master] CHECK CONSTRAINT [FK__visitor_m__wing___26CFC035]
+GO
+
+
+117)USE [society]
+GO
+
+/****** Object:  Table [dbo].[VisitorResponse]    Script Date: 03-08-2026 16:31:32 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[VisitorResponse](
+	[response_id] [int] IDENTITY(1,1) NOT NULL,
+	[visitor_id] [int] NULL,
+	[owner_id] [int] NULL,
+	[flat_id] [int] NULL,
+	[response] [nchar](10) NULL,
+	[response_time] [datetime] NULL
+) ON [PRIMARY]
+GO
+
+
+118)USE [society]
+GO
+
+/****** Object:  Table [dbo].[water_tax]    Script Date: 03-08-2026 16:31:54 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[water_tax](
+	[water_tax_id] [int] NULL,
+	[house_no] [int] NULL,
+	[from_date] [smalldatetime] NULL,
+	[to_date] [smalldatetime] NULL,
+	[con_type_id] [nvarchar](50) NULL,
+	[water_connection_size] [int] NULL,
+	[active_status] [int] NULL,
+	[water_tax_amount] [decimal](18, 2) NULL,
+	[village_id] [nvarchar](50) NULL,
+	[due] [decimal](18, 2) NULL,
+	[advance] [decimal](18, 2) NULL
+) ON [PRIMARY]
+GO
+
+
+119)USE [society]
+GO
+
+/****** Object:  Table [dbo].[wing_master]    Script Date: 03-08-2026 16:32:18 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[wing_master](
+	[wing_id] [int] NOT NULL,
+	[w_name] [nvarchar](50) NULL,
+	[build_id] [int] NULL,
+	[society_id] [nvarchar](10) NULL,
+	[active_status] [int] NULL,
+ CONSTRAINT [PK_wing_master] PRIMARY KEY CLUSTERED 
+(
+	[wing_id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
+
+ALTER TABLE [dbo].[wing_master]  WITH CHECK ADD  CONSTRAINT [FK__wing_mast__build__27C3E46E] FOREIGN KEY([build_id])
+REFERENCES [dbo].[building_master] ([build_id])
+GO
+
+ALTER TABLE [dbo].[wing_master] CHECK CONSTRAINT [FK__wing_mast__build__27C3E46E]
+GO
+
+ALTER TABLE [dbo].[wing_master]  WITH CHECK ADD  CONSTRAINT [FK__wing_mast__build__681373AD] FOREIGN KEY([build_id])
+REFERENCES [dbo].[building_master] ([build_id])
+GO
+
+ALTER TABLE [dbo].[wing_master] CHECK CONSTRAINT [FK__wing_mast__build__681373AD]
+GO
+
+ALTER TABLE [dbo].[wing_master]  WITH CHECK ADD  CONSTRAINT [FK__wing_mast__socie__28B808A7] FOREIGN KEY([society_id])
+REFERENCES [dbo].[society_master] ([society_id])
+GO
+
+ALTER TABLE [dbo].[wing_master] CHECK CONSTRAINT [FK__wing_mast__socie__28B808A7]
+GO
+
+

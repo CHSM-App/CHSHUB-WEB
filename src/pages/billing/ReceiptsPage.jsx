@@ -1,0 +1,146 @@
+import { useEffect, useState } from 'react';
+import { receipts } from '@/api/billing';
+import { EmptyState, ErrorNotice, Modal, Spinner } from '@/components/ui.jsx';
+
+const money = (v) => Number(v ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/**
+ * Receipts ledger. Read-only for now: recording a payment writes to `receipt`
+ * and mutates `maintenance_cal` via sp_SettleMaintenancePayment, so it stays
+ * disabled until exercised against a test database.
+ */
+export default function ReceiptsPage() {
+  const [items, setItems] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [viewing, setViewing] = useState(null);
+  const [viewLoading, setViewLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    receipts
+      .list()
+      .then((data) => {
+        if (cancelled) return;
+        setItems(data.items ?? []);
+        setTotal(data.totalCollected ?? 0);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const openReceipt = async (row) => {
+    setViewLoading(true);
+    setViewing({ summary: row, detail: null });
+    try {
+      const data = await receipts.get(row.receipt_id);
+      setViewing({ summary: row, detail: data.receipt });
+    } catch (err) {
+      setError(err);
+      setViewing(null);
+    } finally {
+      setViewLoading(false);
+    }
+  };
+
+  return (
+    <section>
+      <header className="mb-4">
+        <h1 className="text-lg font-semibold text-slate-800">Receipts</h1>
+        <p className="text-sm text-slate-500">
+          {items.length} receipt(s) · {money(total)} collected
+        </p>
+      </header>
+
+      <ErrorNotice error={error} />
+
+      <div className="card mt-3 overflow-hidden">
+        {loading ? (
+          <Spinner />
+        ) : items.length === 0 ? (
+          <EmptyState title="No receipts recorded" />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full">
+              <thead>
+                <tr>
+                  <th className="table-head">Receipt no.</th>
+                  <th className="table-head">Date</th>
+                  <th className="table-head">Resident</th>
+                  <th className="table-head">Reference</th>
+                  <th className="table-head">Amount</th>
+                  <th className="table-head">Status</th>
+                  <th className="table-head sr-only">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((row) => (
+                  <tr key={row.receipt_id} className="hover:bg-slate-50">
+                    <td className="table-cell font-medium text-slate-800">{row.receipt_no}</td>
+                    <td className="table-cell">
+                      {row.receipt_date ? new Date(row.receipt_date).toLocaleDateString() : '—'}
+                    </td>
+                    <td className="table-cell">{row.owner}</td>
+                    <td className="table-cell">{row.transaction_ref || '—'}</td>
+                    <td className="table-cell">{money(row.paid_amount)}</td>
+                    <td className="table-cell">{row.bill_status}</td>
+                    <td className="table-cell text-right">
+                      <button type="button" className="btn-secondary" onClick={() => openReceipt(row)}>
+                        View
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <Modal
+        open={Boolean(viewing)}
+        title={`Receipt ${viewing?.summary?.receipt_no ?? ''}`}
+        onClose={() => setViewing(null)}
+        footer={
+          <button type="button" className="btn-secondary" onClick={() => setViewing(null)}>
+            Close
+          </button>
+        }
+      >
+        {viewLoading ? (
+          <Spinner />
+        ) : viewing?.detail ? (
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+            {[
+              ['Receipt no.', viewing.detail.receipt_no],
+              ['Date', viewing.detail.date ? new Date(viewing.detail.date).toLocaleDateString() : '—'],
+              ['Resident', viewing.detail.name],
+              ['Unit', viewing.detail.unit],
+              ['Pay mode', viewing.detail.pay_mode],
+              ['Reference', viewing.detail.transaction_ref || '—'],
+              ['Bill', viewing.detail.bill_ref || viewing.detail.Billno || '—'],
+              ['Amount paid', money(viewing.detail.paid_amount)],
+              ['Status', viewing.detail.bill_status],
+              ['Society', viewing.detail.society_name],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <dt className="text-xs uppercase tracking-wide text-slate-500">{label}</dt>
+                <dd className="mt-0.5 text-slate-800">{value ?? '—'}</dd>
+              </div>
+            ))}
+          </dl>
+        ) : (
+          <EmptyState title="Receipt details unavailable" />
+        )}
+      </Modal>
+    </section>
+  );
+}

@@ -1,0 +1,261 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Visual language carried over from the legacy WebForms app (Site.Master, which
+ * used the SB Admin 2 Bootstrap theme). The values below are lifted from
+ * Society2024/css/site_master_style.css so the migrated screens read as the same
+ * product rather than a redesign:
+ *
+ *   #012970  heading / body text        (Site.Master `*` rule)
+ *   #2563eb  hover accent               (.sidebar-item:hover)
+ *   #1d4ed8  active nav text            (.sidebar-item.active)
+ *   #dbeafe  active nav background      (.sidebar-item.active)
+ *   #e0f2ff  nav hover background       (.sidebar-item:hover)
+ *   #374151  nav idle text              (.sidebar-item)
+ *   #6b7280  muted text / icons         (.sidebar-heading)
+ *   #007bff  sub-menu links             (.collapse-inner a)
+ *
+ * The page itself is white: sb-admin-2's `body` rule sets colour and type but
+ * no background.
+ *
+ * Open Sans is the legacy body face; Segoe UI was used for the sidebar. Both are
+ * requested with system fallbacks — no webfont is fetched, so nothing depends on
+ * an external host.
+ */
+@layer base {
+  html {
+    @apply antialiased;
+  }
+  body {
+    background-color: #fff;
+    color: #012970;
+    font-family: 'Open Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-weight: 500;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    color: #012970;
+  }
+}
+
+@layer components {
+  /* Bootstrap .btn geometry: 0.375rem 0.75rem, 0.25rem radius, 1rem text. */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 text-center align-middle
+           transition-colors disabled:cursor-not-allowed disabled:opacity-65;
+    padding: 0.375rem 0.75rem;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.5;
+    border: 1px solid transparent;
+  }
+  /* SB Admin 2 primary — Bootstrap's #0d6efd, hover #0b5ed7. */
+  .btn-primary {
+    @apply btn text-white;
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background-color: #0b5ed7;
+    border-color: #0a58ca;
+  }
+  .btn-secondary {
+    @apply btn;
+    background-color: #fff;
+    border-color: #d1d5db;
+    color: #374151;
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background-color: #e0f2ff;
+    border-color: #2563eb;
+    color: #2563eb;
+  }
+  .btn-danger {
+    @apply btn text-white;
+    background-color: #dc3545;
+    border-color: #dc3545;
+  }
+  .btn-danger:hover:not(:disabled) {
+    background-color: #bb2d3b;
+    border-color: #b02a37;
+  }
+  .btn-success {
+    @apply btn text-white;
+    background-color: #198754;
+    border-color: #198754;
+  }
+  .btn-success:hover:not(:disabled) {
+    background-color: #157347;
+    border-color: #146c43;
+  }
+
+  /* Bootstrap .form-label / .form-control. */
+  .field-label {
+    @apply mb-1 block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #012970;
+  }
+  .field-input {
+    @apply w-full;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: #212529;
+    background-color: #fff;
+    border: 1px solid #ced4da;
+    border-radius: 0.25rem;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  }
+  .field-input:focus {
+    outline: 0;
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+  }
+  .field-input:disabled {
+    background-color: #e9ecef;
+  }
+  .field-error {
+    @apply mt-1;
+    font-size: 0.8125rem;
+    color: #dc3545;
+  }
+
+  /* SB Admin 2 .card — white, soft shadow, 0.35rem radius. */
+  .card {
+    background-color: #fff;
+    border: 1px solid #e3e6f0;
+    border-radius: 0.35rem;
+    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+  }
+
+  /* Bootstrap .table with .thead-light. */
+  .table-head {
+    @apply px-3 py-2 text-left;
+    background-color: #eaecf4;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: #012970;
+    border-bottom: 2px solid #dddfeb;
+  }
+  .table-cell {
+    @apply px-3 py-2;
+    font-size: 0.875rem;
+    color: #012970;
+    border-top: 1px solid #e3e6f0;
+  }
+
+  /* Legacy sidebar: idle #374151, hover #e0f2ff/#2563eb, active #dbeafe/#1d4ed8. */
+  .sidebar-item {
+    @apply flex items-center;
+    padding: 10px 14px;
+    font-size: 14px;
+    color: #374151;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+  .sidebar-item:hover {
+    background-color: #e0f2ff;
+    color: #2563eb;
+  }
+  .sidebar-item.active {
+    background-color: #dbeafe;
+    font-weight: 600;
+    color: #1d4ed8;
+  }
+  .sidebar-heading {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: #6b7280;
+    margin: 8px 0;
+    padding: 0 14px;
+  }
+
+  /* Sub-menu under an expanded group — legacy .collapse-inner. */
+  .collapse-inner {
+    padding-left: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+    margin-bottom: 6px;
+  }
+  .collapse-inner a {
+    color: #007bff;
+    font-weight: bold;
+    font-size: 13px;
+    text-decoration: none;
+    padding: 2px 0;
+  }
+  .collapse-inner a:hover {
+    text-decoration: underline;
+  }
+  /* #accordionSidebar .collapse-inner a.active in the legacy stylesheet. */
+  .collapse-inner a.active {
+    background: transparent;
+    color: #007bff;
+    font-weight: 600;
+  }
+}
+
+/*
+ * Print layout for the report views that replace the legacy RDLC reports.
+ * Navigation, buttons and form controls are dropped; tables print full width
+ * with visible rules and repeated headers across pages.
+ */
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  aside,
+  header button,
+  .btn,
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  main {
+    padding: 0 !important;
+  }
+
+  .card {
+    border: none;
+    box-shadow: none;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  thead {
+    display: table-header-group; /* repeat headers on each page */
+  }
+
+  tr {
+    break-inside: avoid;
+  }
+
+  .table-head,
+  .table-cell {
+    border: 1px solid #cbd5e1;
+    padding: 4px 6px;
+    font-size: 11px;
+    color: #000;
+  }
+}

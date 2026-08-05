@@ -1,0 +1,133 @@
+import { api } from './client';
+
+const p = (params) => (params && Object.keys(params).length ? { params } : undefined);
+
+/** Factory for the list/get/create/update/delete shape most screens share. */
+const resource = (base, idKey = 'id') => ({
+  list: (params) => api.get(base, p(params)),
+  get: (id) => api.get(`${base}/${id}`),
+  create: (body) => api.post(base, body),
+  update: (id, body) => api.put(`${base}/${id}`, body),
+  remove: (id) => api.delete(`${base}/${id}`),
+  idKey,
+});
+
+/* ------------------------------------------------------------- masters */
+export const staff = resource('/masters/staff', 'staff_id');
+export const caretakers = resource('/masters/caretakers', 'caretaker_id');
+export const helpers = resource('/masters/helpers', 'servent_id');
+export const contacts = resource('/masters/contacts', 'usefull_contact_id');
+export const docTypes = resource('/masters/doc-types', 'doc_id');
+export const parkingPlaces = resource('/masters/parking-places', 'place_id');
+export const carPooling = resource('/masters/car-pooling', 'car_id');
+export const loans = resource('/masters/loans', 'loan_id');
+
+export const lookups = {
+  staffRoles: () => api.get('/masters/staff-roles'),
+  contactTypes: () => api.get('/masters/contact-types'),
+  society: () => api.get('/masters/society'),
+  members: (params) => api.get('/masters/members', p(params)),
+  inventory: (params) => api.get('/masters/inventory', p(params)),
+  parkingAllotment: (search) => api.get('/masters/parking-allotment', p({ search })),
+  parkingAllotmentLookups: (flatId, vehicleType) =>
+    api.get('/masters/parking-allotment/lookups', p({ flatId, vehicleType })),
+  staffAttendanceToday: () => api.get('/masters/staff-attendance/today'),
+  staffAttendance: (staffId) => api.get(`/masters/staff/${staffId}/attendance`),
+};
+
+/* ------------------------------------------------------------ accounts */
+export const expenses = resource('/accounts/expenses', 'expense_id');
+export const ledger = resource('/accounts/ledger', 'led_id');
+export const shopMaintenance = resource('/accounts/shop-maintenance', 'shop_maint_id');
+export const otherCredits = resource('/accounts/other-credits', 'Id');
+
+export const accounts = {
+  cashbook: (from, to) => api.get('/accounts/cashbook', { params: { from, to } }),
+  societyReceipts: () => api.get('/accounts/society-receipts'),
+};
+
+export const vendors = {
+  ...resource('/accounts/vendors', 'vendor_id'),
+  bills: () => api.get('/accounts/vendors/bills/list'),
+  bill: (id) => api.get(`/accounts/vendors/bills/${id}`),
+  createBill: (body) => api.post('/accounts/vendors/bills', body),
+  approveBill: (id) => api.post(`/accounts/vendors/bills/${id}/approve`),
+  rejectBill: (id) => api.post(`/accounts/vendors/bills/${id}/reject`),
+  payments: () => api.get('/accounts/vendors/payments/list'),
+  payable: (vendorId) => api.get('/accounts/vendors/payments/payable', p({ vendorId })),
+};
+
+/* ----------------------------------------------------------- community */
+export const notices = resource('/community/notices', 'notice_id');
+export const events = resource('/community/events', 'event_id');
+export const meetings = resource('/community/meetings', 'meet_id');
+export const facilities = resource('/community/facilities', 'facility_id');
+export const suggestions = resource('/community/suggestions', 'sug_id');
+export const documents = resource('/community/documents', 'file_id');
+
+export const community = {
+  noticeRecipients: () => api.get('/community/notices/recipients'),
+  facilityBookings: (params) => api.get('/community/facility-bookings', p(params)),
+  facilityBookingLookups: () => api.get('/community/facility-bookings/lookups'),
+  facilityCharge: (facilityId) =>
+    api.get('/community/facility-bookings/charge', p({ facilityId })),
+  createFacilityBooking: (body) => api.post('/community/facility-bookings', body),
+  cancelBooking: (id) => api.delete(`/community/facility-bookings/${id}`),
+  visitors: () => api.get('/community/visitors'),
+  visitor: (id) => api.get(`/community/visitors/${id}`),
+  createVisitor: (body) => api.post('/community/visitors', body),
+  updateVisitor: (id, body) => api.put(`/community/visitors/${id}`, body),
+  checkoutVisitor: (id) => api.post(`/community/visitors/${id}/checkout`),
+  removeVisitor: (id) => api.delete(`/community/visitors/${id}`),
+  helpdesk: () => api.get('/community/helpdesk'),
+  helpdeskTicket: (id) => api.get(`/community/helpdesk/${id}`),
+  helpdeskStatuses: () => api.get('/community/helpdesk/statuses'),
+  setHelpdeskStatus: (id, status) => api.put(`/community/helpdesk/${id}/status`, { status }),
+  addHelpdeskComment: (id, body) => api.post(`/community/helpdesk/${id}/comments`, body),
+  polls: () => api.get('/community/polls'),
+  pollVotes: (id) => api.get(`/community/polls/${id}/votes`),
+  createPoll: (body) => api.post('/community/polls', body),
+  removePoll: (id) => api.delete(`/community/polls/${id}`),
+};
+
+/* ------------------------------------------------------------- reports */
+export const reports = {
+  dashboard: () => api.get('/reports/dashboard'),
+  activity: () => api.get('/reports/activity'),
+  expenseChart: (type) => api.get('/reports/expense-chart', p({ type })),
+  incomeSplit: (to) => api.get('/reports/income-split', p({ to })),
+  ownerLedger: (params) => api.get('/reports/owner-ledger', p(params)),
+  agm: (from, to) => api.get('/reports/agm', { params: { from, to } }),
+  incomeExpense: () => api.get('/reports/income-expense'),
+  auditHeaders: () => api.get('/reports/audit/headers'),
+  auditQuestions: () => api.get('/reports/audit/questions'),
+  societyInfo: () => api.get('/reports/audit/society-info'),
+};
+
+/* ------------------------------------------------------------- village */
+export const village = {
+  houses: (params) => api.get('/village/houses', p(params)),
+  createHouse: (body) => api.post('/village/houses', body),
+  updateHouse: (id, body) => api.put(`/village/houses/${id}`, body),
+  houseHistory: () => api.get('/village/houses/history'),
+  owners: () => api.get('/village/owners'),
+  createOwner: (body) => api.post('/village/owners', body),
+  updateOwner: (id, body) => api.put(`/village/owners/${id}`, body),
+  removeOwner: (id) => api.delete(`/village/owners/${id}`),
+  houseTax: () => api.get('/village/house-tax'),
+  houseTaxReceipts: () => api.get('/village/house-tax/receipts'),
+  houseTaxPending: () => api.get('/village/house-tax/pending'),
+  // Unpaid bills for one house: type 1 property, 2 water, 3 waste.
+  houseTaxBills: (houseId, type) =>
+    api.get('/village/house-tax/by-type', { params: { houseId, type, paid: false } }),
+  payHouseTax: (body) => api.post('/village/house-tax/pay', body),
+  waterTax: () => api.get('/village/water-tax'),
+  rates: () => api.get('/village/rates'),
+  saveRate: (body) => api.post('/village/rates', body),
+  staff: () => api.get('/village/staff'),
+  staffRoles: () => api.get('/village/staff/roles'),
+  createStaff: (body) => api.post('/village/staff', body),
+  updateStaff: (id, body) => api.put(`/village/staff/${id}`, body),
+  removeStaff: (id) => api.delete(`/village/staff/${id}`),
+  balanceSheet: () => api.get('/village/balance-sheet'),
+};

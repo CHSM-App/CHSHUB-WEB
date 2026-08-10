@@ -1,5 +1,4 @@
 import { extraReports } from '@/api/onboarding';
-import { reports } from '@/api/modules';
 import DateRangeReport, { money, day } from '../DateRangeReport.jsx';
 import { EmptyState } from '@/components/ui.jsx';
 
@@ -198,50 +197,9 @@ export function BalanceSheetPage() {
   );
 }
 
-/** Owner ledger — statement of account for one resident. */
-export function OwnerLedgerPage() {
-  return (
-    <DateRangeReport
-      title="Owner ledger"
-      subtitle="Enter an owner ID, then choose a period"
-      load={async (from, to) => {
-        const ownerId = Number(new URLSearchParams(window.location.search).get('ownerId') || 0);
-        if (!ownerId) return { items: [], count: 0, needsOwner: true };
-        return reports.ownerLedger({ ownerId, from, to });
-      }}
-      render={(d) =>
-        d.needsOwner ? (
-          <EmptyState
-            title="Select a resident"
-            hint="Open this report from a resident row, or append ?ownerId=… to the URL."
-          />
-        ) : d.items.length === 0 ? (
-          <EmptyState title="No ledger entries for this period" />
-        ) : (
-          <div className="card overflow-hidden">
-            <table className="min-w-full">
-              <thead>
-                <tr>
-                  <th className="table-head">Date</th>
-                  <th className="table-head">Particular</th>
-                  <th className="table-head text-right">Maintenance</th>
-                  <th className="table-head text-right">Payment</th>
-                </tr>
-              </thead>
-              <tbody>
-                {d.items.map((r, i) => (
-                  <tr key={i} className={Number(r.seq) !== 2 ? 'bg-slate-50 font-medium' : ''}>
-                    <td className="table-cell">{r.date}</td>
-                    <td className="table-cell">{r.Particular}</td>
-                    <td className="table-cell text-right">{money(r.Maintenance)}</td>
-                    <td className="table-cell text-right">{money(r.Payment)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )
-      }
-    />
-  );
-}
+/*
+ * The owner ledger lives in OwnerwiseMaintenanceReport.jsx. It used to be here,
+ * reading its owner from a ?ownerId= query parameter with no way to pick one in
+ * the page and no building filter — which the SP needs to return any
+ * transactions at all.
+ */

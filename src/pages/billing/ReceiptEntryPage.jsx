@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { receipts } from '@/api/billing';
 import DataGrid from '@/components/DataGrid.jsx';
-import { ConfirmDialog, EmptyState, ErrorNotice, Modal, Spinner } from '@/components/ui.jsx';
+import {
+  ConfirmDialog,
+  EmptyState,
+  ErrorNotice,
+  InfoNotice,
+  Modal,
+  Spinner,
+} from '@/components/ui.jsx';
 import {
   ModeSwitch,
   PageHeader,
@@ -15,16 +22,24 @@ const money = (v) =>
   v == null ? '—' : Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const day = (v) => (v ? new Date(v).toLocaleDateString() : '—');
 
+// Legacy maintenance_receipt.aspx offers exactly these two modes.
 const PAY_MODES = [
-  { value: 'Cash', label: 'Cash' },
   { value: 'Cheque', label: 'Cheque' },
-  { value: 'Online', label: 'Online' },
   { value: 'PDC', label: 'PDC cheque' },
 ];
 
+/**
+ * GetBills returns bill_type 1 = Regular, 0 = Add-On, 2 = a carried charge that
+ * is shown for information but never settled directly (the CHS app lists it as
+ * a note and leaves it out of both the payable total and the bill list).
+ */
+const REGULAR = 1;
+const ADDON = 0;
+const NOTE_ONLY = 2;
+
 const EMPTY = {
   flatId: '',
-  payMode: 'Cash',
+  payMode: 'Cheque',
   chequeNo: '',
   chequeDate: '',
   bankName: '',
@@ -34,6 +49,33 @@ const EMPTY = {
   receiptDate: new Date().toISOString().slice(0, 10),
   pdcId: '',
 };
+
+/**
+ * The settlement proc matches on the raw `bill_no`, not the formatted `BillNo`
+ * display string, so selection has to be keyed on the raw value.
+ */
+const billKey = (b) => String(b.bill_no);
+
+/** A titled group of fields in the receipt view. */
+function ReceiptSection({ title, children }) {
+  return (
+    <div>
+      <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h4>
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-md border border-slate-200 p-3">
+        {children}
+      </dl>
+    </div>
+  );
+}
+
+function ReceiptField({ label, value }) {
+  return (
+    <div>
+      <dt className="text-xs text-slate-500">{label}</dt>
+      <dd className="mt-0.5 text-slate-800">{value == null || value === '' ? '—' : value}</dd>
+    </div>
+  );
+}
 
 /**
  * Maintenance receipts — full parity with Society2024/maintenance_receipt.aspx.
@@ -59,6 +101,8 @@ export default function ReceiptEntryPage() {
   const [residents, setResidents] = useState([]);
   const [outstanding, setOutstanding] = useState([]);
   const [pdcCheques, setPdcCheques] = useState([]);
+  const [advance, setAdvance] = useState(null);
+  const [notice, setNotice] = useState(null);
   const [selectedBills, setSelectedBills] = useState([]);
   const [loadingBills, setLoadingBills] = useState(false);
   const [viewing, setViewing] = useState(null);
@@ -92,36 +136,86 @@ export default function ReceiptEntryPage() {
     setSelectedBills([]);
     setOutstanding([]);
     setPdcCheques([]);
+    setAdvance(null);
     if (!flatId) return;
 
     setLoadingBills(true);
     try {
-      const [bills, pdc] = await Promise.all([
-        receipts.outstanding(flatId).catch(() => ({ items: [] })),
+      // Bills must surface their error: swallowing it renders an empty list that
+      // is indistinguishable from "this resident owes nothing", which would
+      // invite recording a payment against bills that simply failed to load.
+      const [bills, pdc, adv] = await Promise.all([
+        receipts.outstanding(flatId),
         receipts.pdc(flatId).catch(() => ({ items: [] })),
+        // Older databases lack the GetAdvance action; the credit notice is
+        // simply omitted there rather than failing the whole form.
+        receipts.advance(flatId).catch(() => null),
       ]);
       setOutstanding(bills.items ?? []);
       setPdcCheques(pdc.items ?? []);
+      setAdvance(adv);
+    } catch (err) {
+      setError(err);
     } finally {
       setLoadingBills(false);
     }
   };
 
-  /** Amount owed by the bills currently ticked. */
-  const selectedTotal = useMemo(
+  /** bill_type 2 rows are informational, so they are never offered for payment. */
+  const payableBills = useMemo(
+    () => outstanding.filter((b) => Number(b.BillType) !== NOTE_ONLY),
+    [outstanding],
+  );
+
+  /** The ticked bills, in the order the settlement proc should see them. */
+  const selectedRows = useMemo(
+    () => payableBills.filter((b) => selectedBills.includes(billKey(b))),
+    [payableBills, selectedBills],
+  );
+
+  /**
+   * How much the ticked bills come to, and how far the amount may be reduced.
+   *
+   * This mirrors _calculatePaymentDetails() in the CHS app: a Regular bill has
+   * to be cleared in full, so selecting only Regular bills fixes the amount
+   * outright; Add-On bills may be part paid, so as soon as one is in the
+   * selection the box opens up with the Regular portion as its floor.
+   */
+  const { selectedTotal, minimumAmount, amountEditable } = useMemo(() => {
+    const sumOf = (type) =>
+      selectedRows
+        .filter((b) => Number(b.BillType) === type)
+        .reduce((s, b) => s + Number(b.Amount || 0), 0);
+
+    const regular = sumOf(REGULAR);
+    const addon = sumOf(ADDON);
+    const hasRegular = selectedRows.some((b) => Number(b.BillType) === REGULAR);
+    const hasAddon = selectedRows.some((b) => Number(b.BillType) === ADDON);
+
+    return {
+      selectedTotal: regular + addon,
+      minimumAmount: hasRegular ? regular : 0,
+      amountEditable: hasAddon,
+    };
+  }, [selectedRows]);
+
+  /** Informational bill_type 2 charges on the account, shown but never settled. */
+  const noteOnlyTotal = useMemo(
     () =>
       outstanding
-        .filter((b) => selectedBills.includes(b.BillNo ?? b.bill_no))
+        .filter((b) => Number(b.BillType) === NOTE_ONLY)
         .reduce((s, b) => s + Number(b.Amount || 0), 0),
-    [outstanding, selectedBills],
+    [outstanding],
   );
 
   // Ticking a bill proposes the amount; the user can still edit it for a
-  // part payment, exactly as the legacy screen allowed.
+  // part payment, exactly as the legacy screen allowed. A PDC cheque supplies
+  // its own amount, so the proposal must not overwrite it.
   useEffect(() => {
-    if (selectedBills.length) {
-      setForm((p) => (p ? { ...p, paidAmount: selectedTotal.toFixed(2) } : p));
-    }
+    if (!selectedBills.length) return;
+    setForm((p) =>
+      p && !(p.payMode === 'PDC' && p.pdcId) ? { ...p, paidAmount: selectedTotal.toFixed(2) } : p,
+    );
   }, [selectedTotal, selectedBills.length]);
 
   const setField = (key) => (e) => {
@@ -129,23 +223,38 @@ export default function ReceiptEntryPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const toggleBill = (billNo) =>
+  const toggleBill = (key) =>
     setSelectedBills((prev) =>
-      prev.includes(billNo) ? prev.filter((b) => b !== billNo) : [...prev, billNo],
+      prev.includes(key) ? prev.filter((b) => b !== key) : [...prev, key],
     );
+
+  /** A picked PDC supplies the cheque details, so they stop being editable. */
+  const pdcLocked = form?.payMode === 'PDC' && Boolean(form?.pdcId);
+
+  /** Regular bills settle before Add-On ones, matching the legacy screen. */
+  const orderedBillNos = useMemo(
+    () =>
+      [...selectedRows]
+        .sort((a, b) => Number(b.BillType) - Number(a.BillType))
+        .map(billKey),
+    [selectedRows],
+  );
 
   const validate = () => {
     if (!form.flatId) return 'Select a resident';
     if (!selectedBills.length) return 'Select at least one bill to settle';
     if (Number(form.paidAmount || 0) <= 0) return 'Enter an amount greater than zero';
-    if (form.payMode === 'Cheque' && !form.chequeNo.trim()) return 'Cheque number is required';
-    if (form.payMode === 'Online' && !form.transactionRef.trim()) {
-      return 'Transaction reference is required';
+    if (Number(form.paidAmount) < minimumAmount) {
+      return `Amount entered is less than the minimum amount ${money(minimumAmount)} — regular bills must be paid in full`;
     }
+    // String(...) guards against SQL handing back a numeric cheque number.
+    if (!String(form.chequeNo ?? '').trim()) return 'Cheque number is required';
+    if (!form.chequeDate) return 'Cheque date is required';
+    if (!String(form.bankName ?? '').trim()) return 'Bank name is required';
     if (form.payMode === 'PDC' && !form.pdcId) return 'Select a post-dated cheque';
     // receipt.bill_details is nvarchar(20); a longer list would be truncated
     // and the payment would under-settle.
-    if (selectedBills.join(',').length > 20) {
+    if (orderedBillNos.join(',').length > 20) {
       return 'Too many bills selected for one receipt — record the payment across several receipts';
     }
     return null;
@@ -153,17 +262,19 @@ export default function ReceiptEntryPage() {
 
   const onSubmit = async (event) => {
     event.preventDefault();
-    const message = validate();
-    if (message) {
-      setError(new Error(message));
-      return;
-    }
     setBusy(true);
     setError(null);
     try {
-      await receipts.create({
+      // Inside the try so a fault in validation surfaces as a message rather
+      // than escaping the handler and leaving the button silently dead.
+      const message = validate();
+      if (message) {
+        setError(new Error(message));
+        return;
+      }
+      const created = await receipts.create({
         flatId: Number(form.flatId),
-        payMode: form.payMode === 'PDC' ? 'Cheque' : form.payMode,
+        payMode: form.payMode,
         chequeNo: form.chequeNo,
         chequeDate: form.chequeDate || undefined,
         bankName: form.bankName,
@@ -171,8 +282,16 @@ export default function ReceiptEntryPage() {
         paidAmount: Number(form.paidAmount),
         remarks: form.remarks,
         receiptDate: form.receiptDate,
-        billNos: selectedBills,
+        billNos: orderedBillNos,
       });
+      // The legacy page popped a "✅ Approved!" dialog on save; without any
+      // acknowledgement the modal just vanishes and it is unclear whether the
+      // payment was recorded.
+      setNotice(
+        created?.receipt_id
+          ? `Payment recorded — receipt ${created.receipt_id}.`
+          : 'Payment recorded.',
+      );
       setForm(null);
       await load();
     } catch (err) {
@@ -215,7 +334,12 @@ export default function ReceiptEntryPage() {
         <StatCard label="Residents" value={residents.length} />
       </div>
 
-      {!form ? <ErrorNotice error={error} onRetry={load} /> : null}
+      {!form ? (
+        <div className="space-y-3">
+          <InfoNotice message={notice} tone="success" onDismiss={() => setNotice(null)} />
+          <ErrorNotice error={error} onRetry={load} />
+        </div>
+      ) : null}
 
       <div className="card overflow-hidden">
         <DataGrid
@@ -223,13 +347,15 @@ export default function ReceiptEntryPage() {
           rows={rows}
           idKey="receipt_id"
           loading={loading}
+          searchable
+          searchPlaceholder="Search receipts…"
           exportName="receipts"
           emptyTitle="No receipts recorded"
           actions={(row) => (
             <>
               <button
                 type="button"
-                className="btn-secondary mr-2"
+                className="btn-secondary"
                 onClick={async () => {
                   setViewing({ loading: true });
                   try {
@@ -265,10 +391,23 @@ export default function ReceiptEntryPage() {
       <Modal
         open={Boolean(form)}
         title="Record a payment"
-        onClose={() => setForm(null)}
+        // Also clear the error: it is shared with the page-level notice, so a
+        // validation message left behind would resurface under the header.
+        onClose={() => {
+          setForm(null);
+          setError(null);
+        }}
         footer={
           <>
-            <button type="button" className="btn-secondary" onClick={() => setForm(null)} disabled={busy}>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                setForm(null);
+                setError(null);
+              }}
+              disabled={busy}
+            >
               Cancel
             </button>
             <button
@@ -301,7 +440,19 @@ export default function ReceiptEntryPage() {
             ) : form.flatId ? (
               <div className="rounded-md border border-slate-200 p-3">
                 <h3 className="mb-2 text-sm font-semibold text-slate-800">Outstanding bills</h3>
-                {outstanding.length === 0 ? (
+
+                {/* Surplus from an earlier overpayment. gen_bill subtracts it from
+                    the next monthly bill before interest, so this is shown for
+                    information only — collecting less here as well would credit
+                    the resident twice. */}
+                {advance && advance.advanceAvailable > 0 ? (
+                  <p className="mb-3 rounded-md border border-sky-200 bg-sky-50 p-2 text-xs text-sky-900">
+                    This flat holds {money(advance.advanceAvailable)} in credit from an earlier
+                    overpayment. It comes off the next monthly bill automatically — collect the
+                    full amount shown below.
+                  </p>
+                ) : null}
+                {payableBills.length === 0 ? (
                   <p className="py-3 text-sm text-slate-500">No outstanding bills for this resident.</p>
                 ) : (
                   <table className="min-w-full">
@@ -311,12 +462,12 @@ export default function ReceiptEntryPage() {
                         <th className="table-head">Bill no.</th>
                         <th className="table-head">Due date</th>
                         <th className="table-head">Status</th>
-                        <th className="table-head text-right">Amount</th>
+                        <th className="table-head text-right">Outstanding</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {outstanding.map((b) => {
-                        const key = b.BillNo ?? b.bill_no;
+                      {payableBills.map((b) => {
+                        const key = billKey(b);
                         return (
                           <tr key={key}>
                             <td className="table-cell">
@@ -325,10 +476,15 @@ export default function ReceiptEntryPage() {
                                 className="h-4 w-4 rounded border-slate-300"
                                 checked={selectedBills.includes(key)}
                                 onChange={() => toggleBill(key)}
-                                aria-label={`Select bill ${key}`}
+                                aria-label={`Select bill ${b.BillNo}`}
                               />
                             </td>
-                            <td className="table-cell font-medium text-slate-800">{b.BillNo}</td>
+                            <td className="table-cell font-medium text-slate-800">
+                              {b.BillNo}
+                              <span className="ml-2 text-xs font-normal text-slate-500">
+                                {Number(b.BillType) === REGULAR ? 'Regular' : 'Add-On'}
+                              </span>
+                            </td>
                             <td className="table-cell">{day(b.DueDate)}</td>
                             <td className="table-cell">
                               <span
@@ -341,6 +497,10 @@ export default function ReceiptEntryPage() {
                                 {b.Status}
                               </span>
                             </td>
+                            {/* Only the outstanding amount is shown. maintenance_cal.total_amount
+                                is a running account total that rolls forward earlier arrears
+                                (amt_forward / interest_forward), not the value of this charge,
+                                so displaying it next to the bill would misread as its price. */}
                             <td className="table-cell text-right">{money(b.Amount)}</td>
                           </tr>
                         );
@@ -348,12 +508,23 @@ export default function ReceiptEntryPage() {
                       <tr className="bg-slate-50 font-semibold">
                         <td className="table-cell" colSpan={4}>
                           Selected ({selectedBills.length})
+                          {minimumAmount > 0 ? (
+                            <span className="ml-2 text-xs font-normal text-red-600">
+                              Minimum amount is {money(minimumAmount)}
+                            </span>
+                          ) : null}
                         </td>
                         <td className="table-cell text-right">{money(selectedTotal)}</td>
                       </tr>
                     </tbody>
                   </table>
                 )}
+                {noteOnlyTotal > 0 ? (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Note: an additional {money(noteOnlyTotal)} is carried on this account and is
+                    not settled by this receipt.
+                  </p>
+                ) : null}
               </div>
             ) : null}
 
@@ -361,7 +532,21 @@ export default function ReceiptEntryPage() {
               label="Payment mode"
               options={PAY_MODES}
               value={form.payMode}
-              onChange={(v) => setForm((p) => ({ ...p, payMode: v }))}
+              // Switching mode clears the cheque details, as the legacy
+              // btnChequeMode_Click / btnPDCMode_Click handlers did.
+              onChange={(v) =>
+                setForm((p) => ({
+                  ...p,
+                  payMode: v,
+                  pdcId: '',
+                  chequeNo: '',
+                  chequeDate: '',
+                  bankName: '',
+                  // Back to the selection total, so an amount a PDC put here does
+                  // not survive the switch (legacy ClearChequeDetails cleared it).
+                  paidAmount: selectedBills.length ? selectedTotal.toFixed(2) : '',
+                }))
+              }
             />
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -379,63 +564,65 @@ export default function ReceiptEntryPage() {
                   onChange={(e) => {
                     const { value } = e.target;
                     const cheque = pdcCheques.find((c) => String(c.pdc_rem_id) === value);
+                    // chqno and che_amount come back as SQL numbers, and these
+                    // fields are read as text (trimmed, fed to inputs), so they
+                    // are normalised to strings here rather than at every use.
                     setForm((p) => ({
                       ...p,
                       pdcId: value,
-                      chequeNo: cheque?.chqno ?? '',
+                      chequeNo: cheque?.chqno == null ? '' : String(cheque.chqno),
                       chequeDate: cheque?.che_date ? String(cheque.che_date).slice(0, 10) : '',
-                      bankName: cheque?.bank_name ?? '',
-                      paidAmount: cheque?.che_amount ?? p.paidAmount,
+                      bankName: cheque?.bank_name == null ? '' : String(cheque.bank_name),
+                      paidAmount:
+                        cheque?.che_amount == null ? p.paidAmount : String(cheque.che_amount),
                     }));
                   }}
                   placeholder={pdcCheques.length ? 'Select a cheque…' : 'No cheques on file'}
                 />
               ) : null}
 
-              {form.payMode === 'Cheque' ? (
-                <>
-                  <TextField
-                    label="Cheque number"
-                    name="chequeNo"
-                    required
-                    value={form.chequeNo}
-                    onChange={setField('chequeNo')}
-                  />
-                  <TextField
-                    label="Cheque date"
-                    name="chequeDate"
-                    type="date"
-                    value={form.chequeDate}
-                    onChange={setField('chequeDate')}
-                  />
-                  <TextField
-                    label="Bank name"
-                    name="bankName"
-                    value={form.bankName}
-                    onChange={setField('bankName')}
-                  />
-                </>
-              ) : null}
-
-              {form.payMode === 'Online' ? (
-                <TextField
-                  label="Transaction reference"
-                  name="transactionRef"
-                  required
-                  value={form.transactionRef}
-                  onChange={setField('transactionRef')}
-                />
-              ) : null}
-
+              {/* A chosen PDC fills these in and locks them, as the legacy page did. */}
+              <TextField
+                label="Transaction ID / cheque no."
+                name="chequeNo"
+                required
+                disabled={pdcLocked}
+                value={form.chequeNo}
+                onChange={setField('chequeNo')}
+              />
+              <TextField
+                label="Payment date"
+                name="chequeDate"
+                type="date"
+                required
+                disabled={pdcLocked}
+                value={form.chequeDate}
+                onChange={setField('chequeDate')}
+              />
+              <TextField
+                label="Bank name"
+                name="bankName"
+                required
+                disabled={pdcLocked}
+                value={form.bankName}
+                onChange={setField('bankName')}
+              />
               <TextField
                 label="Amount received"
                 name="paidAmount"
                 type="number"
                 step="0.01"
                 required
+                disabled={pdcLocked || !amountEditable}
                 value={form.paidAmount}
                 onChange={setField('paidAmount')}
-                hint="Editable for a part payment"
+                hint={
+                  !amountEditable
+                    ? 'Regular bills must be cleared in full'
+                    : minimumAmount > 0
+                      ? `Minimum ${money(minimumAmount)} — only add-on bills may be part paid`
+                      : 'Editable for a part payment'
+                }
               />
               <TextField
                 label="Receipt date"
@@ -486,25 +673,64 @@ export default function ReceiptEntryPage() {
         {viewing?.loading ? (
           <Spinner />
         ) : viewing?.receipt ? (
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
-            {[
-              ['Receipt no.', viewing.receipt.receipt_no],
-              ['Date', day(viewing.receipt.date)],
-              ['Resident', viewing.receipt.name],
-              ['Unit', viewing.receipt.unit],
-              ['Pay mode', viewing.receipt.pay_mode],
-              ['Reference', viewing.receipt.transaction_ref],
-              ['Bill', viewing.receipt.bill_ref || viewing.receipt.Billno],
-              ['Amount paid', money(viewing.receipt.paid_amount)],
-              ['Status', viewing.receipt.bill_status],
-              ['Society', viewing.receipt.society_name],
-            ].map(([label, value]) => (
-              <div key={label}>
-                <dt className="text-xs uppercase tracking-wide text-slate-500">{label}</dt>
-                <dd className="mt-0.5 text-slate-800">{value ?? '—'}</dd>
-              </div>
-            ))}
-          </dl>
+          <div className="space-y-5 text-sm">
+            {/* Receipt identity first, then who paid, then how, then what it
+                cleared — the order the legacy Payment Summary modal used. */}
+            <ReceiptSection title="Receipt">
+              <ReceiptField label="Receipt no." value={viewing.receipt.receipt_no} />
+              <ReceiptField label="Date" value={day(viewing.receipt.date)} />
+              <ReceiptField label="Status" value={viewing.receipt.bill_status} />
+            </ReceiptSection>
+
+            <ReceiptSection title="Resident information">
+              <ReceiptField label="Resident" value={viewing.receipt.name} />
+              <ReceiptField label="Unit" value={viewing.receipt.unit} />
+              <ReceiptField label="Society" value={viewing.receipt.society_name} />
+            </ReceiptSection>
+
+            <ReceiptSection title="Payment details">
+              <ReceiptField label="Pay mode" value={viewing.receipt.pay_mode} />
+              <ReceiptField label="Cheque / reference" value={viewing.receipt.transaction_ref} />
+              <ReceiptField label="Bank" value={viewing.receipt.bank_name} />
+              <ReceiptField label="Amount paid" value={money(viewing.receipt.paid_amount)} />
+            </ReceiptSection>
+
+            {/* GETRECEIPT returns one row per settled bill. Showing only the
+                first hid the rest of a multi-bill receipt. */}
+            <div>
+              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Bills settled{viewing.lines?.length ? ` (${viewing.lines.length})` : ''}
+              </h4>
+              {viewing.lines?.length ? (
+                <div className="overflow-x-auto rounded-md border border-slate-200">
+                  <table className="min-w-full">
+                    <thead>
+                      <tr>
+                        <th className="table-head">Bill no.</th>
+                        <th className="table-head">Period</th>
+                        <th className="table-head">Due date</th>
+                        <th className="table-head text-right">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {viewing.lines.map((l, i) => (
+                        <tr key={`${l.Billno ?? l.bill_ref}-${i}`}>
+                          <td className="table-cell font-medium text-slate-800">
+                            {l.Billno ?? '—'}
+                          </td>
+                          <td className="table-cell">{l.bill_ref ?? '—'}</td>
+                          <td className="table-cell">{l.gen_date ? day(l.gen_date) : '—'}</td>
+                          <td className="table-cell text-right">{money(l.amount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-sm text-slate-500">No bill lines recorded for this receipt.</p>
+              )}
+            </div>
+          </div>
         ) : (
           <EmptyState title="Receipt details unavailable" />
         )}

@@ -129,7 +129,7 @@ export function VillageResidentsPage() {
             <>
               <button
                 type="button"
-                className="btn-secondary mr-2"
+                className="btn-secondary"
                 onClick={() =>
                   setForm({
                     __id: row.village_owner_id,

@@ -37,6 +37,10 @@ export default defineConfig({
     chunkSizeWarningLimit: 700,
   },
   server: {
+    // Bind to every interface, not just loopback, so the dev server is
+    // reachable from other machines on the LAN (phones, test PCs). Without
+    // this Vite listens on ::1 only and refuses outside connections.
+    host: true,
     port: 5173,
     proxy: {
       '/api': {

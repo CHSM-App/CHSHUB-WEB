@@ -11,7 +11,76 @@ import * as M from '@/api/modules';
 const money = (v) =>
   v == null || v === '' ? '—' : Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const day = (v) => (v ? new Date(v).toLocaleDateString() : '—');
+// The legacy grids that formatted a date as {0:dd-MMM-yyyy}, e.g. 09-Aug-2026.
+const dmy = (v) =>
+  v
+    ? new Date(v)
+        .toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+        .replace(/ /g, '-')
+    : '—';
 const yesNo = (v) => (v ? 'Yes' : 'No');
+
+/**
+ * The hour and minute out of a stored time.
+ *
+ * These columns are DATETIME, so the value arrives as a full timestamp on
+ * 1900-01-01. Only the clock part means anything, and it is read off the ISO
+ * string rather than a local Date so the browser's timezone cannot shift it.
+ */
+function timeParts(v) {
+  if (!v) return null;
+  const s = String(v);
+  const m = /(?:T|\s)(\d{2}):(\d{2})/.exec(s) ?? /^(\d{1,2}):(\d{2})/.exec(s);
+  return m ? { h: Number(m[1]), min: m[2] } : null;
+}
+
+/** "2:30 pm" for display. */
+const clockTime = (v) => {
+  const t = timeParts(v);
+  if (!t) return '—';
+  const suffix = t.h < 12 ? 'am' : 'pm';
+  const hour12 = t.h % 12 === 0 ? 12 : t.h % 12;
+  return `${hour12}:${t.min} ${suffix}`;
+};
+
+/** "14:30" — what <input type="time"> expects. */
+const inputTime = (v) => {
+  const t = timeParts(v);
+  return t ? `${String(t.h).padStart(2, '0')}:${t.min}` : '';
+};
+
+/**
+ * Text out of a value that may carry HTML.
+ *
+ * The legacy meeting editor was TinyMCE, so rows saved through it hold markup.
+ * Parsed rather than regex-stripped so entities decode and nothing injectable
+ * survives — the result is only ever rendered as text.
+ */
+const plainText = (v) => {
+  const s = String(v ?? '').trim();
+  if (!s) return '';
+  if (!/<[a-z!/]/i.test(s)) return s;
+  const doc = new DOMParser().parseFromString(s, 'text/html');
+  return (doc.body.textContent ?? '').replace(/\s+/g, ' ').trim();
+};
+
+const toDateInput = (v) => (v ? String(v).slice(0, 10) : '');
+
+// ddl_noc on loan.aspx. The value is stored verbatim in noc_issued, so the
+// wording has to match; its "select" placeholder is left out because
+// SelectField supplies one of its own.
+const NOC_ISSUERS = [
+  { id: 'Society', name: 'Society' },
+  { id: 'Builder', name: 'Builder' },
+];
+
+// The three ddl_method entries the legacy accounting pages offered. The values
+// are stored verbatim in pay_method, so the wording has to match exactly.
+const PAY_METHODS = [
+  { id: 'Cash', name: 'Cash' },
+  { id: 'UPI Payment', name: 'UPI Payment' },
+  { id: 'Cheque No', name: 'Cheque No' },
+];
 
 /* -------------------------------------------------------------- masters */
 
@@ -253,30 +322,78 @@ export const CarPoolingPage = () => (
 
 export const LoansPage = () => (
   <GenericCrudPage
-    title="Loans"
+    title="Loan & lien"
     resource={M.loans}
     idKey="loan_id"
+    // loan.aspx's grid was bank and clearance date; flat and loan type are
+    // added because a bank name alone does not identify the row.
     columns={[
+      { key: 'flat_no', label: 'Flat' },
       { key: 'bank', label: 'Bank' },
-      { key: 'flat_id', label: 'Flat' },
-      { key: 'noc_issued', label: 'NOC issued' },
+      { key: 'loan_type', label: 'Loan type' },
+      { key: 'noc_issued', label: 'First NOC by' },
       { key: 'society_noc', label: 'Society NOC', format: day },
-      { key: 'loan_clearance', label: 'Clearance', format: day },
+      { key: 'loan_clearance', label: 'Loan clearance', format: day },
     ]}
+    lookups={{
+      flats: () => M.loanLookups().then((d) => d.flats),
+      loanTypes: () => M.loanLookups().then((d) => d.loanTypes),
+      certificates: () => M.loanLookups().then((d) => d.certificates),
+    }}
+    // Field order follows loan.aspx's modal.
     fields={[
-      { name: 'bank', label: 'Bank', required: true },
-      { name: 'flatId', label: 'Flat ID', type: 'number', required: true },
-      { name: 'nocIssued', label: 'NOC issued' },
-      { name: 'societyNocDate', label: 'Society NOC date', type: 'date' },
+      // The legacy page used a type-ahead over flat_master and stored flat_id.
+      // A select carries the same value without the free-text box that let an
+      // unknown id through.
+      {
+        name: 'flatId',
+        label: 'Flat number',
+        type: 'select',
+        required: true,
+        lookup: 'flats',
+        optionValue: 'flat_id',
+        optionLabel: 'flat_no',
+      },
+      { name: 'bank', label: 'Name of the bank', required: true },
+      {
+        name: 'typeId',
+        label: 'Type of loan',
+        type: 'select',
+        required: true,
+        lookup: 'loanTypes',
+        optionValue: 'type_id',
+        optionLabel: 'loan_type',
+      },
+      {
+        name: 'nocIssued',
+        label: 'First NOC issued by',
+        type: 'select',
+        required: true,
+        options: NOC_ISSUERS,
+      },
+      { name: 'societyNocDate', label: 'Society NOC date', type: 'date', required: true },
+      { name: 'loanClearanceDate', label: 'Date of loan clearance', type: 'date' },
+      {
+        name: 'certificateId',
+        label: 'Share certificate with',
+        type: 'select',
+        required: true,
+        lookup: 'certificates',
+        optionValue: 'cert_id',
+        optionLabel: 'c_name',
+      },
     ]}
-    // sp_loan's Delete sets active_status = 0, which is the LIVE value, so the
-    // row is not actually removed. Reported in docs/MIGRATION-MAP.md §5.
-    canDelete={false}
+    deleteMessage={(r) => `Delete the ${r.bank} loan on flat ${r.flat_no ?? r.flat_id}?`}
     toForm={(r) => ({
-      bank: r.bank ?? '',
       flatId: r.flat_id ?? '',
+      bank: r.bank ?? '',
+      // typeId and certificateId were absent from the form, so editing a loan
+      // sent 0 for both — losing the loan type and who holds the certificate.
+      typeId: r.type_id ?? '',
       nocIssued: r.noc_issued ?? '',
-      societyNocDate: r.society_noc ? String(r.society_noc).slice(0, 10) : '',
+      societyNocDate: toDateInput(r.society_noc),
+      loanClearanceDate: toDateInput(r.loan_clearance),
+      certificateId: r.cert_id ?? '',
     })}
   />
 );
@@ -335,6 +452,72 @@ export const LedgerPage = () => (
   />
 );
 
+/**
+ * shop_maintenance.aspx's Print button, which redirected to printshop.aspx —
+ * discarding whatever was typed in the modal. That report now lives at
+ * /reports/shop-maintenance; this button prints the entry in front of you as a
+ * receipt, which is what the redirect appeared to promise.
+ *
+ * Disabled until the entry has the fields a receipt needs; printing a blank
+ * form is what the legacy page did and it was never useful.
+ */
+function PrintReceiptButton({ form, lookups }) {
+  const ready = Boolean(form?.reportNo && form?.amount);
+
+  const print = () => {
+    // The form holds led_id; the receipt has to name the ledger, so it is
+    // resolved against the same list the dropdown was filled from.
+    const ledger = (lookups?.ledgers ?? []).find(
+      (l) => String(l.led_id) === String(form.ledgerId),
+    );
+
+    const rows = [
+      ['Receipt no.', form.reportNo],
+      ['Date', form.date ? new Date(form.date).toLocaleDateString() : '—'],
+      ['Ledger', ledger?.led_description || '—'],
+      ['Ledger details', form.details || '—'],
+      ['Payment method', form.payMethod || '—'],
+      form.payMethod === 'Cheque No' && ['Cheque/draft no.', form.chequeNo || '—'],
+      form.payMethod === 'Cheque No' && [
+        'Cheque date',
+        form.chequeDate ? new Date(form.chequeDate).toLocaleDateString() : '—',
+      ],
+      form.payMethod === 'UPI Payment' && ['UPI reference', form.upiRef || '—'],
+      ['Amount', money(form.amount)],
+    ].filter(Boolean);
+
+    // Escaped because every value here is user-entered.
+    const esc = (v) =>
+      String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+    const win = window.open('', '_blank', 'width=720,height=800');
+    if (!win) {
+      window.alert('The print window was blocked. Allow pop-ups for this site and try again.');
+      return;
+    }
+    win.document.write(`<!doctype html><html><head><title>Receipt ${esc(form.reportNo)}</title>
+<style>
+  body { font-family: system-ui, sans-serif; color: #1a1a1a; padding: 32px; }
+  h1 { color: #012970; font-size: 20px; margin: 0 0 24px; }
+  table { border-collapse: collapse; width: 100%; max-width: 520px; }
+  th, td { border: 1px solid #e3e6f0; padding: 8px 12px; text-align: left; font-size: 14px; }
+  th { background: #f8f9fa; width: 40%; font-weight: 600; }
+</style></head><body>
+<h1>Shop Maintenance Receipt</h1>
+<table>${rows.map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}</table>
+</body></html>`);
+    win.document.close();
+    win.focus();
+    win.print();
+  };
+
+  return (
+    <button type="button" className="btn-secondary" onClick={print} disabled={!ready}>
+      Print
+    </button>
+  );
+}
+
 export const ShopMaintenancePage = () => (
   <GenericCrudPage
     title="Shop maintenance"
@@ -347,15 +530,59 @@ export const ShopMaintenancePage = () => (
       { key: 'amt', label: 'Amount', format: money },
       { key: 'pay_method', label: 'Pay method' },
     ]}
+    // Field order and wording follow shop_maintenance.aspx's modal.
+    lookups={{ ledgers: () => M.ledger.list() }}
     fields={[
-      { name: 'reportNo', label: 'Report number', required: true },
-      { name: 'date', label: 'Date', type: 'date' },
-      { name: 'ledgerId', label: 'Ledger ID', type: 'number', required: true },
+      { name: 'reportNo', label: 'Receipt no.', required: true },
+      { name: 'date', label: 'Date', type: 'date', required: true },
+      // The legacy page used a type-ahead over the ledger list, which stored
+      // led_id — a select carries the same value without the free-text box
+      // that let an unknown id through.
+      {
+        name: 'ledgerId',
+        label: 'Ledger',
+        type: 'select',
+        required: true,
+        lookup: 'ledgers',
+        optionValue: 'led_id',
+        optionLabel: 'led_description',
+      },
+      {
+        name: 'payMethod',
+        label: 'Payment method',
+        type: 'select',
+        required: true,
+        options: PAY_METHODS,
+      },
+      // paystatus_check() swapped these two panels in as the method changed:
+      // cheque number and date for "Cheque No", the UPI reference for
+      // "UPI Payment", neither for cash.
+      {
+        name: 'chequeNo',
+        label: 'Cheque/draft no.',
+        required: true,
+        showIf: (f) => f.payMethod === 'Cheque No',
+      },
+      {
+        name: 'chequeDate',
+        label: 'Cheque date',
+        type: 'date',
+        required: true,
+        showIf: (f) => f.payMethod === 'Cheque No',
+      },
+      {
+        name: 'upiRef',
+        label: 'UPI reference',
+        required: true,
+        span: 2,
+        showIf: (f) => f.payMethod === 'UPI Payment',
+      },
+      { name: 'details', label: 'Ledger details', required: true, span: 2 },
       { name: 'amount', label: 'Amount', type: 'number', required: true },
-      { name: 'payMethod', label: 'Payment method' },
-      { name: 'details', label: 'Details', type: 'textarea', span: 2 },
     ]}
-    canDelete={false}
+    // Legacy delete wrote to shop_vw and always failed, so it was left off.
+    // FIX_shop_maintenance.sql soft-deletes the base row instead.
+    deleteMessage={(r) => `Delete receipt ${r.mrep_no}? It will no longer appear in the list.`}
     toForm={(r) => ({
       reportNo: r.mrep_no ?? '',
       date: r.m_date ? String(r.m_date).slice(0, 10) : '',
@@ -363,7 +590,20 @@ export const ShopMaintenancePage = () => (
       amount: r.amt ?? '',
       payMethod: r.pay_method ?? '',
       details: r.other_details ?? '',
+      // Both methods write cheq_no; which field it belongs in depends on the
+      // method the row was saved with.
+      chequeNo: r.pay_method === 'Cheque No' ? (r.cheq_no ?? '') : '',
+      upiRef: r.pay_method === 'UPI Payment' ? (r.cheq_no ?? '') : '',
+      chequeDate: r.cheq_date ? String(r.cheq_date).slice(0, 10) : '',
     })}
+    // runproc_save() put the UPI reference in cheq_no too, so the API's single
+    // chequeNo parameter carries whichever one the method calls for.
+    toBody={(form) => ({
+      ...form,
+      chequeNo: form.payMethod === 'UPI Payment' ? form.upiRef : form.chequeNo,
+    })}
+    // shop_maintenance.aspx put a Print button beside Save.
+    formActions={(form, { lookups }) => <PrintReceiptButton form={form} lookups={lookups} />}
   />
 );
 
@@ -372,16 +612,45 @@ export const OtherCreditsPage = () => (
     title="Other credits"
     resource={M.otherCredits}
     idKey="Id"
-    searchable={false}
+    // sp_ManageOtherCredits SELECT takes no search parameter, so — as in the
+    // legacy page's filterTable(), which hid grid rows in the browser — the
+    // term narrows the loaded rows here rather than going to the server. It
+    // matches against the displayed cells, the date in its displayed form.
+    filterRow={(r, term) =>
+      [r.Description, r.Amount, r.PaymentDate ? dmy(r.PaymentDate) : '']
+        .join(' ')
+        .toLowerCase()
+        .includes(term)
+    }
+    // other_credits.aspx had no delete path — its DeleteCredit() was commented
+    // out and the grid carried an Edit icon only.
+    canDelete={false}
     columns={[
+      // No backing field — the legacy grid numbered rows by grid position.
+      // exportValue keeps the CSV/PDF columns in step with what is displayed,
+      // since the export reads the row rather than the rendered cell.
+      {
+        key: 'no',
+        label: 'No',
+        format: (_v, _r, i) => i + 1,
+        exportValue: (_r, i) => (i ?? 0) + 1,
+      },
       { key: 'Description', label: 'Description' },
-      { key: 'Amount', label: 'Amount', format: money },
-      { key: 'PaymentDate', label: 'Payment date', format: day },
+      { key: 'Amount', label: 'Amount', format: money, exportValue: (r) => money(r.Amount) },
+      { key: 'PaymentDate', label: 'Date', format: dmy, exportValue: (r) => dmy(r.PaymentDate) },
     ]}
     fields={[
-      { name: 'description', label: 'Description', required: true, span: 2 },
-      { name: 'amount', label: 'Amount', type: 'number', required: true },
-      { name: 'paymentDate', label: 'Payment date', type: 'date' },
+      {
+        name: 'description',
+        label: 'Description',
+        required: true,
+        span: 2,
+        placeholder: 'e.g. Hoardings, Bhangar Sell',
+      },
+      { name: 'amount', label: 'Payment', type: 'number', required: true },
+      // Required on the legacy form (txtDate carried `required`), even though
+      // the SP leaves @payment_date nullable.
+      { name: 'paymentDate', label: 'Date', type: 'date', required: true },
     ]}
     toForm={(r) => ({
       description: r.Description ?? '',
@@ -485,20 +754,40 @@ export const MeetingsPage = () => (
     title="Meetings"
     resource={M.meetings}
     idKey="meet_id"
+    // Columns follow meeting_search.aspx's grid: subject, date, time.
     columns={[
       { key: 'subject', label: 'Subject' },
-      { key: 'details', label: 'Details' },
-      { key: 'meeting_date', label: 'Date', format: day },
+      { key: 'meeting_date', label: 'Meeting date', format: day },
+      { key: 'meeting_time', label: 'Meeting time', format: clockTime },
+      // The legacy editor was TinyMCE, so older rows hold HTML. Showing the
+      // tags raw is worse than showing the text, and the column is a preview
+      // either way — the full details are in the form.
+      { key: 'details', label: 'Details', format: (v) => plainText(v) || '—' },
     ]}
     fields={[
       { name: 'subject', label: 'Subject', required: true, span: 2 },
-      { name: 'details', label: 'Details', type: 'textarea', span: 2 },
       { name: 'meetingDate', label: 'Meeting date', type: 'date', required: true },
+      // meeting_search.aspx marked time required and the SP stores it; the
+      // form here never carried it, so every save wrote a null over it.
+      { name: 'meetingTime', label: 'Meeting time', type: 'time', required: true },
+      // The legacy modal's TinyMCE box. meeting_master.details is nvarchar(300)
+      // and the markup counts against it, so the limit shown is the column's
+      // rather than the API's more generous 1000.
+      {
+        name: 'details',
+        label: 'Details',
+        type: 'richtext',
+        span: 2,
+        maxLength: 300,
+        hint: 'Agenda or notes for the meeting.',
+      },
     ]}
     toForm={(r) => ({
       subject: r.subject ?? '',
+      // Kept as HTML — the editor reads and writes markup.
       details: r.details ?? '',
       meetingDate: r.meeting_date ? String(r.meeting_date).slice(0, 10) : '',
+      meetingTime: inputTime(r.meeting_time),
     })}
   />
 );

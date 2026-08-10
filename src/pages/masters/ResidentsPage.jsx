@@ -317,7 +317,7 @@ export default function ResidentsPage({ type = 'Owner' }) {
             <>
               <button
                 type="button"
-                className="btn-secondary mr-1 px-2 text-xs"
+                className="btn-secondary px-2 text-xs"
                 title={`Details for ${row.name}`}
                 onClick={() => setFamilyFor(row)}
               >
@@ -328,7 +328,7 @@ export default function ResidentsPage({ type = 'Owner' }) {
               {docsFor(row).length ? (
                 <button
                   type="button"
-                  className="btn-secondary mr-1 px-2 text-xs"
+                  className="btn-secondary px-2 text-xs"
                   title={`View documents for ${row.name}`}
                   aria-label={`View documents for ${row.name}`}
                   onClick={() => setDocsFor(row)}
@@ -338,7 +338,7 @@ export default function ResidentsPage({ type = 'Owner' }) {
               ) : null}
               <button
                 type="button"
-                className="btn-secondary mr-1 px-2 text-xs"
+                className="btn-secondary px-2 text-xs"
                 title={`Edit ${row.name}`}
                 onClick={() => openEdit(row)}
               >

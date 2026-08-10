@@ -16,6 +16,8 @@ export const pdc = {
   list: (params) => api.get('/billing/pdc', params ? { params } : undefined),
   clearing: (from, to) => api.get('/billing/pdc/clearing', { params: { from, to } }),
   forOwner: (ownerId) => api.get(`/billing/pdc/owner/${ownerId}`),
+  /** Contact block the legacy form filled from the chosen owner. */
+  ownerDetails: (ownerId) => api.get(`/billing/pdc/owner/${ownerId}/details`),
   create: (body) => api.post('/billing/pdc', body),
   update: (id, body) => api.put(`/billing/pdc/${id}`, body),
   clear: (id, body) => api.post(`/billing/pdc/${id}/clear`, body),

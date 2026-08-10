@@ -77,7 +77,15 @@ export default function DateRangeReport({ title, subtitle, load, render, printab
 
       <ErrorNotice error={error} />
 
-      {loading ? <Spinner /> : data ? render(data, { from, to }) : <EmptyState title="No data" />}
+      {/* `reload` lets a report that also writes — PDC clearing marks cheques
+          — refresh itself without re-running the date form by hand. */}
+      {loading ? (
+        <Spinner />
+      ) : data ? (
+        render(data, { from, to, reload: () => run(from, to) })
+      ) : (
+        <EmptyState title="No data" />
+      )}
     </section>
   );
 }

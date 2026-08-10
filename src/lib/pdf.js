@@ -58,6 +58,52 @@ export async function elementToPdf(node, filename = 'report') {
 }
 
 /**
+ * Render each node onto a page of its own.
+ *
+ * elementToPdf captures one tall image and slices it at fixed intervals, so a
+ * document made of separate sheets — a bill per flat — gets cut wherever the
+ * page happens to end, mid-table. Capturing sheet by sheet keeps each one
+ * whole, which is what the legacy print CSS achieved with page-break rules.
+ *
+ * A sheet taller than a page is still split, but only that sheet.
+ */
+export async function elementsToPdf(nodes, filename = 'report') {
+  const sheets = Array.from(nodes ?? []).filter(Boolean);
+  if (!sheets.length) throw new Error('Nothing to export');
+
+  const [{ default: html2canvas }, JsPDF] = await Promise.all([
+    import('html2canvas'),
+    loadJsPdf(),
+  ]);
+
+  const pdf = new JsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const margin = 24;
+  const usableW = pageW - margin * 2;
+  const usableH = pageH - margin * 2;
+
+  for (const [i, node] of sheets.entries()) {
+    const canvas = await html2canvas(node, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+    const image = canvas.toDataURL('image/png');
+    const scaled = (canvas.height * usableW) / canvas.width;
+
+    if (i > 0) pdf.addPage();
+
+    let remaining = scaled;
+    let offset = 0;
+    while (remaining > 0) {
+      if (offset > 0) pdf.addPage();
+      pdf.addImage(image, 'PNG', margin, margin - offset, usableW, scaled, undefined, 'FAST');
+      remaining -= usableH;
+      offset += usableH;
+    }
+  }
+
+  pdf.save(`${filename}-${stamp()}.pdf`);
+}
+
+/**
  * Render tabular data straight to a PDF, without going through the DOM.
  *
  * Preferred for grids: the output is selectable text at a predictable width,
@@ -106,6 +152,9 @@ export async function tableToPdf({ columns, rows, title, filename = 'export' }) 
   header();
 
   pdf.setTextColor(33);
+  // rowIndex is tracked separately from the column index below, for a
+  // serial-number column whose value comes from the row's position.
+  let rowIndex = 0;
   for (const row of rows) {
     if (y > pageH - margin) {
       pdf.addPage();
@@ -114,10 +163,11 @@ export async function tableToPdf({ columns, rows, title, filename = 'export' }) 
       pdf.setTextColor(33);
     }
     columns.forEach((c, i) => {
-      const raw = c.exportValue ? c.exportValue(row) : row[c.key];
+      const raw = c.exportValue ? c.exportValue(row, rowIndex) : row[c.key];
       pdf.text(clip(raw, colW), margin + i * colW + 3, y);
     });
     y += lineH;
+    rowIndex += 1;
   }
 
   pdf.save(`${filename}-${stamp()}.pdf`);

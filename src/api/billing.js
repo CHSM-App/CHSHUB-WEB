@@ -7,6 +7,8 @@ export const bills = {
   get: (billId, p) => api.get(`/billing/bills/${billId}`, params(p)),
   forFlat: (billId, flatId) => api.get(`/billing/bills/${billId}/flat/${flatId}`),
   defaulters: () => api.get('/billing/bills/reports/defaulters'),
+  /** This month's charge heads, with each divided across the flats. */
+  charges: () => api.get('/billing/bills/charges'),
 };
 
 export const receipts = {
@@ -15,6 +17,7 @@ export const receipts = {
   residents: () => api.get('/billing/receipts/residents'),
   outstanding: (flatId) => api.get('/billing/receipts/outstanding', { params: { flatId } }),
   pdc: (flatId) => api.get('/billing/receipts/pdc', { params: { flatId } }),
+  advance: (flatId) => api.get('/billing/receipts/advance', { params: { flatId } }),
 
   // Financial writes. Not called by any screen yet — bill generation and
   // payment recording stay disabled until they have been exercised against a

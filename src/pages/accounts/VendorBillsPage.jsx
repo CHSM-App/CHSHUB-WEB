@@ -10,7 +10,6 @@ import {
   PageHeader,
   SelectField,
   StatCard,
-  Tabs,
   TextAreaField,
   TextField,
 } from '@/components/FormControls.jsx';
@@ -41,8 +40,48 @@ const EMPTY_BILL = {
   notes: '',
 };
 
+// VendorBill.aspx's four service types, in its order. The value is what the
+// SP stores in service_type.
+const SERVICE_TYPES = [
+  { value: '0', label: 'Staff Payment' },
+  { value: '1', label: 'Daily Expense' },
+  { value: '2', label: 'Vendor-Inventory Payment' },
+  { value: '3', label: 'Vendor-Service Payment' },
+];
+
+/** Bill-number prefix per service type, so each kind is told apart at a glance. */
+const BILL_PREFIX = {
+  [SERVICE.STAFF]: 'STAFF',
+  [SERVICE.DAILY]: 'EXP',
+  [SERVICE.INVENTORY]: 'INV',
+  [SERVICE.SERVICE]: 'SRV',
+};
+
+/**
+ * A bill number for a service type: PREFIX-YYYYMM-HHMMSS.
+ *
+ * The legacy page only offered this for staff bills, and only on demand. The
+ * shape is kept — month from the bill date, time from now, which is what made
+ * repeated numbers unlikely — and applied to every type.
+ */
+function generateBillNumber(serviceTypeValue, billDate) {
+  const prefix = BILL_PREFIX[Number(serviceTypeValue)];
+  if (!prefix) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  const d = billDate ? new Date(billDate) : new Date();
+  const when = Number.isNaN(d.getTime()) ? new Date() : d;
+  const now = new Date();
+  return [
+    prefix,
+    `${when.getFullYear()}${pad(when.getMonth() + 1)}`,
+    `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`,
+  ].join('-');
+}
+
 const EMPTY_PAYMENT = {
-  mode: 'Cheque',
+  // No mode until one is picked — VendorBill.aspx opened with all three
+  // payment panels hidden and revealed one on the mode button.
+  mode: '',
   transactionRef: '',
   chequeNo: '',
   chequeDate: '',
@@ -51,6 +90,228 @@ const EMPTY_PAYMENT = {
   remarks: '',
   filePath: '',
 };
+
+/** Approval status codes, as UPDATE_STATUS writes them. */
+const approvalLabel = (v) =>
+  Number(v) === 2 ? 'Approved' : Number(v) === 4 ? 'Rejected' : 'Pending';
+
+/** True when a bill number looks like one this page stamped. */
+function isGeneratedBillNumber(value) {
+  const prefixes = Object.values(BILL_PREFIX).join('|');
+  return new RegExp(`^(${prefixes})-\\d{6}-\\d{6}$`).test(String(value ?? '').trim());
+}
+
+/**
+ * One item line's amount: quantity × unit price, plus that line's tax.
+ * The same expression the legacy items grid evaluated per row.
+ */
+function lineTotal(item) {
+  const base = Number(item?.quantity || 0) * Number(item?.purchaseCost || 0);
+  return base + (base * Number(item?.tax || 0)) / 100;
+}
+
+/** Escaped because every value below is user-entered. */
+const esc = (v) =>
+  String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+/**
+ * Opens a printable copy of a bill — header, items and approvals.
+ *
+ * Rendered into a popup rather than printing the page, so the surrounding app
+ * chrome and the modal's own buttons stay out of the printout.
+ */
+function printBill(detail) {
+  const bill = detail?.bill ?? {};
+  const items = detail?.items ?? [];
+  const approvals = detail?.approvals ?? [];
+  const payments = detail?.payments ?? [];
+
+  const summary = [
+    ['Bill number', bill.bill_number],
+    ['Bill date', day(bill.bill_date)],
+    ['Vendor / staff', bill.vendor_name],
+    ['Subtotal', money(bill.subtotal)],
+    ['Tax', money(bill.tax_amount)],
+    ['Total', money(bill.total_amount)],
+    ['Paid', money(bill.paid_amount)],
+    ['Outstanding', money(bill.remaining_amount)],
+    ['Status', bill.bill_status],
+  ];
+
+  const win = window.open('', '_blank', 'width=900,height=900');
+  if (!win) {
+    window.alert('The print window was blocked. Allow pop-ups for this site and try again.');
+    return;
+  }
+
+  const itemRows = items
+    .map(
+      (it) => `<tr>
+        <td>${esc(it.item_name)}</td>
+        <td class="r">${esc(it.quantity)}</td>
+        <td class="r">${esc(money(it.purchase_cost))}</td>
+        <td class="r">${esc(it.tax ?? '—')}</td>
+        <td class="r">${it.warranty ? esc(it.warranty) + ' mo' : '—'}</td>
+        <td class="r">${esc(money(it.total_amount))}</td>
+      </tr>`,
+    )
+    .join('');
+
+  const approvalRows = approvals
+    .map(
+      (a) => `<tr>
+        <td>${esc(a.name)}</td>
+        <td>${esc(approvalLabel(a.approval_status))}</td>
+        <td>${esc(a.approval_date ? day(a.approval_date) : '—')}</td>
+      </tr>`,
+    )
+    .join('');
+
+  // Cheque and online payments each carry their own reference; cash has none.
+  const paymentRows = payments
+    .map(
+      (p) => `<tr>
+        <td>${esc(p.payment_no)}</td>
+        <td>${esc(day(p.payment_date))}</td>
+        <td>${esc(p.pay_mode ?? '—')}</td>
+        <td>${esc(p.cheque_no || p.transaction_ref || '—')}</td>
+        <td class="r">${esc(money(p.paid_amount))}</td>
+      </tr>`,
+    )
+    .join('');
+
+  win.document.write(`<!doctype html><html><head><title>Bill ${esc(bill.bill_number)}</title>
+<style>
+  body { font-family: system-ui, sans-serif; color: #1a1a1a; padding: 32px; }
+  h1 { color: #012970; font-size: 20px; margin: 0 0 20px; }
+  h2 { font-size: 14px; margin: 24px 0 8px; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #e3e6f0; padding: 6px 10px; text-align: left; font-size: 13px; }
+  th { background: #f8f9fa; font-weight: 600; }
+  td.r, th.r { text-align: right; }
+  dl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 16px; margin: 0; }
+  dt { font-size: 11px; text-transform: uppercase; color: #6c757d; }
+  dd { margin: 2px 0 0; font-size: 13px; }
+</style></head><body>
+<h1>Vendor Bill</h1>
+<dl>${summary.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v ?? '—')}</dd></div>`).join('')}</dl>
+${
+  itemRows
+    ? `<h2>Items</h2><table><thead><tr><th>Item</th><th class="r">Qty</th><th class="r">Unit price</th>
+       <th class="r">Tax %</th><th class="r">Warranty</th><th class="r">Amount</th></tr></thead>
+       <tbody>${itemRows}</tbody></table>`
+    : ''
+}
+${
+  approvalRows
+    ? `<h2>Approvals</h2><table><thead><tr><th>Approver</th><th>Status</th><th>Date</th></tr></thead>
+       <tbody>${approvalRows}</tbody></table>`
+    : ''
+}
+${
+  paymentRows
+    ? `<h2>Payments</h2><table><thead><tr><th>Payment no.</th><th>Date</th><th>Mode</th>
+       <th>Reference</th><th class="r">Amount</th></tr></thead>
+       <tbody>${paymentRows}</tbody></table>`
+    : ''
+}
+</body></html>`);
+  win.document.close();
+  win.focus();
+  win.print();
+}
+
+/** A titled block on the single-page bill form. */
+function FormSection({ title, subtitle, className = '', children }) {
+  return (
+    <section className="border-t border-slate-200 pt-4 first:border-0 first:pt-0">
+      <header className="mb-3 flex items-baseline justify-between gap-3">
+        <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
+        {subtitle ? <p className="text-xs text-slate-500">{subtitle}</p> : null}
+      </header>
+      <div className={className}>{children}</div>
+    </section>
+  );
+}
+
+/**
+ * Cheque / online / cash inputs, shared by the create form's payment section
+ * and the Pay dialog. VendorBill.aspx used the same three panels in both.
+ */
+function PaymentFields({ payment, setPayment, amountRequired, amountHint, amountMax, idPrefix = '' }) {
+  const set = (key) => (e) => {
+    const { value } = e.target;
+    setPayment((p) => ({ ...p, [key]: value }));
+  };
+  // TextField derives its input id from `name`, so the create form's payment
+  // tab and the Pay dialog would otherwise share ids while both are mounted —
+  // and a label would point at whichever input rendered first.
+  const n = (base) => `${idPrefix}${base}`;
+
+  return (
+    <div className="space-y-4">
+      <ModeSwitch
+        label="Payment mode"
+        options={PAY_MODES}
+        value={payment.mode}
+        onChange={(mode) => setPayment((p) => ({ ...p, mode }))}
+      />
+
+      {!payment.mode ? (
+        <p className="text-sm text-slate-500">Pick a payment mode to enter the details.</p>
+      ) : null}
+
+      <div className={payment.mode ? 'grid gap-4 sm:grid-cols-2' : 'hidden'}>
+        {payment.mode === 'Online' ? (
+          <TextField
+            label="Transaction reference"
+            name={n('txnRef')}
+            value={payment.transactionRef}
+            onChange={set('transactionRef')}
+          />
+        ) : null}
+        {payment.mode === 'Cheque' ? (
+          <>
+            <TextField label="Cheque number" name={n('cheqNo')} value={payment.chequeNo} onChange={set('chequeNo')} />
+            <TextField
+              label="Cheque date"
+              name={n('cheqDate')}
+              type="date"
+              value={payment.chequeDate}
+              onChange={set('chequeDate')}
+            />
+            <TextField label="Bank name" name={n('bank')} value={payment.bankName} onChange={set('bankName')} />
+          </>
+        ) : null}
+        <TextField
+          label="Amount"
+          name={n('payAmt')}
+          type="number"
+          step="0.01"
+          max={amountMax}
+          required={amountRequired}
+          value={payment.amount}
+          onChange={set('amount')}
+          hint={amountHint}
+        />
+        <TextAreaField
+          label="Remarks"
+          name={n('payRemarks')}
+          rows={2}
+          className="sm:col-span-2"
+          value={payment.remarks}
+          onChange={set('remarks')}
+        />
+        <FileUploadField
+          label="Attachment"
+          category="vendor-bills"
+          className="sm:col-span-2"
+          onUploaded={(f) => f && setPayment((p) => ({ ...p, filePath: f.path }))}
+        />
+      </div>
+    </div>
+  );
+}
 
 const EMPTY_VENDOR = {
   name: '',
@@ -96,8 +357,11 @@ export default function VendorBillsPage() {
   const [staffRoleFilter, setStaffRoleFilter] = useState('');
   const [items, setItems] = useState([]); // inventory line items
   const [payment, setPayment] = useState({ ...EMPTY_PAYMENT });
+  // The Pay dialog's own state, so it cannot disturb the create form's tab.
+  const [paying, setPaying] = useState(null);
+  const [payForm, setPayForm] = useState({ ...EMPTY_PAYMENT });
   const [approverIds, setApproverIds] = useState([]);
-  const [formTab, setFormTab] = useState('details');
+  const [pickingApprovers, setPickingApprovers] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -122,8 +386,27 @@ export default function VendorBillsPage() {
 
   const serviceType = Number(form?.serviceType);
   const isStaff = serviceType === SERVICE.STAFF;
-  const isInventory = serviceType === SERVICE.INVENTORY;
-  const needsVendor = serviceType === SERVICE.INVENTORY || serviceType === SERVICE.SERVICE;
+  // Which sections a bill shows, from ddlSevice_SelectedIndexChanged:
+  //   0 Staff     — staff list + payment
+  //   1 Daily     — vendor + items + approvers + payment
+  //   2 Inventory — same as Daily
+  //   3 Service   — vendor + service description + payment
+  // Daily Expense was treated as vendor-less here, so it offered neither the
+  // vendor nor the line items the legacy form asked for.
+  const hasItems = serviceType === SERVICE.DAILY || serviceType === SERVICE.INVENTORY;
+  const isInventory = hasItems;
+  const needsVendor =
+    serviceType === SERVICE.DAILY ||
+    serviceType === SERVICE.INVENTORY ||
+    serviceType === SERVICE.SERVICE;
+  const hasApprovers = serviceType === SERVICE.DAILY || serviceType === SERVICE.INVENTORY;
+  const isService = serviceType === SERVICE.SERVICE;
+
+  /** The picked vendor's row, for the read-only GST box beside it. */
+  const selectedVendor = useMemo(
+    () => (lookups.vendors ?? []).find((v) => String(v.vendor_id) === String(form?.vendorId)),
+    [lookups.vendors, form?.vendorId],
+  );
 
   /** Staff filtered by the role dropdown, as ddlStaffType did. */
   const staffOptions = useMemo(() => {
@@ -137,7 +420,7 @@ export default function VendorBillsPage() {
     if (isStaff) {
       subtotal = Object.values(selectedStaff).reduce((s, v) => s + Number(v || 0), 0);
     } else if (isInventory) {
-      subtotal = items.reduce((s, it) => s + Number(it.totalAmount || 0), 0);
+      subtotal = items.reduce((s, it) => s + lineTotal(it), 0);
     } else {
       subtotal = Number(form?.serviceCost || 0);
     }
@@ -150,6 +433,26 @@ export default function VendorBillsPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  /**
+   * Switching service type re-stamps the bill number for the new type.
+   *
+   * Only when the current number is one this page generated — recognised by
+   * the PREFIX-YYYYMM-HHMMSS shape. A number typed in, or one off a
+   * supplier's invoice, is left alone. Without this a bill switched from
+   * Staff to Inventory kept its STAFF- number.
+   */
+  const changeServiceType = (e) => {
+    const { value } = e.target;
+    setForm((p) => {
+      const generated = !p.billNumber || isGeneratedBillNumber(p.billNumber);
+      return {
+        ...p,
+        serviceType: value,
+        billNumber: generated ? generateBillNumber(value, p.billDate) : p.billNumber,
+      };
+    });
+  };
+
   const openCreate = () => {
     setForm({ ...EMPTY_BILL });
     setSelectedStaff({});
@@ -157,7 +460,6 @@ export default function VendorBillsPage() {
     setPayment({ ...EMPTY_PAYMENT });
     setApproverIds([]);
     setStaffRoleFilter('');
-    setFormTab('details');
     setError(null);
   };
 
@@ -171,13 +473,16 @@ export default function VendorBillsPage() {
   };
 
   const addItem = () =>
-    setItems((prev) => [...prev, { name: '', quantity: 1, unit: '', totalAmount: '', tax: '', warrantyMonths: '' }]);
+    setItems((prev) => [
+      ...prev,
+      { name: '', quantity: 1, unit: '', purchaseCost: '', tax: '', warrantyMonths: '' },
+    ]);
 
   const setItemField = (index, key, value) =>
     setItems((prev) => prev.map((it, i) => (i === index ? { ...it, [key]: value } : it)));
 
-  /** Same rule as IsPaymentDataFilled(): any one mode with a positive amount. */
-  const paymentFilled = Number(payment.amount || 0) > 0;
+  /** Same rule as IsPaymentDataFilled(): a mode picked, with a positive amount. */
+  const paymentFilled = Boolean(payment.mode) && Number(payment.amount || 0) > 0;
 
   const validate = () => {
     if (!form.serviceType) return 'Select a service type';
@@ -185,7 +490,12 @@ export default function VendorBillsPage() {
     if (!form.billDate) return 'Bill date is required';
     if (isStaff && Object.keys(selectedStaff).length === 0) return 'Select at least one staff member';
     if (isStaff && !paymentFilled) {
-      return 'Payment is mandatory for a staff payment — enter an amount';
+      return 'Payment is mandatory for a staff payment — pick a mode and enter an amount';
+    }
+    // An amount with no mode would be dropped rather than saved, so it is
+    // caught here instead of silently going nowhere.
+    if (!payment.mode && Number(payment.amount || 0) > 0) {
+      return 'Pick a payment mode for the amount entered';
     }
     if (needsVendor && !form.vendorId) return 'Select a vendor';
     if (isInventory && items.length === 0) return 'Add at least one item';
@@ -215,7 +525,9 @@ export default function VendorBillsPage() {
         totalAmount: computed.total,
         description: form.description,
         notes: form.notes,
-        items: isInventory ? items : [],
+        // The API stores a per-item total, which is derived here rather than
+        // typed — see lineTotal.
+        items: hasItems ? items.map((it) => ({ ...it, totalAmount: lineTotal(it) })) : [],
         approverIds,
         payment: paymentFilled ? payment : undefined,
       });
@@ -252,6 +564,45 @@ export default function VendorBillsPage() {
     } catch (err) {
       setError(err);
       setDetail(null);
+    }
+  };
+
+  /** VendorBill.aspx's Pay button — settle an outstanding bill. */
+  const openPay = (row) => {
+    setError(null);
+    setPaying(row);
+    // The legacy modal opened with the balance already filled in, which is
+    // what is being paid in nearly every case.
+    setPayForm({ ...EMPTY_PAYMENT, amount: String(row.remaining_amount ?? '') });
+  };
+
+  const submitPay = async (event) => {
+    event.preventDefault();
+    const amount = Number(payForm.amount || 0);
+    const outstanding = Number(paying.remaining_amount ?? 0);
+    if (!payForm.mode) {
+      setError(new Error('Pick a payment mode'));
+      return;
+    }
+    if (amount <= 0) {
+      setError(new Error('Enter the amount being paid'));
+      return;
+    }
+    if (amount > outstanding) {
+      setError(new Error(`That is more than the ${money(outstanding)} outstanding on this bill`));
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    try {
+      await vendorBills.pay(paying.bill_id, payForm);
+      setPaying(null);
+      await load();
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -322,7 +673,7 @@ export default function VendorBillsPage() {
         <StatCard label="Outstanding" value={money(totals.due)} tone={totals.due > 0 ? 'negative' : 'default'} />
       </div>
 
-      {!form && !detail ? <ErrorNotice error={error} onRetry={load} /> : null}
+      {!form && !detail && !paying ? <ErrorNotice error={error} onRetry={load} /> : null}
 
       <div className="card overflow-hidden">
         <DataGrid
@@ -335,7 +686,13 @@ export default function VendorBillsPage() {
           emptyHint="Raise the first bill to get started."
           actions={(row) => (
             <>
-              <button type="button" className="btn-secondary mr-2" onClick={() => openDetail(row)}>
+              {/* VendorBill.aspx showed Pay only while something was owed. */}
+              {Number(row.remaining_amount ?? 0) > 0 ? (
+                <button type="button" className="btn-primary" onClick={() => openPay(row)}>
+                  Pay
+                </button>
+              ) : null}
+              <button type="button" className="btn-secondary" onClick={() => openDetail(row)}>
                 View
               </button>
               <button
@@ -360,35 +717,51 @@ export default function VendorBillsPage() {
       <Modal
         open={Boolean(form)}
         title="New vendor bill"
+        // Wider than the default: an item line carries seven controls, and at
+        // max-w-2xl they wrapped onto a second row however narrow each was cut.
+        maxWidth="max-w-5xl"
         onClose={() => setForm(null)}
         footer={
           <>
             <button type="button" className="btn-secondary" onClick={() => setForm(null)} disabled={busy}>
               Cancel
             </button>
-            <button type="submit" form="bill-form" className="btn-primary" disabled={busy}>
-              {busy ? 'Saving…' : 'Save bill'}
-            </button>
+            {/* Nothing can be saved until the service type is known — it
+                decides which sub-form the bill even has. */}
+            {form?.serviceType ? (
+              <button type="submit" form="bill-form" className="btn-primary" disabled={busy}>
+                {busy ? 'Saving…' : 'Save bill'}
+              </button>
+            ) : null}
           </>
         }
       >
         {form ? (
-          <form id="bill-form" onSubmit={onSubmit} noValidate>
-            <Tabs
-              tabs={[
-                { id: 'details', label: 'Bill details' },
-                { id: 'approvers', label: 'Approvers', count: approverIds.length },
-                { id: 'payment', label: 'Payment' },
-              ]}
-              active={formTab}
-              onChange={setFormTab}
-              className="mb-4"
-            />
+          <form id="bill-form" onSubmit={onSubmit} noValidate className="space-y-5">
 
-            {formTab === 'details' ? (
+            {!form.serviceType ? (
               <div className="space-y-4">
-                {/* Order follows VendorBill.aspx: bill number > bill date > service type. */}
-                <div className="grid gap-4 sm:grid-cols-2">
+                <SelectField
+                  label="Service type"
+                  name="serviceType"
+                  required
+                  options={SERVICE_TYPES}
+                  value={form.serviceType}
+                  onChange={changeServiceType}
+                  hint="Pick what this bill is for — the rest of the form follows from it."
+                />
+              </div>
+            ) : null}
+
+            {/* VendorBill.aspx laid bill details, approvers and payment out on
+                one page rather than behind tabs — a bill is raised in a single
+                pass, and hiding the approver or payment section made it easy
+                to save without either. */}
+            {form.serviceType ? (
+              <FormSection title="Bill details" className="space-y-4">
+                {/* Order follows VendorBill.aspx: bill number > bill date >
+                    service type on one row, vendor and its GST on the next. */}
+                <div className="grid gap-4 sm:grid-cols-3">
                   <div>
                     <TextField
                       label="Bill number"
@@ -397,27 +770,20 @@ export default function VendorBillsPage() {
                       value={form.billNumber}
                       onChange={setField('billNumber')}
                     />
-                    {isStaff ? (
-                      // VendorBill.aspx built this for staff runs rather than
-                      // asking for it: STAFF-{roleId}-{yyyyMM}-{HHmmss}.
-                      <button
-                        type="button"
-                        className="mt-1 text-xs text-blue-600 hover:underline"
-                        onClick={() => {
-                          const d = form.billDate ? new Date(form.billDate) : new Date();
-                          const stamp = new Date();
-                          const pad = (n) => String(n).padStart(2, '0');
-                          const yyyyMM = `${d.getFullYear()}${pad(d.getMonth() + 1)}`;
-                          const hhmmss = `${pad(stamp.getHours())}${pad(stamp.getMinutes())}${pad(stamp.getSeconds())}`;
-                          setForm((p) => ({
-                            ...p,
-                            billNumber: `STAFF-${staffRoleFilter || 0}-${yyyyMM}-${hhmmss}`,
-                          }));
-                        }}
-                      >
-                        Generate staff bill number
-                      </button>
-                    ) : null}
+                    {/* Regenerates for the current type — the legacy page had
+                        this for staff runs only. */}
+                    <button
+                      type="button"
+                      className="mt-1 text-xs text-blue-600 hover:underline"
+                      onClick={() =>
+                        setForm((p) => ({
+                          ...p,
+                          billNumber: generateBillNumber(p.serviceType, p.billDate),
+                        }))
+                      }
+                    >
+                      Generate bill number
+                    </button>
                   </div>
                   <TextField
                     label="Bill date"
@@ -431,28 +797,46 @@ export default function VendorBillsPage() {
                     label="Service type"
                     name="serviceType"
                     required
-                    options={[
-                      { value: '0', label: 'Staff Payment' },
-                      { value: '1', label: 'Daily Expense' },
-                      { value: '2', label: 'Vendor-Inventory Payment' },
-                      { value: '3', label: 'Vendor-Service Payment' },
-                    ]}
+                    options={SERVICE_TYPES}
                     value={form.serviceType}
-                    onChange={setField('serviceType')}
+                    onChange={changeServiceType}
                   />
-                  {needsVendor ? (
-                    <SelectField
-                      label="Vendor"
-                      name="vendorId"
-                      required
-                      options={lookups.vendors}
-                      valueKey="vendor_id"
-                      labelKey="vendor_name"
-                      value={form.vendorId}
-                      onChange={setField('vendorId')}
-                    />
-                  ) : null}
                 </div>
+
+                {/* Vendor follows the service type that decides whether the
+                    bill has one at all, on a row of its own. GST is filled
+                    from the chosen vendor and read-only, as on the legacy
+                    page. */}
+                {needsVendor ? (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <SelectField
+                        label="Vendor name"
+                        name="vendorId"
+                        required
+                        options={lookups.vendors}
+                        valueKey="vendor_id"
+                        labelKey="vendor_name"
+                        value={form.vendorId}
+                        onChange={setField('vendorId')}
+                      />
+                      <button
+                        type="button"
+                        className="mt-1 text-xs text-blue-600 hover:underline"
+                        onClick={() => setVendorForm({ ...EMPTY_VENDOR })}
+                      >
+                        Add vendor
+                      </button>
+                    </div>
+                    <TextField
+                      label="GST number"
+                      name="gstNo"
+                      readOnly
+                      value={selectedVendor?.gst_no ?? ''}
+                      hint="From the selected vendor."
+                    />
+                  </div>
+                ) : null}
 
                 {/* Staff payment sub-form */}
                 {isStaff ? (
@@ -546,12 +930,24 @@ export default function VendorBillsPage() {
                       </p>
                     ) : (
                       <div className="space-y-2">
+                        {/* Columns follow the legacy items grid: description,
+                            quantity, unit price, tax %, warranty, amount —
+                            one line per item.
+
+                            Laid out with flex and per-field widths rather than
+                            a column grid: equal columns made the numeric boxes
+                            too narrow to read what had been typed into them,
+                            and the fractions never divided evenly enough to
+                            keep the remove icon on the same line. Description
+                            takes the slack; the rest are sized to their
+                            content and wrap together when the row runs out of
+                            room. */}
                         {items.map((it, i) => (
-                          <div key={i} className="grid gap-2 sm:grid-cols-6">
+                          <div key={i} className="flex flex-wrap items-start gap-2 lg:flex-nowrap">
                             <TextField
-                              label="Item"
+                              label="Description"
                               name={`it-name-${i}`}
-                              className="sm:col-span-2"
+                              className="min-w-[10rem] flex-1"
                               value={it.name}
                               onChange={(e) => setItemField(i, 'name', e.target.value)}
                             />
@@ -559,29 +955,72 @@ export default function VendorBillsPage() {
                               label="Qty"
                               name={`it-qty-${i}`}
                               type="number"
+                              className="w-20 shrink-0"
                               value={it.quantity}
                               onChange={(e) => setItemField(i, 'quantity', e.target.value)}
                             />
                             <TextField
-                              label="Unit"
-                              name={`it-unit-${i}`}
-                              value={it.unit}
-                              onChange={(e) => setItemField(i, 'unit', e.target.value)}
+                              label="Unit price"
+                              name={`it-cost-${i}`}
+                              type="number"
+                              step="0.01"
+                              className="w-28 shrink-0"
+                              value={it.purchaseCost}
+                              onChange={(e) => setItemField(i, 'purchaseCost', e.target.value)}
                             />
+                            <TextField
+                              label="Tax %"
+                              name={`it-tax-${i}`}
+                              type="number"
+                              step="0.01"
+                              className="w-20 shrink-0"
+                              value={it.tax}
+                              onChange={(e) => setItemField(i, 'tax', e.target.value)}
+                            />
+                            {/* Months named in the label rather than a hint —
+                                a hint sits under the input and made this cell
+                                taller than the rest of the row. */}
+                            <TextField
+                              label="Warranty (months)"
+                              name={`it-warr-${i}`}
+                              type="number"
+                              className="w-36 shrink-0"
+                              value={it.warrantyMonths}
+                              onChange={(e) => setItemField(i, 'warrantyMonths', e.target.value)}
+                            />
+                            {/* qty × price + tax, as the legacy grid computed
+                                it — entering it by hand let it disagree with
+                                the line it was meant to total. */}
                             <TextField
                               label="Amount"
                               name={`it-amt-${i}`}
-                              type="number"
-                              value={it.totalAmount}
-                              onChange={(e) => setItemField(i, 'totalAmount', e.target.value)}
+                              readOnly
+                              className="w-28 shrink-0"
+                              value={money(lineTotal(it))}
                             />
-                            <div className="flex items-end">
+                            {/* pt-6 clears the labels above, so the icon lines
+                                up with the inputs rather than their captions. */}
+                            <div className="flex items-start pt-6">
                               <button
                                 type="button"
-                                className="btn-danger w-full"
+                                className="rounded p-2 text-red-600 hover:bg-red-50"
+                                title="Remove item"
+                                aria-label={`Remove item ${i + 1}`}
                                 onClick={() => setItems((p) => p.filter((_, x) => x !== i))}
                               >
-                                Remove
+                                <svg
+                                  viewBox="0 0 24 24"
+                                  width="18"
+                                  height="18"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  aria-hidden="true"
+                                >
+                                  <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6" />
+                                </svg>
                               </button>
                             </div>
                           </div>
@@ -627,99 +1066,67 @@ export default function VendorBillsPage() {
                 </div>
 
                 <TextAreaField label="Notes" name="notes" rows={2} value={form.notes} onChange={setField('notes')} />
-              </div>
+              </FormSection>
             ) : null}
 
-            {formTab === 'approvers' ? (
-              <div>
+            {hasApprovers ? (
+              <FormSection
+                title="Approvers"
+                subtitle={approverIds.length ? `${approverIds.length} selected` : 'Optional'}
+              >
+                {/* VendorBill.aspx put an "Add Approver" button here and
+                    listed the chosen approvers beneath it; the full roster
+                    lived in a picker rather than on the form. */}
                 {(lookups.approvers ?? []).length === 0 ? (
                   <EmptyState title="No approvers available" hint="Add committee members first." />
                 ) : (
-                  <div className="space-y-2">
-                    {lookups.approvers.map((a) => (
-                      <CheckboxField
-                        key={a.user_id}
-                        label={a.name}
-                        checked={approverIds.includes(a.user_id)}
-                        onChange={() =>
-                          setApproverIds((p) =>
-                            p.includes(a.user_id) ? p.filter((x) => x !== a.user_id) : [...p, a.user_id],
-                          )
-                        }
-                      />
-                    ))}
+                  <div className="space-y-3">
+                    <button
+                      type="button"
+                      className="btn-secondary text-xs"
+                      onClick={() => setPickingApprovers(true)}
+                    >
+                      Add approver
+                    </button>
+
+                    {approverIds.length === 0 ? (
+                      <p className="text-sm text-slate-500">No approvers added yet.</p>
+                    ) : (
+                      <ul className="divide-y divide-slate-200 rounded border border-slate-200">
+                        {approverIds.map((id) => {
+                          const a = lookups.approvers.find((x) => x.user_id === id);
+                          return (
+                            <li key={id} className="flex items-center justify-between gap-3 px-3 py-2">
+                              <span className="text-sm text-slate-800">{a?.name ?? `User ${id}`}</span>
+                              <button
+                                type="button"
+                                className="btn-danger px-2 text-xs"
+                                onClick={() => setApproverIds((p) => p.filter((x) => x !== id))}
+                              >
+                                Remove
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
                   </div>
                 )}
-              </div>
+              </FormSection>
             ) : null}
 
-            {formTab === 'payment' ? (
-              <div className="space-y-4">
-                <ModeSwitch
-                  label="Payment mode"
-                  options={PAY_MODES}
-                  value={payment.mode}
-                  onChange={(mode) => setPayment((p) => ({ ...p, mode }))}
+            {form.serviceType ? (
+              <FormSection
+                title="Payment"
+                subtitle={isStaff ? 'Required for a staff payment' : 'Optional — can be paid later'}
+              >
+                <PaymentFields
+                  payment={payment}
+                  setPayment={setPayment}
+                  amountRequired={isStaff}
+                  amountHint={isStaff ? 'Mandatory for a staff payment' : undefined}
                 />
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {payment.mode === 'Online' ? (
-                    <TextField
-                      label="Transaction reference"
-                      name="txnRef"
-                      value={payment.transactionRef}
-                      onChange={(e) => setPayment((p) => ({ ...p, transactionRef: e.target.value }))}
-                    />
-                  ) : null}
-                  {payment.mode === 'Cheque' ? (
-                    <>
-                      <TextField
-                        label="Cheque number"
-                        name="cheqNo"
-                        value={payment.chequeNo}
-                        onChange={(e) => setPayment((p) => ({ ...p, chequeNo: e.target.value }))}
-                      />
-                      <TextField
-                        label="Cheque date"
-                        name="cheqDate"
-                        type="date"
-                        value={payment.chequeDate}
-                        onChange={(e) => setPayment((p) => ({ ...p, chequeDate: e.target.value }))}
-                      />
-                      <TextField
-                        label="Bank name"
-                        name="bank"
-                        value={payment.bankName}
-                        onChange={(e) => setPayment((p) => ({ ...p, bankName: e.target.value }))}
-                      />
-                    </>
-                  ) : null}
-                  <TextField
-                    label="Amount"
-                    name="payAmt"
-                    type="number"
-                    step="0.01"
-                    required={isStaff}
-                    value={payment.amount}
-                    onChange={(e) => setPayment((p) => ({ ...p, amount: e.target.value }))}
-                    hint={isStaff ? 'Mandatory for a staff payment' : undefined}
-                  />
-                  <TextAreaField
-                    label="Remarks"
-                    name="payRemarks"
-                    rows={2}
-                    className="sm:col-span-2"
-                    value={payment.remarks}
-                    onChange={(e) => setPayment((p) => ({ ...p, remarks: e.target.value }))}
-                  />
-                  <FileUploadField
-                    label="Attachment"
-                    category="vendor-bills"
-                    className="sm:col-span-2"
-                    onUploaded={(f) => f && setPayment((p) => ({ ...p, filePath: f.path }))}
-                  />
-                </div>
-              </div>
+              </FormSection>
             ) : null}
 
             <div className="mt-4">
@@ -790,10 +1197,18 @@ export default function VendorBillsPage() {
         open={Boolean(detail)}
         title={`Bill ${detail?.bill?.bill_number ?? ''}`}
         onClose={() => setDetail(null)}
+        maxWidth="max-w-4xl"
         footer={
-          <button type="button" className="btn-secondary" onClick={() => setDetail(null)}>
-            Close
-          </button>
+          <>
+            {detail && !detail.loading ? (
+              <button type="button" className="btn-secondary" onClick={() => printBill(detail)}>
+                Print
+              </button>
+            ) : null}
+            <button type="button" className="btn-secondary" onClick={() => setDetail(null)}>
+              Close
+            </button>
+          </>
         }
       >
         {detail?.loading ? (
@@ -819,24 +1234,38 @@ export default function VendorBillsPage() {
             {detail.items?.length ? (
               <div>
                 <h3 className="mb-2 text-sm font-semibold text-slate-800">Items</h3>
-                <table className="min-w-full">
-                  <thead>
-                    <tr>
-                      <th className="table-head">Item</th>
-                      <th className="table-head">Qty</th>
-                      <th className="table-head text-right">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {detail.items.map((it) => (
-                      <tr key={it.item_id}>
-                        <td className="table-cell font-medium text-slate-800">{it.item_name}</td>
-                        <td className="table-cell">{it.quantity}</td>
-                        <td className="table-cell text-right">{money(it.total_amount)}</td>
+                {/* What was billed, as billed. Condition is deliberately not
+                    here: it is the item's state today, which the inventory
+                    screen owns and changes over time — a bill records what was
+                    bought, and should keep reading the same later. */}
+                <div className="overflow-x-auto">
+                  <table className="min-w-full">
+                    <thead>
+                      <tr>
+                        <th className="table-head">Item</th>
+                        <th className="table-head text-right">Qty</th>
+                        <th className="table-head text-right">Unit price</th>
+                        <th className="table-head text-right">Tax %</th>
+                        <th className="table-head text-right">Warranty</th>
+                        <th className="table-head text-right">Amount</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {detail.items.map((it) => (
+                        <tr key={it.item_id}>
+                          <td className="table-cell font-medium text-slate-800">{it.item_name}</td>
+                          <td className="table-cell text-right">{it.quantity}</td>
+                          <td className="table-cell text-right">{money(it.purchase_cost)}</td>
+                          <td className="table-cell text-right">{it.tax ?? '—'}</td>
+                          <td className="table-cell text-right">
+                            {it.warranty ? `${it.warranty} mo` : '—'}
+                          </td>
+                          <td className="table-cell text-right">{money(it.total_amount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             ) : null}
 
@@ -856,13 +1285,7 @@ export default function VendorBillsPage() {
                     {detail.approvals.map((a) => (
                       <tr key={a.approval_id}>
                         <td className="table-cell font-medium text-slate-800">{a.name}</td>
-                        <td className="table-cell">
-                          {Number(a.approval_status) === 2
-                            ? 'Approved'
-                            : Number(a.approval_status) === 4
-                              ? 'Rejected'
-                              : 'Pending'}
-                        </td>
+                        <td className="table-cell">{approvalLabel(a.approval_status)}</td>
                         <td className="table-cell">{day(a.approval_date)}</td>
                         <td className="table-cell text-right">
                           {Number(a.approval_status) === 1 ? (
@@ -907,6 +1330,7 @@ export default function VendorBillsPage() {
                       <th className="table-head">Payment no.</th>
                       <th className="table-head">Date</th>
                       <th className="table-head">Mode</th>
+                      <th className="table-head">Reference</th>
                       <th className="table-head text-right">Amount</th>
                     </tr>
                   </thead>
@@ -916,6 +1340,9 @@ export default function VendorBillsPage() {
                         <td className="table-cell font-medium text-slate-800">{p.payment_no}</td>
                         <td className="table-cell">{day(p.payment_date)}</td>
                         <td className="table-cell">{p.pay_mode}</td>
+                        {/* Cheque number or transaction reference, whichever
+                            the mode carries; cash has neither. */}
+                        <td className="table-cell">{p.cheque_no || p.transaction_ref || '—'}</td>
                         <td className="table-cell text-right">{money(p.paid_amount)}</td>
                       </tr>
                     ))}
@@ -926,6 +1353,81 @@ export default function VendorBillsPage() {
 
             <ErrorNotice error={error} />
           </div>
+        ) : null}
+      </Modal>
+
+      {/* ------------------------------------------------- approver picker */}
+      <Modal
+        open={pickingApprovers}
+        title="Add approver"
+        onClose={() => setPickingApprovers(false)}
+        footer={
+          <button type="button" className="btn-primary" onClick={() => setPickingApprovers(false)}>
+            Done
+          </button>
+        }
+      >
+        <div className="space-y-2">
+          {(lookups.approvers ?? []).map((a) => (
+            <CheckboxField
+              key={a.user_id}
+              label={a.name}
+              checked={approverIds.includes(a.user_id)}
+              onChange={() =>
+                setApproverIds((p) =>
+                  p.includes(a.user_id) ? p.filter((x) => x !== a.user_id) : [...p, a.user_id],
+                )
+              }
+            />
+          ))}
+        </div>
+      </Modal>
+
+      {/* ------------------------------------------------------------ pay */}
+      <Modal
+        open={Boolean(paying)}
+        title={`Pay bill ${paying?.bill_number ?? ''}`}
+        onClose={() => setPaying(null)}
+        footer={
+          <>
+            <button type="button" className="btn-secondary" onClick={() => setPaying(null)} disabled={busy}>
+              Cancel
+            </button>
+            <button type="submit" form="pay-form" className="btn-primary" disabled={busy}>
+              {busy ? 'Saving…' : 'Record payment'}
+            </button>
+          </>
+        }
+      >
+        {paying ? (
+          <form id="pay-form" onSubmit={submitPay} noValidate>
+            {/* The legacy modal led with the bill it was about. */}
+            <dl className="mb-4 grid grid-cols-2 gap-x-4 gap-y-2 rounded border border-slate-200 bg-slate-50 p-3 text-sm">
+              <dt className="text-slate-500">Vendor</dt>
+              <dd className="text-right text-slate-800">{paying.vendor_name || '—'}</dd>
+              <dt className="text-slate-500">Bill date</dt>
+              <dd className="text-right text-slate-800">{day(paying.bill_date)}</dd>
+              <dt className="text-slate-500">Bill amount</dt>
+              <dd className="text-right text-slate-800">{money(paying.total_amount)}</dd>
+              <dt className="text-slate-500">Paid so far</dt>
+              <dd className="text-right text-slate-800">{money(paying.paid_amount)}</dd>
+              <dt className="font-medium text-slate-700">Outstanding</dt>
+              <dd className="text-right font-medium text-slate-900">{money(paying.remaining_amount)}</dd>
+            </dl>
+
+            <PaymentFields
+              payment={payForm}
+              setPayment={setPayForm}
+              idPrefix="settle-"
+              amountRequired
+              amountMax={paying.remaining_amount ?? undefined}
+              amountHint={`Up to ${money(paying.remaining_amount)}`}
+            />
+
+            <div className="mt-4">
+              <ErrorNotice error={error} />
+            </div>
+          </form>
         ) : null}
       </Modal>
 

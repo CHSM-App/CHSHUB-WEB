@@ -41,6 +41,36 @@ describe('ChargesPage', () => {
     await screen.findByText('Sinking Fund');
     // One active row -> exactly one Deactivate button.
     expect(screen.getAllByRole('button', { name: /deactivate/i })).toHaveLength(1);
+    // The inactive one offers the opposite action instead.
+    expect(screen.getAllByRole('button', { name: /include in next bill/i })).toHaveLength(1);
+  });
+
+  it('puts a spent add-on back into the next run', async () => {
+    const user = userEvent.setup();
+    const sent = [];
+    server.use(
+      http.get(`${BASE}/settings/charges`, () => ok({ items: ROWS, count: ROWS.length })),
+      http.put(`${BASE}/settings/charges/2`, async ({ request }) => {
+        sent.push(await request.json());
+        return ok({ charge: { ...ROWS[1], status: true } });
+      }),
+    );
+    render(<ChargesPage />);
+
+    await screen.findByText('Festival');
+    await user.click(screen.getByRole('button', { name: /include in next bill/i }));
+
+    // sp_new_maintenance switches an add-on head off once it has been billed,
+    // so recurring levies need a way back in. Reactivating must carry the
+    // head's own name, amount and type across — sending the form defaults
+    // would silently turn an add-on into a regular monthly charge.
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toMatchObject({
+      name: 'Festival',
+      amount: 250,
+      chargesType: '0',
+      active: true,
+    });
   });
 
   it('passes the type filter to the API', async () => {

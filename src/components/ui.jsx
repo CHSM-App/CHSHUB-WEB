@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 
 export function Spinner({ label = 'Loading…' }) {
   return (
@@ -22,6 +23,35 @@ export function ErrorNotice({ error, onRetry }) {
       {onRetry ? (
         <button type="button" className="btn-secondary mt-3" onClick={onRetry}>
           Try again
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * An outcome worth reporting that is not a failure — "no bills generated, this
+ * month is already billed". ErrorNotice would paint that red and read as a
+ * breakage; saying nothing at all leaves the user watching a dialog close with
+ * no idea whether anything happened.
+ */
+export function InfoNotice({ message, tone = 'info', onDismiss }) {
+  if (!message) return null;
+  const palette =
+    tone === 'success'
+      ? 'border-green-200 bg-green-50 text-green-800'
+      : 'border-blue-200 bg-blue-50 text-blue-800';
+  return (
+    <div className={`flex items-start gap-3 rounded-md border p-4 text-sm ${palette}`} role="status">
+      <p className="flex-1 font-medium">{message}</p>
+      {onDismiss ? (
+        <button
+          type="button"
+          className="shrink-0 text-lg leading-none opacity-60 hover:opacity-100"
+          onClick={onDismiss}
+          aria-label="Dismiss"
+        >
+          ×
         </button>
       ) : null}
     </div>
@@ -56,7 +86,7 @@ export function Field({ label, error, required, children, hint }) {
  * Modal dialog. Closes on Escape and restores focus to whatever opened it, so
  * keyboard and screen-reader users are not stranded behind the overlay.
  */
-export function Modal({ open, title, onClose, children, footer }) {
+export function Modal({ open, title, onClose, children, footer, maxWidth = 'max-w-2xl' }) {
   const panelRef = useRef(null);
   const openerRef = useRef(null);
 
@@ -78,9 +108,13 @@ export function Modal({ open, title, onClose, children, footer }) {
     };
     document.addEventListener('keydown', onKeyDown);
     panelRef.current?.focus();
+    // Printing while a dialog is open should give the dialog, not the page
+    // behind it — see the print rules in index.css.
+    document.body.classList.add('modal-open');
 
     return () => {
       document.removeEventListener('keydown', onKeyDown);
+      document.body.classList.remove('modal-open');
       openerRef.current?.focus?.();
     };
   }, [open]);
@@ -94,18 +128,24 @@ export function Modal({ open, title, onClose, children, footer }) {
    * Centring the panel while letting it grow past the viewport is what broke
    * this before: an over-tall dialog overflowed equally off the top and bottom,
    * cutting off its own title and putting Save out of reach.
+   *
+   * The print: variants below matter for the same reason in reverse. The
+   * dialog is scrolled, so on paper only the visible slice came out — a bill
+   * run of twenty flats printed two. Every layer that caps the height or
+   * clips the overflow is released for print, and the backdrop dropped, so
+   * the whole of a long dialog lays out down the page.
    */
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 sm:items-center">
+  const panel = (
+    <div className="modal-root fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 sm:items-center print:static print:block print:overflow-visible print:bg-transparent print:p-0">
       <div
         ref={panelRef}
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="card flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col outline-none"
+        className={`card flex max-h-[calc(100vh-2rem)] w-full ${maxWidth} flex-col outline-none print:block print:max-h-none print:max-w-none print:border-0 print:shadow-none`}
       >
-        <header className="flex shrink-0 items-center justify-between border-b border-slate-200 px-5 py-3">
+        <header className="flex shrink-0 items-center justify-between border-b border-slate-200 px-5 py-3 print:hidden">
           <h2 className="text-base font-semibold text-slate-800">{title}</h2>
           <button
             type="button"
@@ -116,15 +156,23 @@ export function Modal({ open, title, onClose, children, footer }) {
             ✕
           </button>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 print:overflow-visible print:p-0">
+          {children}
+        </div>
+        {/* The buttons are for the screen; they would only take up paper. */}
         {footer ? (
-          <footer className="flex shrink-0 justify-end gap-2 border-t border-slate-200 px-5 py-3">
+          <footer className="flex shrink-0 justify-end gap-2 border-t border-slate-200 px-5 py-3 print:hidden">
             {footer}
           </footer>
         ) : null}
       </div>
     </div>
   );
+
+  // Rendered on <body> rather than in place. Printing needs the app shell
+  // hidden and the dialog kept; nested inside <main> those are the same
+  // element, and hiding it printed a blank page.
+  return createPortal(panel, document.body);
 }
 
 export function ConfirmDialog({ open, title, message, confirmLabel = 'Delete', onConfirm, onCancel, busy }) {

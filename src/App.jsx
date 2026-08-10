@@ -33,6 +33,7 @@ import * as VP from './pages/village/VillagePages.jsx';
 import { AuditPage as AuditFullPage, BalanceSheetEditorPage } from './pages/reports/AuditBalancePages.jsx';
 import ShopMaintenanceReport from './pages/reports/ShopMaintenanceReport.jsx';
 import OwnerwiseMaintenanceReport from './pages/reports/OwnerwiseMaintenanceReport.jsx';
+import IncomeExpenditureReport from './pages/reports/IncomeExpenditureReport.jsx';
 
 import { PdcPage, PdcClearingPage } from './pages/billing/PdcPage.jsx';
 import {
@@ -43,7 +44,6 @@ import {
 } from './pages/auth/OnboardingPages.jsx';
 import {
   PaidAmountsPage,
-  ProfitLossPage,
   AgmReportPage,
   BalanceSheetPage,
 } from './pages/reports/FinancialReports.jsx';
@@ -131,10 +131,17 @@ export default function App() {
 
         {/* Reports */}
         <Route path="/reports/activity" element={<R.ActivityPage />} />
-        <Route path="/reports/income-expense" element={<R.IncomeExpensePage />} />
+        {/* v_profite_loss.aspx — "Annual income and expenditure". Was pointing
+            at the read-only IncomeExpensePage, which showed the same SP data
+            without the paired layout or the totals row. */}
+        <Route path="/reports/income-expense" element={<IncomeExpenditureReport />} />
         <Route path="/reports/audit" element={<AuditFullPage />} />
         <Route path="/reports/paid-amounts" element={<PaidAmountsPage />} />
-        <Route path="/reports/profit-loss" element={<ProfitLossPage />} />
+        {/* /reports/profit-loss was a date-range report with no legacy
+            equivalent. Annual income and expenditure is the one v_profite_loss
+            .aspx rendered, so the old path redirects onto it rather than
+            404ing a bookmark. */}
+        <Route path="/reports/profit-loss" element={<Navigate to="/reports/income-expense" replace />} />
         <Route path="/reports/agm" element={<AgmReportPage />} />
         <Route path="/reports/balance-sheet" element={<BalanceSheetEditorPage />} />
         {/* ownerwise_maintenance.aspx — replaces the ?ownerId=-only OwnerLedgerPage */}

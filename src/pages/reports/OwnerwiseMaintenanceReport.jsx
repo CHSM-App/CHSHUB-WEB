@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { reports } from '@/api/modules';
 import { buildings as buildingsApi, residents as ownersApi } from '@/api/masters';
 import ExportToolbar from '@/components/ExportToolbar.jsx';
+import ReportHeader, { ReportFooter, useSocietyInfo } from '@/components/ReportDocument.jsx';
 import { EmptyState, ErrorNotice, Field, Spinner } from '@/components/ui.jsx';
 
 const money = (v) =>
@@ -15,6 +16,15 @@ const day = (v) => {
   if (!v) return '';
   const d = new Date(v);
   return Number.isNaN(d.getTime()) ? String(v) : d.toLocaleDateString('en-GB');
+};
+
+// Spelled-out form for the period line — "10 Aug 2026" rather than 10/08/2026,
+// which reads as ambiguous next to the American order.
+const longDay = (v) => {
+  if (!v) return '';
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return String(v);
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
 // Page_Load defaulted the period to 1 April of the current year → today.
@@ -40,6 +50,7 @@ export default function OwnerwiseMaintenanceReport() {
   const [from, setFrom] = useState(financialYearStart);
   const [to, setTo] = useState(today);
 
+  const society = useSocietyInfo();
   const [buildings, setBuildings] = useState([]);
   const [owners, setOwners] = useState([]);
   const [data, setData] = useState(null);
@@ -106,17 +117,42 @@ export default function OwnerwiseMaintenanceReport() {
   const columns = [
     { key: 'date', label: 'Date', exportValue: (r) => day(r.date) },
     { key: 'Particular', label: 'Particular' },
-    { key: 'ref', label: 'Transaction Ref' },
-    { key: 'Maintenance', label: 'Maintenance', exportValue: (r) => r.Maintenance },
-    { key: 'Payment', label: 'Paid Maintenance', exportValue: (r) => r.Payment },
+    { key: 'ref', label: 'Transaction Ref', exportValue: (r) => r.ref ?? '' },
+    // align: 'right' also narrows these columns in the PDF and right-aligns
+    // the figures, so the decimal points line up.
+    {
+      key: 'Maintenance',
+      label: 'Maintenance',
+      align: 'right',
+      exportValue: (r) => money(r.Maintenance),
+    },
+    {
+      key: 'Payment',
+      label: 'Paid Maintenance',
+      align: 'right',
+      exportValue: (r) => money(r.Payment),
+    },
+  ];
+
+  // Opening / Total / Closing are computed rows, not transactions. Naming the
+  // kind lets the PDF tint each one the same colour ROW_STYLE gives it on
+  // screen, rather than shading all three alike.
+  const PDF_ROW_KIND = { 1: 'opening', 3: 'total', 4: 'closing' };
+  const balanceRowKind = (r) => PDF_ROW_KIND[Number(r.seq)] ?? null;
+
+  // Labels as the legacy print view wrote them.
+  const reportFilters = [
+    { label: 'Building Name', value: buildingName },
+    { label: 'Owner Name', value: ownerName },
+    { label: 'Period', value: from && to ? `${longDay(from)} to ${longDay(to)}` : '' },
   ];
 
   return (
     <section>
-      <header className="mb-4 print:mb-2">
+      {/* Screen heading. Hidden on paper, where the report document below
+          prints its own title and criteria. */}
+      <header className="mb-4 print:hidden">
         <h1 className="text-lg font-semibold text-slate-800">Owner wise Maintenance Bill Reports</h1>
-        {/* The legacy print view repeated the filters above the table; kept for
-            the printed copy, where the form itself is hidden. */}
         {ready && data ? (
           <p className="text-sm text-slate-500">
             {buildingName} · {ownerName} · {day(from)} to {day(to)}
@@ -195,7 +231,7 @@ export default function OwnerwiseMaintenanceReport() {
       ) : items.length === 0 ? (
         <EmptyState title="No Record Found" />
       ) : (
-        <div className="card overflow-hidden">
+        <div className="card overflow-hidden print:border-0 print:shadow-none">
           {/* Replaces the page's Print and Download PDF buttons, which built the
               PDF by scraping the rendered table with jsPDF. */}
           <ExportToolbar
@@ -203,7 +239,18 @@ export default function OwnerwiseMaintenanceReport() {
             rows={items}
             exportName="ownerwise-maintenance"
             exportTitle="Ownerwise Maintenance Bill Report"
+            filters={reportFilters}
+            emphasiseRow={balanceRowKind}
           />
+          {/* Print only. On screen the page heading and the filter form above
+              already say all this, and the grid is what the user came for. */}
+          <div className="px-4 print:px-0">
+            <ReportHeader
+              title="Ownerwise Maintenance Bill Report"
+              info={society}
+              filters={reportFilters}
+            />
+          </div>
           <div className="overflow-x-auto">
             <table className="min-w-full">
               <thead>
@@ -211,9 +258,7 @@ export default function OwnerwiseMaintenanceReport() {
                   {columns.map((c) => (
                     <th
                       key={c.key}
-                      className={`table-head ${
-                        c.key === 'Maintenance' || c.key === 'Payment' ? 'text-right' : ''
-                      }`}
+                      className={`table-head ${c.align === 'right' ? 'text-right' : ''}`}
                     >
                       {c.label}
                     </th>
@@ -233,6 +278,9 @@ export default function OwnerwiseMaintenanceReport() {
                 ))}
               </tbody>
             </table>
+          </div>
+          <div className="px-4 print:px-0">
+            <ReportFooter />
           </div>
         </div>
       )}

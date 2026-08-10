@@ -206,6 +206,42 @@
     color: #007bff;
     font-weight: 600;
   }
+
+  /*
+   * CHS HUB mark and the society-name pill beside it. Sizes and the two
+   * breakpoints below are lifted from Site.Master's .chs-logo / .logo-text /
+   * .society-name-pill rules (Site.Master:498 and its @media blocks), so the
+   * header shrinks on a phone exactly as the legacy one did.
+   */
+  .chs-logo {
+    padding: 8px 12px;
+  }
+  .logo-text {
+    font-size: 12px;
+  }
+  .society-name-pill {
+    padding: 10px 24px;
+    max-width: 420px;
+  }
+  .society-name-text {
+    font-size: 14px;
+  }
+
+  @media (max-width: 768px) {
+    .chs-logo {
+      padding: 6px 10px;
+    }
+    .logo-text {
+      font-size: 10px;
+    }
+    .society-name-pill {
+      padding: 8px 16px;
+      max-width: 150px;
+    }
+    .society-name-text {
+      font-size: 13px;
+    }
+  }
 }
 
 /*
@@ -218,8 +254,12 @@
     margin: 12mm;
   }
 
+  /* The app shell — sidebar and the sticky topbar carrying the CHS HUB mark,
+     society switcher and account icons. Chrome, not content: a printed report
+     should start at its own title. Only the shell's own topbar is dropped, so
+     a <header> inside a page (a report's own heading) still prints. */
   aside,
-  header button,
+  .app-topbar,
   .btn,
   .btn-primary,
   .btn-secondary,
@@ -249,9 +289,31 @@
     box-shadow: none;
   }
 
+  /* A grid scrolls sideways on screen when it outgrows its container. Paper
+     has no scrollbar, so the same wrapper would simply crop the right-hand
+     columns off the printed page. Releasing the overflow lets the table lay
+     itself out inside the page width instead. */
+  .overflow-x-auto,
+  .overflow-hidden,
+  .overflow-auto {
+    overflow: visible !important;
+  }
+
   table {
-    width: 100%;
+    width: 100% !important;
+    /* Tailwind's min-w-full holds the table at its container's width, which on
+       a wide screen is wider than A4 — enough to push the last columns past
+       the margin. Paper sets the width, so the minimum has to give way. */
+    min-width: 0 !important;
     border-collapse: collapse;
+    table-layout: fixed; /* share the width out rather than sizing to content */
+  }
+
+  /* Long values wrap inside their cell instead of widening the column. */
+  .table-cell,
+  .table-head {
+    overflow-wrap: anywhere;
+    white-space: normal !important;
   }
 
   thead {
@@ -262,11 +324,30 @@
     break-inside: avoid;
   }
 
-  .table-head,
+  /* Browsers drop background colours when printing unless asked not to. The
+     report's opening / total / closing rows are identified by their tint, so
+     it has to survive onto paper. */
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
   .table-cell {
-    border: 1px solid #cbd5e1;
-    padding: 4px 6px;
+    border: 1px solid #dee2e6;
+    padding: 5px 7px;
     font-size: 11px;
-    color: #000;
+    color: #333;
+  }
+
+  /* The legacy print view put the column headings in a filled indigo bar with
+     white type. On screen they are grey-on-light, which prints as a header
+     that barely separates from the rows. */
+  .table-head {
+    border: 1px solid #5568d3;
+    background: #667eea !important;
+    padding: 6px 7px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #fff !important;
   }
 }

@@ -452,10 +452,14 @@ export function FacilityBookingsPage() {
 /* ---------------------------------------------------------------- polls */
 
 /** Audience groups offered by Vote.aspx's ddlAudience. */
+// ddlAudience on Vote.aspx:482 — four options, in this order. The code-behind
+// maps each to a notification recipients group (1→5 all, 2→4 committee,
+// 3→1 owners, 4→2 tenants).
 const POLL_AUDIENCES = [
-  { value: '1', label: 'All members' },
-  { value: '2', label: 'Associate committee' },
-  { value: '3', label: 'Managing committee' },
+  { value: '1', label: 'All Members' },
+  { value: '2', label: 'Association Committee' },
+  { value: '3', label: 'Owners Only' },
+  { value: '4', label: 'Tenants Only' },
 ];
 
 // Vote.aspx required at least two options, so the form starts with two blanks.
@@ -468,6 +472,152 @@ const EMPTY_POLL = {
   oneVotePerUnit: false,
   options: ['', ''],
 };
+
+/**
+ * One poll, as the .poll-card in Vote.aspx: title, question, its options with a
+ * result bar each, then a footer with the vote total and the expiry date.
+ *
+ * Options load when the card mounts — the legacy page rendered them straight
+ * into the card from the same query that listed the polls (SELECTALL pivots the
+ * options into Option1..N columns), so they are visible without opening
+ * anything.
+ */
+function PollCard({ poll, onShowVotes, onDelete }) {
+  const [options, setOptions] = useState(null);
+  const [voting, setVoting] = useState(false);
+  const [voteError, setVoteError] = useState(null);
+
+  const loadOptions = useCallback(async () => {
+    try {
+      const d = await M.community.pollVotes(poll.PollId);
+      setOptions(d.items ?? []);
+    } catch {
+      setOptions([]);
+    }
+  }, [poll.PollId]);
+
+  useEffect(() => {
+    loadOptions();
+  }, [loadOptions]);
+
+  /*
+   * Clicking an option casts a vote, exactly as the legacy card did. The rules
+   * live in sp_PollVoting, so this does not try to pre-judge them — it sends
+   * the click and re-reads the counts, and shows whatever the server says when
+   * a vote is refused ("Someone from your flat has already voted…").
+   */
+  const castVote = async (optionId) => {
+    if (voting) return;
+    setVoting(true);
+    setVoteError(null);
+    try {
+      await M.community.votePoll(poll.PollId, optionId);
+      await loadOptions();
+    } catch (err) {
+      setVoteError(err);
+    } finally {
+      setVoting(false);
+    }
+  };
+
+  const total = (options ?? []).reduce((s, o) => s + Number(o.votes || 0), 0);
+
+  return (
+    // break-inside-avoid keeps a card from being split across two columns.
+    <article
+      className="card mb-4 p-4"
+      style={{ breakInside: 'avoid', WebkitColumnBreakInside: 'avoid' }}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="text-sm font-bold" style={{ color: '#012970' }}>
+          {poll.Topic}
+        </h3>
+        {/* .delete-btn — the legacy card's ✕ in the corner. */}
+        <button
+          type="button"
+          className="shrink-0 rounded px-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+          title="Delete Poll"
+          aria-label={`Delete poll ${poll.Topic}`}
+          onClick={onDelete}
+        >
+          ✕
+        </button>
+      </div>
+
+      {poll.Description ? (
+        <p className="mt-1 text-sm text-slate-600">{poll.Description}</p>
+      ) : null}
+
+      <div className="mt-3 space-y-2">
+        {options === null ? (
+          <p className="text-xs text-slate-400">Loading options…</p>
+        ) : options.length === 0 ? (
+          <p className="text-xs text-slate-400">No options on this poll.</p>
+        ) : (
+          options.map((o) => {
+            const votes = Number(o.votes || 0);
+            const pct = total ? Math.round((votes / total) * 100) : 0;
+            return (
+              <button
+                key={o.OptionId}
+                type="button"
+                className="block w-full rounded-lg px-3 py-2 text-left transition-colors disabled:opacity-60"
+                style={{
+                  // isSelected marks the option this user voted for; the legacy
+                  // card highlighted it the same way.
+                  border: o.isSelected ? '1.5px solid #1d4ed8' : '1px solid #e2e8f0',
+                  background: o.isSelected ? '#f4f7fe' : '#fff',
+                  cursor: voting ? 'wait' : 'pointer',
+                }}
+                disabled={voting}
+                aria-pressed={Boolean(o.isSelected)}
+                onClick={() => castVote(o.OptionId)}
+              >
+                <div className="flex items-baseline justify-between gap-2 text-sm">
+                  <span className="min-w-0 truncate text-slate-700">
+                    {o.isSelected ? '✓ ' : ''}
+                    {o.text}
+                  </span>
+                  <span className="shrink-0 text-xs font-semibold text-slate-500">{pct}%</span>
+                </div>
+                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full" style={{ background: '#eef2f9' }}>
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${pct}%`,
+                      background: 'linear-gradient(90deg, #1d4ed8, #4f8cf7)',
+                    }}
+                  />
+                </div>
+              </button>
+            );
+          })
+        )}
+      </div>
+
+      {/* Why a click did nothing — sp_PollVoting's refusal message verbatim. */}
+      {voteError ? (
+        <p className="mt-2 text-xs" style={{ color: '#b42318' }} role="status">
+          {voteError.message}
+        </p>
+      ) : null}
+
+      {/* .poll-footer — vote total on the left, expiry on the right. */}
+      <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
+        <button
+          type="button"
+          className="text-xs font-semibold hover:underline"
+          style={{ color: '#1d4ed8' }}
+          onClick={onShowVotes}
+          title="Show Poll"
+        >
+          {total} vote{total === 1 ? '' : 's'}
+        </button>
+        <span className="text-xs text-slate-500">Expires: {day(poll.ExpiryDate)}</span>
+      </div>
+    </article>
+  );
+}
 
 /** Polls with per-option vote counts. Replaces Vote.aspx. */
 export function PollsPage() {
@@ -540,41 +690,33 @@ export function PollsPage() {
 
       <ErrorNotice error={error} onRetry={load} />
 
-      <div className="card overflow-hidden">
-        <DataGrid
-          columns={[
-            { key: 'Topic', label: 'Topic' },
-            { key: 'Description', label: 'Description' },
-            { key: 'ExpiryDate', label: 'Expires', render: day },
-            { key: 'total_votes', label: 'Votes', align: 'right' },
-          ]}
-          rows={rows}
-          idKey="PollId"
-          loading={loading}
-          exportName="polls"
-          emptyTitle="No active polls"
-          actions={(row) => (
-            <>
-              <button type="button" className="btn-secondary" onClick={() => openPoll(row)}>
-                Results
-              </button>
-              <button
-                type="button"
-                className="btn-danger"
-                onClick={() =>
-                  setConfirming({
-                    title: 'Delete poll',
-                    message: `Delete "${row.Topic}"? Votes cast on it are removed too.`,
-                    run: () => M.community.removePoll(row.PollId),
-                  })
-                }
-              >
-                Delete
-              </button>
-            </>
-          )}
-        />
-      </div>
+      {/*
+        Vote.aspx laid polls out as cards in a masonry grid (#masonryContainer),
+        each showing its options inline — not as a table. CSS columns reproduce
+        that: cards keep their natural height and flow into the next column.
+      */}
+      {loading ? (
+        <Spinner />
+      ) : rows.length === 0 ? (
+        <EmptyState title="No active polls" hint="Only polls that have not expired are listed." />
+      ) : (
+        <div style={{ columnWidth: 320, columnGap: '1rem' }}>
+          {rows.map((row) => (
+            <PollCard
+              key={row.PollId}
+              poll={row}
+              onShowVotes={() => openPoll(row)}
+              onDelete={() =>
+                setConfirming({
+                  title: 'Delete poll',
+                  message: `Delete "${row.Topic}"? Votes cast on it are removed too.`,
+                  run: () => M.community.removePoll(row.PollId),
+                })
+              }
+            />
+          ))}
+        </div>
+      )}
 
       <Modal
         open={Boolean(detail)}
@@ -767,6 +909,7 @@ export function MessagesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [viewing, setViewing] = useState(null);
+  const [search, setSearch] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -786,9 +929,37 @@ export function MessagesPage() {
 
   const unread = rows.filter((r) => Number(r.view_status) === 0).length;
 
+  /*
+   * filterTable() in Messages_master.aspx matched the typed text against every
+   * cell but the last (the actions column), so the same fields are searched
+   * here. The legacy box doubled as a date picker writing yyyy-MM-dd, which is
+   * just text that matches the date column — typing a date still works.
+   */
+  const visible = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((r) =>
+      [r.owner_name, r.message_sub, r.date, r.message]
+        .some((v) => String(v ?? '').toLowerCase().includes(q)),
+    );
+  }, [rows, search]);
+
   return (
     <section>
-      <PageHeader title="Resident messages" subtitle={`${rows.length} message(s) · ${unread} unread`} />
+      {/* "Messages" — the <h1> on Messages_master.aspx. */}
+      <PageHeader
+        title="Messages"
+        subtitle={`${visible.length} of ${rows.length} message(s) · ${unread} unread`}
+      >
+        <input
+          className="field-input w-64"
+          type="search"
+          placeholder="Search here"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          aria-label="Search messages"
+        />
+      </PageHeader>
 
       <ErrorNotice error={error} onRetry={load} />
 
@@ -811,11 +982,11 @@ export function MessagesPage() {
                 ),
             },
           ]}
-          rows={rows}
+          rows={visible}
           idKey="r_id"
           loading={loading}
           exportName="resident-messages"
-          emptyTitle="No messages"
+          emptyTitle="No Messages Found"
           actions={(row) => (
             <button
               type="button"
@@ -839,9 +1010,11 @@ export function MessagesPage() {
         />
       </div>
 
+      {/* "Message Details" with Sender / Date / Subject above the body — the
+          #viewModal layout from Messages_master.aspx. */}
       <Modal
         open={Boolean(viewing)}
-        title={viewing?.message_sub ?? 'Message'}
+        title="Message Details"
         onClose={() => setViewing(null)}
         footer={
           <button type="button" className="btn-secondary" onClick={() => setViewing(null)}>
@@ -851,17 +1024,31 @@ export function MessagesPage() {
       >
         {viewing ? (
           <div className="space-y-3">
-            <dl className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <dt className="text-xs uppercase tracking-wide text-slate-500">From</dt>
-                <dd className="text-slate-800">{viewing.owner_name}</dd>
+            <dl className="space-y-1.5 text-sm">
+              <div className="flex gap-2">
+                <dt className="font-semibold text-slate-700">Sender:</dt>
+                <dd className="min-w-0 text-slate-800">{viewing.owner_name}</dd>
               </div>
-              <div>
-                <dt className="text-xs uppercase tracking-wide text-slate-500">Date</dt>
+              <div className="flex gap-2">
+                <dt className="font-semibold text-slate-700">Date:</dt>
                 <dd className="text-slate-800">{day(viewing.date)}</dd>
               </div>
+              <div className="flex gap-2">
+                <dt className="font-semibold text-slate-700">Subject:</dt>
+                <dd className="min-w-0 text-slate-800">{viewing.message_sub}</dd>
+              </div>
             </dl>
-            <p className="rounded-md bg-slate-50 p-3 text-sm text-slate-700">{viewing.message}</p>
+
+            <div>
+              <p className="field-label">Message</p>
+              {/* Read-only multiline box, as the legacy TextBox was. */}
+              <p
+                className="whitespace-pre-wrap rounded-md p-3 text-sm text-slate-700"
+                style={{ background: '#f8f9fc', border: '1px solid #e2e8f0', minHeight: '7rem' }}
+              >
+                {viewing.message}
+              </p>
+            </div>
           </div>
         ) : null}
       </Modal>

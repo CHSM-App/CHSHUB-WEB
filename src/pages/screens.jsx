@@ -824,17 +824,30 @@ export const FacilitiesPage = () => (
   />
 );
 
+// suggestion_request.aspx — grid of Subject/Details with an Add/Edit modal
+// carrying those same two required fields, and a soft delete.
 export const SuggestionsPage = () => (
   <GenericCrudPage
-    title="Suggestions"
+    title="Suggestion/Request"
     resource={M.suggestions}
     idKey="sug_id"
     columns={[
+      { key: 'sug_id', label: 'No', format: (_v, _r, i) => i + 1 },
       { key: 'subject', label: 'Subject' },
       { key: 'details', label: 'Details' },
     ]}
-    canCreate={false}
-    canEdit={false}
+    fields={[
+      { name: 'subject', label: 'Subject', required: true, placeholder: 'Enter Subject', span: 2 },
+      {
+        name: 'details',
+        label: 'Suggestions/Requests',
+        type: 'textarea',
+        required: true,
+        placeholder: 'Enter Suggestion/Request',
+        span: 2,
+      },
+    ]}
+    toForm={(r) => ({ subject: r.subject ?? '', details: r.details ?? '' })}
   />
 );
 

@@ -60,58 +60,15 @@ export function PaidAmountsPage() {
   );
 }
 
-export function ProfitLossPage() {
-  return (
-    <DateRangeReport
-      title="Profit &amp; loss"
-      subtitle="Income against expenditure for the period"
-      load={extraReports.profitLoss}
-      render={(d) => (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {[
-            { label: 'Income', rows: d.income, total: d.totalIncome },
-            { label: 'Expenditure', rows: d.expense, total: d.totalExpense },
-          ].map((side) => (
-            <div key={side.label} className="card overflow-hidden">
-              <h2 className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-800">
-                {side.label}
-              </h2>
-              {side.rows.length === 0 ? (
-                <p className="px-4 py-6 text-sm text-slate-500">Nothing recorded.</p>
-              ) : (
-                <table className="min-w-full">
-                  <tbody>
-                    {side.rows.map((r, i) => (
-                      <tr key={i}>
-                        <td className="table-cell">{r.description}</td>
-                        <td className="table-cell text-right">{money(r.amount)}</td>
-                      </tr>
-                    ))}
-                    <tr className="bg-slate-50 font-semibold">
-                      <td className="table-cell">Total {side.label.toLowerCase()}</td>
-                      <td className="table-cell text-right">{money(side.total)}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              )}
-            </div>
-          ))}
-
-          <div className="card p-5 lg:col-span-2">
-            <p className="text-xs uppercase tracking-wide text-slate-500">
-              {d.surplus >= 0 ? 'Surplus' : 'Deficit'}
-            </p>
-            <p
-              className={`mt-1 text-2xl font-semibold ${d.surplus >= 0 ? 'text-green-700' : 'text-red-700'}`}
-            >
-              {money(Math.abs(d.surplus))}
-            </p>
-          </div>
-        </div>
-      )}
-    />
-  );
-}
+/*
+ * A date-range profit & loss page stood here. The legacy app has no such
+ * report — v_profite_loss.aspx ("Annual income and expenditure") compares the
+ * previous year against the current one from a different source — so keeping
+ * both put two similar-sounding entries in the menu whose figures disagreed.
+ *
+ * That report is reports/IncomeExpenditureReport.jsx, and /reports/profit-loss
+ * now redirects onto it. GET /reports/profit-loss is still served by the API.
+ */
 
 export function AgmReportPage() {
   return (

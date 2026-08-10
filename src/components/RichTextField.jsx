@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { api } from '@/api/client';
 
 /**
  * Small formatting editor — replaces the TinyMCE box the legacy meeting and
@@ -27,7 +28,46 @@ const COMMANDS = [
   { sep: true },
   { cmd: 'insertUnorderedList', label: 'Bulleted list', icon: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01' },
   { cmd: 'insertOrderedList', label: 'Numbered list', icon: 'M10 6h11M10 12h11M10 18h11M4 6h1v4M4 10h2M4 16h2v3H4z' },
+  { sep: true },
+  // The last pair on the legacy TinyMCE toolbar: `... | link image`. Both take
+  // a URL, so they prompt rather than acting on the selection alone.
+  {
+    cmd: 'createLink',
+    label: 'Insert link',
+    prompt: 'Link URL',
+    icon: 'M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1',
+  },
+  {
+    cmd: 'insertImage',
+    label: 'Insert image',
+    // Picks a file off the machine rather than asking for a URL: the images
+    // people paste into terms and notices are their own, not ones already
+    // hosted somewhere. Uploaded first, then inserted by its served URL.
+    upload: true,
+    icon: 'M3 5h18v14H3zM3 15l5-5 4 4 3-3 6 6',
+  },
 ];
+
+/**
+ * A URL safe to place in an href or src.
+ *
+ * The value is stored as markup and rendered back into the page, so a
+ * `javascript:` URL typed into the prompt would execute on click. Only http,
+ * https and mailto survive; a bare `example.com` is assumed to be https.
+ */
+function safeUrl(input) {
+  const raw = String(input ?? '').trim();
+  if (!raw) return null;
+  // Protocol-relative and scheme-bearing URLs are checked as written; anything
+  // else is treated as a bare host and given a scheme before parsing.
+  const candidate = /^[a-z][a-z0-9+.-]*:/i.test(raw) || raw.startsWith('//') ? raw : `https://${raw}`;
+  try {
+    const url = new URL(candidate, window.location.origin);
+    return ['http:', 'https:', 'mailto:'].includes(url.protocol) ? url.href : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Ordinary spaces out of what contentEditable produces.
@@ -53,9 +93,16 @@ export default function RichTextField({
   className = '',
   maxLength,
   hint,
+  // Where a picked image is stored. The uploads route only accepts a fixed set
+  // of category folders, and 'society-documents' is the one these pages write.
+  imageCategory = 'society-documents',
 }) {
   const ref = useRef(null);
+  const fileRef = useRef(null);
+  const savedRange = useRef(null);
   const [focused, setFocused] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
 
   // Only write into the DOM when the incoming value differs from what is
   // already there. Assigning innerHTML on every render would move the caret
@@ -65,13 +112,74 @@ export default function RichTextField({
     if (el && el.innerHTML !== (value ?? '')) el.innerHTML = value ?? '';
   }, [value]);
 
-  const exec = (cmd) => {
+  const exec = (cmd, arg = null) => {
     ref.current?.focus();
     // execCommand is deprecated but is still the only cross-browser way to
     // format a contentEditable selection. jsdom does not implement it, so the
     // call is guarded rather than left to throw under test.
-    document.execCommand?.(cmd, false, null);
+    document.execCommand?.(cmd, false, arg);
     onChange(clean(ref.current?.innerHTML ?? ''));
+  };
+
+  /** The caret position, before anything steals focus from the editor. */
+  const rememberSelection = () => {
+    const selection = window.getSelection?.();
+    savedRange.current =
+      selection && selection.rangeCount ? selection.getRangeAt(0).cloneRange() : null;
+  };
+
+  /** Puts the caret back where it was, so the command has somewhere to apply. */
+  const restoreSelection = () => {
+    if (!savedRange.current) return;
+    const selection = window.getSelection?.();
+    selection?.removeAllRanges();
+    selection?.addRange(savedRange.current);
+  };
+
+  /**
+   * Run a command that needs a URL.
+   *
+   * window.prompt closes the editor's selection, and createLink applied with
+   * none does nothing — so the range is captured before the prompt opens and
+   * restored before the command runs.
+   */
+  const execWithUrl = (command) => {
+    rememberSelection();
+    const url = safeUrl(window.prompt(command.prompt));
+    if (!url) return;
+    restoreSelection();
+    exec(command.cmd, url);
+  };
+
+  /**
+   * Upload the picked image, then insert it at the remembered caret.
+   *
+   * The file dialog takes focus for as long as it is open, so the selection is
+   * saved on the button press rather than here.
+   */
+  const onPickImage = async (event) => {
+    const file = event.target.files?.[0];
+    // Let the same file be picked twice in a row.
+    event.target.value = '';
+    if (!file) return;
+
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const body = new FormData();
+      body.append('files', file);
+      const data = await api.post(`/uploads/${imageCategory}`, body, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const url = data.items?.[0]?.url;
+      if (!url) throw new Error('Upload did not return a file');
+      restoreSelection();
+      exec('insertImage', url);
+    } catch (err) {
+      setUploadError(err.message ?? 'Could not upload the image');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const length = String(value ?? '').length;
@@ -105,7 +213,18 @@ export default function RichTextField({
                 // The editor loses focus on mousedown otherwise, and
                 // execCommand then has no selection to act on.
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => exec(c.cmd)}
+                disabled={c.upload && uploading}
+                onClick={() => {
+                  if (c.upload) {
+                    // Saved now: the file dialog holds focus once it opens.
+                    rememberSelection();
+                    fileRef.current?.click();
+                  } else if (c.prompt) {
+                    execWithUrl(c);
+                  } else {
+                    exec(c.cmd);
+                  }
+                }}
               >
                 {c.text ? (
                   <span
@@ -131,7 +250,17 @@ export default function RichTextField({
               </button>
             ),
           )}
+          {uploading ? <span className="ml-1 text-xs text-slate-500">Uploading…</span> : null}
         </div>
+
+        {/* Driven by the toolbar's image button, never focused directly. */}
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/png,image/jpeg,image/gif,image/webp"
+          className="hidden"
+          onChange={onPickImage}
+        />
 
         <div
           ref={ref}
@@ -140,12 +269,18 @@ export default function RichTextField({
           role="textbox"
           aria-multiline="true"
           aria-label={label}
-          className="min-h-[9rem] px-3 py-2 text-sm text-slate-800 focus:outline-none [&_ol]:list-decimal [&_ol]:pl-6 [&_ul]:list-disc [&_ul]:pl-6"
+          className="min-h-[9rem] px-3 py-2 text-sm text-slate-800 focus:outline-none [&_a]:text-blue-600 [&_a]:underline [&_img]:max-w-full [&_ol]:list-decimal [&_ol]:pl-6 [&_ul]:list-disc [&_ul]:pl-6"
           onInput={(e) => onChange(clean(e.currentTarget.innerHTML))}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
         />
       </div>
+
+      {uploadError ? (
+        <p className="field-error" role="alert">
+          {uploadError}
+        </p>
+      ) : null}
 
       <div className="mt-1 flex justify-between gap-3">
         <p className="text-xs text-slate-500">{hint}</p>

@@ -10,13 +10,33 @@ const pageBreaks = [];
 
 vi.mock('jspdf', () => ({
   jsPDF: class {
-    internal = { pageSize: { getWidth: () => 842, getHeight: () => 595 } };
+    pages = 1;
+    internal = {
+      pageSize: { getWidth: () => 842, getHeight: () => 595 },
+      // Arrow function so `this` is the instance — the footer pass reads the
+      // page count back through pdf.internal, as real jsPDF exposes it.
+      getNumberOfPages: () => this.pages,
+    };
     setFontSize() {}
     setTextColor() {}
     setFillColor() {}
+    setDrawColor() {}
+    setLineWidth() {}
+    setFont() {}
+    line() {}
     rect() {}
+    // Real jsPDF measures glyphs against the column width; the tests only care
+    // that each value reaches the page, so one line per value is enough.
+    splitTextToSize(text) {
+      return [String(text ?? '')];
+    }
+    // The footer pass revisits each page to stamp it.
+    setPage() {}
+    getNumberOfPages() {
+      return this.pages;
+    }
     addPage() {
-      this.pages = (this.pages ?? 1) + 1;
+      this.pages += 1;
       pageBreaks.push(this.pages);
     }
     addImage(image) {

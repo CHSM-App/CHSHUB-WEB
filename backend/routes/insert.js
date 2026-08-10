@@ -1014,6 +1014,20 @@ router.post("/DeleteStaffPhoto", async (req, res) => {
 });*/
 router.post('/AddReceipt', async (req, res) => {
   try {
+    // receipt.bill_details is nvarchar(20) and sp_SettleMaintenancePayment splits
+    // it to decide which bills to clear. A longer list is silently truncated by
+    // SQL Server, so the trailing bills stay due even though the full amount was
+    // collected. Reject it rather than under-settle the payment.
+    if (req.body?.bill_details && String(req.body.bill_details).length > 20) {
+      return res.status(400).json({
+        success: false,
+        error:
+          "Too many bills for one receipt (bill_details holds 20 characters). " +
+          "Split the payment across several receipts.",
+        attempted: String(req.body.bill_details).length
+      });
+    }
+
     const {
       society_id,
       flat_id,

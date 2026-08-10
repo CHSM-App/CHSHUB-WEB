@@ -1,12 +1,24 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { accounts } from '@/api/modules';
 import { EmptyState, ErrorNotice, Field, Spinner } from '@/components/ui.jsx';
+import ExportToolbar from '@/components/ExportToolbar.jsx';
 
 const money = (v) =>
   v == null || v === '' ? '' : Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const firstOfYear = () => `${new Date().getFullYear()}-01-01`;
 const today = () => new Date().toISOString().slice(0, 10);
+
+const dayOf = (v) => (v ? new Date(v).toLocaleDateString() : '');
+
+// ExportToolbar reads raw row values, so dates and amounts are formatted here
+// rather than being taken from the rendered cells.
+const EXPORT_COLUMNS = [
+  { key: 'Date', label: 'Date', exportValue: (r) => dayOf(r.Date) },
+  { key: 'Particular', label: 'Particular' },
+  { key: 'Debit', label: 'Debit', exportValue: (r) => money(r.Debit) },
+  { key: 'Credit', label: 'Credit', exportValue: (r) => money(r.Credit) },
+];
 
 /**
  * Cashbook for a date range. sp_cashbook returns opening balance (seq 1),
@@ -44,6 +56,22 @@ export default function CashbookPage() {
 
   const rows = data?.items ?? [];
 
+  // Totals over the transactions only — seq 1 and 3 are the opening and
+  // closing balances, and adding those in would count the period twice.
+  const totals = useMemo(
+    () =>
+      rows
+        .filter((r) => Number(r.seq) === 2)
+        .reduce(
+          (acc, r) => ({
+            debit: acc.debit + Number(r.Debit || 0),
+            credit: acc.credit + Number(r.Credit || 0),
+          }),
+          { debit: 0, credit: 0 },
+        ),
+    [rows],
+  );
+
   return (
     <section>
       <header className="mb-4">
@@ -75,7 +103,16 @@ export default function CashbookPage() {
         ) : rows.length === 0 ? (
           <EmptyState title="No cashbook entries" hint="Try a wider date range." />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+            {/* cashbook.aspx carried a PDF export; Excel and Print come with
+                the shared toolbar. */}
+            <ExportToolbar
+              columns={EXPORT_COLUMNS}
+              rows={rows}
+              exportName="cashbook"
+              exportTitle="Cashbook"
+            />
+            <div className="overflow-x-auto">
             <table className="min-w-full">
               <thead>
                 <tr>
@@ -91,9 +128,7 @@ export default function CashbookPage() {
                   const isBalance = Number(row.seq) !== 2;
                   return (
                     <tr key={i} className={isBalance ? 'bg-slate-50 font-medium' : 'hover:bg-slate-50'}>
-                      <td className="table-cell">
-                        {row.Date ? new Date(row.Date).toLocaleDateString() : ''}
-                      </td>
+                      <td className="table-cell">{dayOf(row.Date)}</td>
                       <td className="table-cell">{row.Particular}</td>
                       <td className="table-cell text-right">{money(row.Debit)}</td>
                       <td className="table-cell text-right">{money(row.Credit)}</td>
@@ -101,8 +136,20 @@ export default function CashbookPage() {
                   );
                 })}
               </tbody>
+              {/* The legacy page ended its grid with a totals row; without it
+                  the debit and credit sides cannot be compared at a glance. */}
+              <tfoot>
+                <tr className="border-t-2 border-slate-300 bg-blue-50 font-semibold">
+                  <td className="table-cell" colSpan={2}>
+                    Total
+                  </td>
+                  <td className="table-cell text-right">{money(totals.debit)}</td>
+                  <td className="table-cell text-right">{money(totals.credit)}</td>
+                </tr>
+              </tfoot>
             </table>
-          </div>
+            </div>
+          </>
         )}
       </div>
     </section>

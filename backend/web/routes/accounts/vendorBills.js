@@ -208,7 +208,18 @@ router.post(
           warranty: { type: sql.Int, value: int(item?.warrantyMonths, 'item.warrantyMonths', { min: 0, required: false, default: 0 }) },
           vendor_id: { type: sql.Int, value: int(vendorIds.split(',')[0], 'vendorId', { min: 0, required: false, default: 0 }) },
           vendor_bill_id: { type: sql.Int, value: billId },
-          condition_status: { type: sql.Int, value: 0 },
+          // 1 = New. Stock received against a bill has just been bought, and
+          // 0 is the condition list's "Select" — i.e. nothing recorded, which
+          // is what the inventory grid showed for every item a bill created.
+          condition_status: {
+            type: sql.Int,
+            value: int(item?.conditionStatus, 'item.conditionStatus', {
+              min: 0,
+              max: 4,
+              required: false,
+              default: 1,
+            }),
+          },
           remarks: { type: sql.NVarChar(sql.MAX), value: optionalStr(item?.remarks, 'item.remarks') },
           society_id: SOC(req.societyId),
         });
@@ -234,7 +245,28 @@ router.post(
       }
     }
 
-    return ok(res, { bill_id: billId, itemErrors, approverErrors }, 201);
+    // Payment taken on the create form. This was validated as mandatory for a
+    // staff bill and then never written — the amount the user entered was
+    // dropped, leaving the bill fully outstanding.
+    let paymentId = null;
+    let paymentError = null;
+    if (req.body?.payment) {
+      try {
+        paymentId = await insertPayment({
+          billId,
+          vendorId: int(vendorIds.split(',')[0], 'vendorId', { min: 0, required: false, default: 0 }),
+          societyId: req.societyId,
+          userId: req.user.userId,
+          payment: req.body.payment,
+        });
+      } catch (err) {
+        // The bill exists by now; report the failure rather than 500 over a
+        // record the caller can retry from the bill's own Pay action.
+        paymentError = err.message;
+      }
+    }
+
+    return ok(res, { bill_id: billId, paymentId, paymentError, itemErrors, approverErrors }, 201);
   }),
 );
 
@@ -329,6 +361,90 @@ router.post(
       notes: { type: sql.NVarChar(500), value: remarks },
     });
     return ok(res, { decision, approval_id: approvalId });
+  }),
+);
+
+/**
+ * Records one payment against a bill and lets the SP settle it.
+ *
+ * sp_Vendor_Bill_Payments' INSERT allocates the receipt number and then calls
+ * sp_SettleVendorBills, which is what moves paid_amount / remaining_amount and
+ * the bill's status — so nothing here recalculates those.
+ */
+async function insertPayment({ billId, vendorId, societyId, userId, payment }) {
+  const mode = oneOf(payment?.mode, 'payment.mode', ['Cheque', 'Online', 'Cash']);
+  const amount = num(payment?.amount, 'payment.amount', { min: 0.01 });
+
+  // Each mode carries its own reference fields, as the legacy panels did.
+  if (mode === 'Cheque' && !payment?.chequeNo) {
+    throw ApiError.badRequest('A cheque number is required for a cheque payment');
+  }
+  if (mode === 'Online' && !payment?.transactionRef) {
+    throw ApiError.badRequest('A transaction reference is required for an online payment');
+  }
+
+  const inserted = await exec('sp_Vendor_Bill_Payments', {
+    operation: 'INSERT',
+    society_id: { type: sql.NVarChar(10), value: societyId },
+    vendor_id: { type: sql.Int, value: vendorId },
+    pay_mode: { type: sql.NVarChar(20), value: mode },
+    cheque_no: { type: sql.NVarChar(30), value: mode === 'Cheque' ? String(payment.chequeNo).trim() : null },
+    cheque_date: {
+      type: sql.Date,
+      value: mode === 'Cheque' ? date(payment?.chequeDate, 'payment.chequeDate', { required: false }) : null,
+    },
+    bank_name: { type: sql.NVarChar(100), value: mode === 'Cheque' ? optionalStr(payment?.bankName, 'payment.bankName', { max: 100 }) : null },
+    transaction_ref: { type: sql.NVarChar(100), value: mode === 'Online' ? String(payment.transactionRef).trim() : null },
+    paid_amount: { type: sql.Decimal(10, 2), value: amount },
+    remarks: { type: sql.NVarChar(255), value: optionalStr(payment?.remarks, 'payment.remarks', { max: 255 }) },
+    status: { type: sql.Int, value: 1 },
+    created_by: { type: sql.NVarChar(50), value: String(userId) },
+    // The payments table links back through bill_details, not a bill_id column.
+    bill_details: { type: sql.NVarChar(20), value: String(billId) },
+    file_path: { type: sql.NVarChar(sql.MAX), value: optionalStr(payment?.filePath, 'payment.filePath') },
+  });
+
+  return inserted?.payment_id ?? null;
+}
+
+/**
+ * POST /:id/payments — pay against an existing bill.
+ *
+ * VendorBill.aspx's per-row "Pay" button, which opened a modal for cheque,
+ * online or cash and posted against the bill. Nothing in this API could do
+ * that: a payment could only be attached while first creating the bill, so an
+ * outstanding balance could never be settled afterwards.
+ */
+router.post(
+  '/:id/payments',
+  asyncHandler(async (req, res) => {
+    const billId = int(req.params.id, 'id', { min: 1 });
+
+    // SELECT ignores society_id, so the row is matched here — same as GET /:id.
+    const rows = await query('sp_vendor_bills', {
+      operation: 'SELECT',
+      bill_id: { type: sql.Int, value: billId },
+    });
+    const bill = rows.find((r) => String(r.society_id) === String(req.societyId));
+    if (!bill) throw ApiError.notFound('Vendor bill not found');
+
+    // vendor_id is a comma-separated list for staff bills; the payment row
+    // takes a single id, and the legacy handler took the first likewise.
+    const vendorId = int(String(bill.vendor_id ?? '').split(',')[0] || 0, 'vendorId', {
+      min: 0,
+      required: false,
+      default: 0,
+    });
+
+    const paymentId = await insertPayment({
+      billId,
+      vendorId,
+      societyId: req.societyId,
+      userId: req.user.userId,
+      payment: req.body,
+    });
+
+    return ok(res, { bill_id: billId, payment_id: paymentId }, 201);
   }),
 );
 

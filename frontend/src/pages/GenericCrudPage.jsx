@@ -2,6 +2,8 @@ import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import useCrudResource from './masters/useCrudResource';
 import { ConfirmDialog, EmptyState, ErrorNotice, Field, Modal, Spinner } from '@/components/ui.jsx';
 import { FileUploadField } from '@/components/FormControls.jsx';
+import ExportToolbar from '@/components/ExportToolbar.jsx';
+import RichTextField from '@/components/RichTextField.jsx';
 
 /**
  * One implementation behind most list/edit screens.
@@ -10,8 +12,9 @@ import { FileUploadField } from '@/components/FormControls.jsx';
  * soft delete — across dozens of masters. Rather than clone that markup, each
  * screen is described declaratively:
  *
- *   columns : [{ key, label, format? }]
- *   fields  : [{ name, label, type?, required?, options?, hint?, span? }]
+ *   columns : [{ key, label, format? }]   format is (value, row, index)
+ *   fields  : [{ name, label, type?, required?, options?, hint?, span?, showIf?,
+ *               placeholder? }]
  *   toForm  : (row) => form values          (defaults to identity-by-field-name)
  *   idKey   : primary-key column
  *
@@ -30,6 +33,7 @@ export default function GenericCrudPage({
   toForm,
   toBody,
   searchable = true,
+  filterRow,
   canCreate = true,
   canEdit = true,
   canDelete = true,
@@ -37,16 +41,26 @@ export default function GenericCrudPage({
   deleteMessage,
   emptyHint,
   lookups: lookupLoaders,
+  formActions,
 }) {
   const [search, setSearch] = useState('');
   const deferred = useDeferredValue(search);
+  // `filterRow` screens narrow the loaded rows in the browser — their endpoint
+  // has no search parameter, so sending one would only refetch the same list on
+  // every keystroke. Same convention as MasterScreen.
   const params = useMemo(
-    () => (searchable && deferred ? { search: deferred } : undefined),
-    [searchable, deferred],
+    () => (searchable && !filterRow && deferred ? { search: deferred } : undefined),
+    [searchable, filterRow, deferred],
   );
 
   const { items, loading, error, saving, create, update, remove, refresh, setError } =
     useCrudResource(resource, { params });
+
+  const rows = useMemo(() => {
+    const term = deferred.trim().toLowerCase();
+    if (!filterRow || !term) return items;
+    return items.filter((r) => filterRow(r, term));
+  }, [items, deferred, filterRow]);
 
   const [lookups, setLookups] = useState({});
   const [editing, setEditing] = useState(null);
@@ -114,9 +128,11 @@ export default function GenericCrudPage({
     }
   };
 
-  const renderCell = (col, row) => {
+  // `index` is passed through for the legacy grids' serial-number column, which
+  // numbered rows off the grid position rather than any data field.
+  const renderCell = (col, row, index) => {
     const raw = row[col.key];
-    if (col.format) return col.format(raw, row);
+    if (col.format) return col.format(raw, row, index);
     if (raw === null || raw === undefined || raw === '') return '—';
     return String(raw);
   };
@@ -126,7 +142,12 @@ export default function GenericCrudPage({
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold text-slate-800">{title}</h1>
-          <p className="text-sm text-slate-500">{subtitle ?? `${items.length} record(s)`}</p>
+          <p className="text-sm text-slate-500">
+            {subtitle ??
+              (rows.length === items.length
+                ? `${items.length} record(s)`
+                : `${rows.length} of ${items.length} record(s)`)}
+          </p>
         </div>
         <div className="flex gap-2">
           {searchable ? (
@@ -154,10 +175,20 @@ export default function GenericCrudPage({
       <div className="card mt-3 overflow-hidden">
         {loading ? (
           <Spinner />
-        ) : items.length === 0 ? (
+        ) : rows.length === 0 ? (
           <EmptyState title={`No ${title.toLowerCase()} found`} hint={emptyHint} />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+            {/* The legacy pages' Print / export buttons. DataGrid has carried
+                these all along; the screens rendered here had no equivalent.
+                Outside the scroll box so it stays put on a narrow screen. */}
+            <ExportToolbar
+              columns={columns}
+              rows={rows}
+              exportName={title.toLowerCase().replace(/\s+/g, '-')}
+              exportTitle={title}
+            />
+            <div className="overflow-x-auto">
             <table className="min-w-full">
               <thead>
                 <tr>
@@ -172,35 +203,40 @@ export default function GenericCrudPage({
                 </tr>
               </thead>
               <tbody>
-                {items.map((row, i) => (
+                {rows.map((row, i) => (
                   <tr key={row[idKey] ?? i} className="hover:bg-slate-50">
                     {columns.map((c, ci) => (
                       <td
                         key={c.key}
                         className={ci === 0 ? 'table-cell font-medium text-slate-800' : 'table-cell'}
                       >
-                        {renderCell(c, row)}
+                        {renderCell(c, row, i)}
                       </td>
                     ))}
                     {(canEdit && fields.length) || canDelete ? (
                       <td className="table-cell whitespace-nowrap text-right">
-                        {canEdit && fields.length ? (
-                          <button type="button" className="btn-secondary mr-2" onClick={() => openEdit(row)}>
-                            Edit
-                          </button>
-                        ) : null}
-                        {canDelete ? (
-                          <button type="button" className="btn-danger" onClick={() => setConfirming(row)}>
-                            {deleteLabel}
-                          </button>
-                        ) : null}
+                        {/* gap-2 rather than a margin on the first button, so the
+                            spacing matches DataGrid's action column. */}
+                        <div className="flex items-center justify-end gap-2">
+                          {canEdit && fields.length ? (
+                            <button type="button" className="btn-secondary" onClick={() => openEdit(row)}>
+                              Edit
+                            </button>
+                          ) : null}
+                          {canDelete ? (
+                            <button type="button" className="btn-danger" onClick={() => setConfirming(row)}>
+                              {deleteLabel}
+                            </button>
+                          ) : null}
+                        </div>
                       </td>
                     ) : null}
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+            </div>
+          </>
         )}
       </div>
 
@@ -213,6 +249,10 @@ export default function GenericCrudPage({
             <button type="button" className="btn-secondary" onClick={closeForm} disabled={saving}>
               Cancel
             </button>
+            {/* Screens whose legacy modal carried a Print button next to Save.
+                Given the loaded lookups too, so an action can resolve an id
+                field back to the name the user picked. */}
+            {formActions?.(editing?.form, { close: closeForm, lookups })}
             <button type="submit" form="generic-form" className="btn-primary" disabled={saving}>
               {saving ? 'Saving…' : 'Save'}
             </button>
@@ -222,6 +262,10 @@ export default function GenericCrudPage({
         {editing ? (
           <form id="generic-form" onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2" noValidate>
             {fields.map((f) => {
+              // `showIf` mirrors the legacy pages' conditional panels — the ones
+              // that swapped inputs in and out as a dropdown changed. A hidden
+              // field is not rendered, so its `required` cannot block the save.
+              if (f.showIf && !f.showIf(editing.form)) return null;
               const span = f.span === 2 ? 'sm:col-span-2' : '';
               if (f.type === 'checkbox') {
                 return (
@@ -234,6 +278,24 @@ export default function GenericCrudPage({
                     />
                     <span className="text-sm text-slate-700">{f.label}</span>
                   </label>
+                );
+              }
+              // Renders its own label and toolbar, so it sits outside <Field>
+              // like the upload control does.
+              if (f.type === 'richtext') {
+                return (
+                  <RichTextField
+                    key={f.name}
+                    label={f.label}
+                    required={f.required}
+                    hint={f.hint}
+                    maxLength={f.maxLength}
+                    className={span}
+                    value={editing.form[f.name] ?? ''}
+                    onChange={(html) =>
+                      setEditing((p) => ({ ...p, form: { ...p.form, [f.name]: html } }))
+                    }
+                  />
                 );
               }
               // Uploads render their own label and current-file state, so they
@@ -273,6 +335,7 @@ export default function GenericCrudPage({
                     ) : f.type === 'textarea' ? (
                       <textarea
                         className="field-input min-h-[6rem]"
+                        placeholder={f.placeholder}
                         value={editing.form[f.name] ?? ''}
                         onChange={setField(f.name)}
                         required={f.required}
@@ -282,6 +345,7 @@ export default function GenericCrudPage({
                         className="field-input"
                         type={f.type ?? 'text'}
                         step={f.type === 'number' ? f.step ?? 'any' : undefined}
+                        placeholder={f.placeholder}
                         value={editing.form[f.name] ?? ''}
                         onChange={setField(f.name)}
                         required={f.required}
@@ -302,7 +366,10 @@ export default function GenericCrudPage({
         open={Boolean(confirming)}
         title={`${deleteLabel} record`}
         message={
-          deleteMessage
+          // The dialog stays mounted while closed, when `confirming` is null —
+          // so a screen whose deleteMessage reads fields off the row threw on
+          // every render until one was picked.
+          confirming && deleteMessage
             ? deleteMessage(confirming)
             : `${deleteLabel} this record? This cannot be undone from the app.`
         }

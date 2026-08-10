@@ -84,6 +84,14 @@ router.put(
           default: 0,
         }),
       },
+      // Annual rate gen_bill charges on arrears. Capped at 21%, the ceiling
+      // the Co-operative Societies Act allows. It was hardcoded to 21 in the
+      // procedure's INSERT and never written on update, so a society that had
+      // resolved on a different rate — or none — could not apply it.
+      interest_rate: {
+        type: sql.Decimal(18, 2),
+        value: num(body.interestRate, 'interestRate', { min: 0, max: 21, required: false }),
+      },
     });
 
     return ok(res, { settings: await readSettings(req.societyId) });

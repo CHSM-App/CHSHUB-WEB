@@ -2,7 +2,7 @@
 // Replaces pdc_reminder_search and pdc_clearing.
 const express = require('express');
 
-const { query, exec, sql } = require('../../lib/db');
+const { query, exec, sql, getPool } = require('../../lib/db');
 const { ApiError, ok, asyncHandler } = require('../../lib/http');
 const { str, optionalStr, int, num, date, bool } = require('../../lib/validate');
 const { requireSociety } = require('../../middleware/authenticate');
@@ -12,7 +12,14 @@ router.use(requireSociety);
 
 const SOC = (v) => ({ type: sql.NVarChar(10), value: v });
 
-/** GET /billing/pdc?search= */
+/**
+ * GET /billing/pdc?search=
+ *
+ * Grid_Show and Search both omit wing_id, which the edit form has to send back
+ * — absent, pdcParams defaults it to 0 and the cheque loses its wing. It is
+ * read here per row rather than through the SP, which cannot be changed
+ * without disturbing the legacy page.
+ */
 router.get(
   '/',
   asyncHandler(async (req, res) => {
@@ -22,6 +29,19 @@ router.get(
       society_id: SOC(req.societyId),
       ...(search ? { search: { type: sql.NVarChar(50), value: search } } : {}),
     });
+
+    if (rows.length) {
+      const pool = await getPool();
+      const wings = await pool
+        .request()
+        .input('society_id', sql.NVarChar(10), req.societyId)
+        .query('SELECT pdc_rem_id, wing_id FROM pdc_reminder WHERE society_id = @society_id');
+      const byId = new Map(wings.recordset.map((w) => [Number(w.pdc_rem_id), w.wing_id]));
+      rows.forEach((r) => {
+        r.wing_id = byId.get(Number(r.pdc_rem_id)) ?? null;
+      });
+    }
+
     return ok(res, { items: rows, count: rows.length });
   }),
 );
@@ -40,6 +60,27 @@ router.get(
       enddate: { type: sql.Date, value: date(req.query.to, 'to') },
     });
     return ok(res, { items: rows, count: rows.length });
+  }),
+);
+
+/**
+ * GET /billing/pdc/owner/:ownerId/details — the resident's contact block.
+ *
+ * pdc_reminder_search.aspx filled building-wing, mobile, alternate mobile,
+ * address and email from the owner as soon as one was picked, and left every
+ * one of them disabled. This is the same sp_pdc_reminder branch it used.
+ */
+router.get(
+  '/owner/:ownerId/details',
+  asyncHandler(async (req, res) => {
+    const ownerId = int(req.params.ownerId, 'ownerId', { min: 1 });
+    const rows = await query('sp_pdc_reminder', {
+      operation: 'owner_select',
+      owner_id: { type: sql.Int, value: ownerId },
+    });
+    const owner = rows[0];
+    if (!owner) throw ApiError.notFound('Owner not found');
+    return ok(res, { owner });
   }),
 );
 
@@ -131,30 +172,29 @@ router.post(
 );
 
 /**
- * DELETE /billing/pdc/:id
+ * DELETE /billing/pdc/:id — written here, because sp_pdc_reminder's own Delete
+ * does not delete.
  *
- * KNOWN SQL DEFECT: sp_pdc_reminder's Delete branch sets active_status = 0,
- * which is the LIVE value — the row is not hidden. Verified against the live
- * database. Reported in docs/MIGRATION-MAP.md §5.8; not fixed pending approval.
- * The endpoint reports what actually happened rather than claiming success.
+ * It runs `active_status = 0`, and Grid_Show lists exactly the rows where
+ * active_status = 0 — so the cheque came straight back. Every other soft
+ * delete in this database sets 1; sp_pdc_reminder and sp_loan are the two that
+ * set 0, which is what those branches were meant to say. The SPs are left
+ * alone because the legacy pages still call them.
  */
 router.delete(
   '/:id',
   asyncHandler(async (req, res) => {
     const id = int(req.params.id, 'id', { min: 1 });
-    await exec('sp_pdc_reminder', { operation: 'Delete', pdc_rem_id: { type: sql.Int, value: id } });
-
-    const still = (await query('sp_pdc_reminder', {
-      operation: 'Grid_Show',
-      society_id: SOC(req.societyId),
-    })).some((r) => Number(r.pdc_rem_id) === id);
-
-    if (still) {
-      throw ApiError.conflict(
-        'The cheque was not removed: sp_pdc_reminder’s Delete branch sets active_status = 0, which is the live value (see docs/MIGRATION-MAP.md §5.8). Cancel the cheque instead.',
-        { pdc_rem_id: id },
+    const pool = await getPool();
+    const result = await pool
+      .request()
+      .input('pdc_rem_id', sql.Int, id)
+      .input('society_id', sql.NVarChar(10), req.societyId)
+      .query(
+        'UPDATE pdc_reminder SET active_status = 1 WHERE pdc_rem_id = @pdc_rem_id AND society_id = @society_id',
       );
-    }
+
+    if (!result.rowsAffected?.[0]) throw ApiError.notFound('Cheque not found');
     return ok(res, { deleted: true, pdc_rem_id: id });
   }),
 );

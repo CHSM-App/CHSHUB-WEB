@@ -17,9 +17,10 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    DECLARE 
+    DECLARE
         @today INT,
         @bill_id INT,
+        @last_bill_id INT = NULL,   -- last run actually created; NULL if none
         @rate FLOAT,
         @parking FLOAT,
         @due_days INT,
@@ -60,7 +61,11 @@ BEGIN
         )
         AND (@today = DATEPART(DAY, GETDATE()) OR @bill_type = 1)
         BEGIN
-            SELECT @bill_id = ISNULL(MAX(bill_id), 0) + 1 FROM maintenance_cal;
+            -- Held until the insert lands. gen_bill walks every society in one
+            -- cursor, so two runs reading MAX at the same moment would both
+            -- take the same bill_id and their bills would merge into one run.
+            SELECT @bill_id = ISNULL(MAX(bill_id), 0) + 1
+            FROM   maintenance_cal WITH (UPDLOCK, HOLDLOCK);
 
             DECLARE @flat_count INT, @total_billed DECIMAL(18,2) = 0;
             SELECT @flat_count = COUNT(DISTINCT flat_id)
@@ -112,15 +117,34 @@ BEGIN
                 SET @total_amt +=  ISNULL(@parking, 0);
 
                 -- Deduct advance
-                SELECT @total_amt = ABS(@total_amt - ISNULL(SUM(advance), 0))
-                FROM maintenance_cal WHERE flat_id = @flat_id;
+                --
+                -- Not ABS(): that flips the sign, so an advance larger than the
+                -- charge came back as money owed. Flat 43 holds 4,439.24 against
+                -- a 1,100.00 bill — ABS made that 3,339.24 payable when the
+                -- resident is 3,339.24 in credit. Clamped at zero instead; the
+                -- surplus stays where it is rather than being billed.
+                --
+                -- society_id matters too: flat_id is not unique across
+                -- societies, so without it another society's advance could be
+                -- deducted from this one's bill.
+                SELECT @total_amt = @total_amt - ISNULL(SUM(advance), 0)
+                FROM   maintenance_cal
+                WHERE  flat_id = @flat_id AND society_id = @society_id;
+
+                IF @total_amt < 0 SET @total_amt = 0;
 				 
                 SET @due = @total_amt;
 
                 -- Previous dues + interest
+                --
+                -- Scoped to the society for the same reason as the advance
+                -- above: flat_id alone would pull another society's arrears
+                -- onto this bill the moment two of them share a number.
                 SELECT @prev_due = ISNULL(SUM(due), 0)
-                FROM maintenance_cal 
-                WHERE flat_id = @flat_id AND due_date < DATEADD(DAY, -1, GETDATE());
+                FROM   maintenance_cal
+                WHERE  flat_id = @flat_id
+                  AND  society_id = @society_id
+                  AND  due_date < DATEADD(DAY, -1, GETDATE());
 			
                 IF @prev_due > 0
                 BEGIN
@@ -131,11 +155,21 @@ BEGIN
                 END;
 
                 -- Get last audit IDs correctly (no nested aggregates)
+                --
+                -- Joined to the live table. The audit is a history: every head
+                -- keeps its old rows, so selecting from it alone put charges
+                -- retired months ago onto the bill. There was no status test
+                -- here at all, so a deactivated regular head printed forever.
+                -- The live table decides what is billed; the audit only says
+                -- which version of it.
                 ;WITH ChargesAgg AS (
-                    SELECT MAX(audit_id) AS max_audit_id
-                    FROM maintenance_charges_audit
-                    WHERE charges_type = 1 AND society_id = @society_id
-                    GROUP BY charge_id, society_id
+                    SELECT MAX(a.audit_id) AS max_audit_id
+                    FROM maintenance_charges_audit a
+                    INNER JOIN maintenance_charges c
+                            ON c.charge_id = a.charge_id AND c.society_id = a.society_id
+                    WHERE a.charges_type = 1 AND a.society_id = @society_id
+                      AND c.status = 1 AND c.charges_type = 1
+                    GROUP BY a.charge_id, a.society_id
                 )
                 SELECT @bill_charges_ids = STRING_AGG(CAST(max_audit_id AS NVARCHAR(10)), ',')
                 FROM ChargesAgg;
@@ -173,9 +207,24 @@ BEGIN
             CLOSE flat_cursor;
             DEALLOCATE flat_cursor;
 
-          
+            -- Charge heads for THIS society's run, written inside the society
+            -- loop. Outside it this ran even when the guard above had skipped
+            -- generation, so a second call on the same day appended another
+            -- row and the bill printed every charge twice; a third call, three
+            -- times. Inside, @society_id and @bill_id both still belong to the
+            -- society just billed -- outside, @society_id holds whichever
+            -- society the cursor happened to end on and MAX(bill_id) spans the
+            -- whole table, so the charges could attach to another society's bill.
+            IF NOT EXISTS (SELECT 1 FROM bill_charges
+                           WHERE bill_Id = @bill_id AND Society_Id = @society_id)
+                INSERT INTO bill_charges
+                       (Bill_Charges_Id, Setting_Charges_Id, Society_Id, Charges_Type, bill_Id)
+                VALUES (@bill_charges_ids, @setting_charges_ids, @society_id, @bill_type, @bill_id);
 
-            SET @msg = CONCAT('Bill generated for ', @flat_count, 
+            -- Kept for the notification SELECT after the cursor closes.
+            SET @last_bill_id = @bill_id;
+
+            SET @msg = CONCAT('Bill generated for ', @flat_count,
                               ' flats @ rate ', @rate, 
                               ' per sq.ft. Total billed ₹', @total_billed);
 print 'Bill  generated Successfully';
@@ -192,10 +241,17 @@ print 'Bill  generated Successfully';
 
     CLOSE society_cursor;
     DEALLOCATE society_cursor;
-	  SELECT @bill_id = ISNULL(MAX(bill_id), 0)  FROM maintenance_cal;
-    INSERT INTO bill_charges VALUES (@bill_charges_ids, @setting_charges_ids, @society_id, @bill_type, @bill_id);
-	select bill_id as maintenance_id,token,type,owner_id  from maintenance_cal m inner join userdata o on  m.flat_id=o.flat_id
-	where bill_id=@bill_id and token is not null and type='owner' and active_status=0 order by o.flat_id ;
+
+    -- The bill_charges INSERT that stood here has moved inside the society
+    -- loop; MAX(bill_id) over the whole table could not tell which society's
+    -- run it belonged to.
+    --  SELECT @bill_id = ISNULL(MAX(bill_id), 0)  FROM maintenance_cal;
+    --  INSERT INTO bill_charges VALUES (@bill_charges_ids, @setting_charges_ids, @society_id, @bill_type, @bill_id);
+
+    -- Push tokens for the run just created. Nothing was generated when
+    -- @last_bill_id is still NULL, so return no rows rather than every owner.
+    select bill_id as maintenance_id,token,type,owner_id  from maintenance_cal m inner join userdata o on  m.flat_id=o.flat_id
+	where bill_id=@last_bill_id and token is not null and type='owner' and active_status=0 order by o.flat_id ;
 END;
 
 
@@ -1130,7 +1186,11 @@ DECLARE @openingBalance DECIMAL(18,2);
 -- Calculate Opening Balance
 SELECT @openingBalance = ISNULL(SUM(Credit), 0) - ISNULL(SUM(Debit), 0)
 FROM society_cashbook
-WHERE [date] BETWEEN DATEADD(yy, DATEDIFF(yy, 0, @date1), 0) AND DATEADD(DD, -1, @date1) and society_id=@society_id
+-- Everything before the report window, with no year boundary: the opening
+-- balance carries forward across years. The earlier form started from
+-- 1 January of @date1's year, so a February report opened at -2,982 when the
+-- society actually held 1,06,313.
+WHERE [date] < @date1 and society_id=@society_id
 
 
 -- Main report
@@ -1152,8 +1212,12 @@ FROM (
         Debit, 
         Credit
     FROM society_cashbook
-    WHERE [date] BETWEEN @date1 AND DATEADD(DD, -1, @date2)  and society_id=@society_id
-  
+    -- Half-open on the upper end so @date2 itself is included, times and all.
+    -- BETWEEN @date1 AND DATEADD(DD,-1,@date2) dropped the last day entirely,
+    -- and entries are stamped with a time — 28-11 18:06 fell outside a bound
+    -- of 28-11 00:00, so that day's entries vanished from its own report.
+    WHERE [date] >= @date1 AND [date] < DATEADD(DD, 1, @date2) and society_id=@society_id
+
     UNION ALL
     -- Closing Balance
     SELECT 
@@ -1171,8 +1235,10 @@ FROM (
             ELSE null 
         END AS Credit
     FROM society_cashbook
-    WHERE [date] BETWEEN @date1 AND DATEADD(DD, -1, @date2) and society_id=@society_id
-   
+    -- Same window as the transactions above, or the closing balance would be
+    -- struck over a different set of rows than the ones listed.
+    WHERE [date] >= @date1 AND [date] < DATEADD(DD, 1, @date2) and society_id=@society_id
+
 ) AS report
 
   
@@ -4256,13 +4322,19 @@ WHERE audit_id = (
         ow.flat_id,
         rec.receivable_amt,
         ow.sq_ft,
+        -- due, not total_amount: sp_new_maintenance folds arrears into
+        -- total_amount, so summing that counted the dues twice — flat 102's
+        -- March bill read 6,746.13 where 1,765.38 was owed. due holds only
+        -- what that bill is short, and settlement drives it to zero, which is
+        -- also why the bill_status <> 'Paid' join is no longer needed.
+        --
+        -- society_id belongs here too: flat_id is not unique across societies.
 		        ISNULL((
-            SELECT SUM(m2.total_amount)
+            SELECT SUM(m2.due)
             FROM maintenance_cal m2
-            INNER JOIN bill_status bs2 ON m2.status = bs2.status_id
             WHERE m2.flat_id = mc.flat_id
+              AND m2.society_id = mc.society_id
               AND m2.gen_date < mc.gen_date
-              AND bs2.bill_status <> ''Paid''
         ), 0) AS amt_forward,
 
         --mc.amt_forward,
@@ -5110,12 +5182,19 @@ GO
 
 					DECLARE flat_cursor CURSOR FOR
 					SELECT flat_id   FROM owner_search_vw    WHERE society_id = @society_id       AND type = 'Owner';
-					SELECT @bill_charges_ids=STRING_AGG(max_audit_id, ',') 
+					SELECT @bill_charges_ids=STRING_AGG(max_audit_id, ',')
 		FROM (
-			SELECT MAX(audit_id) AS max_audit_id
-			FROM maintenance_charges_audit
-			WHERE charges_type=0 and status=1 and  society_id = @society_id 
-			GROUP BY charge_id,society_id
+			-- Joined to the live table. status = 1 on an audit row only means
+			-- the head was on at some point — every head has such a row — so
+			-- filtering the audit listed charges retired months ago. Bill 42
+			-- printed nine heads worth 18,290.58 against 846.15 actually due.
+			SELECT MAX(a.audit_id) AS max_audit_id
+			FROM maintenance_charges_audit a
+			INNER JOIN maintenance_charges c
+			        ON c.charge_id = a.charge_id AND c.society_id = a.society_id
+			WHERE a.charges_type = 0 AND a.society_id = @society_id
+			  AND c.status = 1 AND c.charges_type = 0
+			GROUP BY a.charge_id, a.society_id
 		) AS sub;
 
 			SELECT @setting_charges_ids= MAX(audit_id) FROM account_setting_audit  WHERE society_id =@society_id  GROUP BY acc_set_id, society_id
@@ -5136,9 +5215,18 @@ GO
 					  SELECT   @total_amt = ISNULL(SUM(amount / NULLIF(@flat_count, 0)), 0)   FROM maintenance_charges
 				WHERE  status =1 and charges_type =0 and society_id = @society_id 
 						   set @due=@total_amt;
-						SELECT   @prev_due = ISNULL(Sum(due), 0) FROM maintenance_cal WHERE flat_id = @flat_id and due_date <  DATEADD(day,-1, GETDATE()) and bill_type=0
-			 
-						IF (@prev_due IS NOT NULL)
+						-- society_id belongs here: flat_id is not unique across societies,
+						-- so without it another society's arrears land on this bill. Same
+						-- fix as gen_bill.
+						-- No bill_type filter: this counted only unpaid add-on runs and
+						-- ignored the regular ones, so an add-on bill showed 769.23 where
+						-- 5,749.98 was actually owed. gen_bill has no such filter, and a
+						-- resident's arrears are their arrears whichever run raised them.
+						SELECT   @prev_due = ISNULL(Sum(due), 0) FROM maintenance_cal WHERE flat_id = @flat_id and society_id = @society_id and due_date <  DATEADD(day,-1, GETDATE())
+
+						-- '> 0', not 'IS NOT NULL': the ISNULL above means @prev_due is
+						-- never NULL, so this branch always ran and the else never did.
+						IF (@prev_due > 0)
 						BEGIN
 							SET @amt_forward = @prev_due;
 							SET @tax_interest = ROUND((@prev_due * @interest)/100, 2);
@@ -5177,12 +5265,17 @@ GO
 					DEALLOCATE flat_cursor; 
 					IF @bill_charges_ids IS NULL
 BEGIN
-    SELECT @bill_charges_ids = STRING_AGG(max_audit_id, ',') 
+    SELECT @bill_charges_ids = STRING_AGG(max_audit_id, ',')
     FROM (
-        SELECT MAX(audit_id) AS max_audit_id
-        FROM maintenance_charges_audit
-        WHERE charges_type = 0 AND status = 1 AND society_id = @society_id
-        GROUP BY charge_id, society_id
+        -- Same join as the block above; this fallback runs when that one
+        -- found nothing, and would otherwise reintroduce the retired heads.
+        SELECT MAX(a.audit_id) AS max_audit_id
+        FROM maintenance_charges_audit a
+        INNER JOIN maintenance_charges c
+                ON c.charge_id = a.charge_id AND c.society_id = a.society_id
+        WHERE a.charges_type = 0 AND a.society_id = @society_id
+          AND c.status = 1 AND c.charges_type = 0
+        GROUP BY a.charge_id, a.society_id
     ) AS sub;
 END
 insert into bill_charges values (@bill_charges_ids,@setting_charges_ids,@society_id,@bill_type,@bill_id)
@@ -5222,13 +5315,20 @@ BEGIN
             NULL AS bill_type,
             0 AS due,
             paid_amount AS total_amount,
-            bill_status AS type,
+            -- A receipt is a payment, so it always reads as Paid. The owner
+            -- app splits its tabs on this value.
+            'Paid' AS type,
             'Receipt' AS pay_mode_name,
             NULL AS seen_status,
             NULL AS notify_status_id,
             0 AS tax_interest_amt
-        FROM receipt_search_vw
-        WHERE flat_id = @flat_id
+        -- dbo.receipt, not receipt_search_vw: that view INNER JOINs
+        -- maintenance_cal, so a receipt settling a bill absent from that table
+        -- never appeared. Flat 7 showed 5 of its 14 receipts — the resident's
+        -- own app was missing 1,076 they had paid. status 3 is Paid; 2 is a
+        -- cancelled receipt, which should stay out.
+        FROM receipt
+        WHERE flat_id = @flat_id AND status = 3
     ),
     InvoiceData AS (
         SELECT 

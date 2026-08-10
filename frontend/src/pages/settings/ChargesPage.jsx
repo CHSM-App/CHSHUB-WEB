@@ -69,6 +69,22 @@ export default function ChargesPage() {
     }
   };
 
+  /**
+   * Put a spent charge back into the next run.
+   *
+   * An add-on is charged once — sp_new_maintenance switches its head off after
+   * generating — so a levy that recurs, or one raised against the wrong month,
+   * otherwise needed the edit form opened just to tick a box. Same PUT the form
+   * sends, with the head's own values carried over so nothing else moves.
+   */
+  const onReactivate = async (row) => {
+    try {
+      await update(row.charge_id, { ...toForm(row), active: true });
+    } catch {
+      // Shown by the page-level notice.
+    }
+  };
+
   const total = items
     .filter((r) => r.status === true || Number(r.status) === 1)
     .reduce((sum, r) => sum + Number(r.amount || 0), 0);
@@ -147,7 +163,16 @@ export default function ChargesPage() {
                           <button type="button" className="btn-danger" onClick={() => setConfirming(row)}>
                             Deactivate
                           </button>
-                        ) : null}
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            disabled={saving}
+                            onClick={() => onReactivate(row)}
+                          >
+                            Include in next bill
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );

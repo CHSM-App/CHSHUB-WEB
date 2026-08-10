@@ -6264,13 +6264,46 @@ GO
 SET QUOTED_IDENTIFIER ON
 GO
 
+-- Money in and out of the society, from the three places it is recorded:
+-- resident receipts on the credit side, vendor payments and society expenses
+-- on the debit side.
+--
+-- Reads dbo.receipt directly, not receipt_search_vw. That view expands one
+-- receipt into a row per bill it settled (CROSS APPLY over bill_details) and
+-- INNER JOINs maintenance_cal, so a receipt whose bill is missing from that
+-- table disappeared altogether — 40,150 of 1,59,985 never reached the
+-- cashbook. UNION rather than UNION ALL then hid the duplicates the same view
+-- produced, which is why the total looked plausible.
+--
+-- society_expense was absent entirely: 70,700 of spending the cashbook never
+-- showed. f_amount, not amount, because that is what actually left the
+-- account once tax and TDS are counted.
+--
+-- Each side filters out what was undone: cancelled receipts (status 2) and
+-- deleted expenses (active_status 1). vendor_bill_payments has no such state
+-- — nothing there can be cancelled — so it is taken whole.
 CREATE VIEW [dbo].[society_cashbook]
 AS
-SELECT        date, 'BY ' + transaction_ref AS Particular, CAST(paid_amount AS decimal(10, 2)) AS credit, null AS debit, society_id
-FROM            dbo.receipt_search_vw
-UNION
-SELECT        payment_date, 'BY ' + transaction_ref AS Particular, null AS credit, CAST(paid_amount AS decimal(10, 2)) AS debit, society_id
-FROM            vendor_bill_payments
+SELECT        r.receipt_date AS date,
+              'BY ' + ISNULL(r.pay_mode + ': ' + r.transaction_ref, r.pay_mode + ': ' + r.cheque_no) AS Particular,
+              CAST(r.paid_amount AS decimal(10, 2)) AS credit, null AS debit, r.society_id
+FROM          dbo.receipt AS r
+-- 3 is Paid. sp_MaintenanceReceipt's CANCEL branch sets 2, and without this
+-- a cancelled receipt would keep crediting money the society never kept.
+WHERE         r.status = 3
+UNION ALL
+-- Cheque number, then pay mode, when a payment carries no transaction
+-- reference: 'BY ' + NULL is NULL, which left those rows unnamed.
+SELECT        p.payment_date,
+              'TO ' + ISNULL(NULLIF(p.transaction_ref, ''), ISNULL(NULLIF(p.cheque_no, ''), p.pay_mode)) AS Particular,
+              null AS credit, CAST(p.paid_amount AS decimal(10, 2)) AS debit, p.society_id
+FROM          dbo.vendor_bill_payments AS p
+UNION ALL
+-- active_status 0 is live here; sp_society_expense's Delete branch sets 1.
+SELECT        e.date, 'TO ' + e.ex_name AS Particular,
+              null AS credit, CAST(e.f_amount AS decimal(10, 2)) AS debit, e.society_id
+FROM          dbo.society_expense AS e
+WHERE         e.active_status = 0
 GO
 
 EXEC sys.sp_addextendedproperty @name=N'MS_DiagramPane1', @value=N'[0E232FF0-B466-11cf-A24F-00AA00A3EFFF, 1.00]

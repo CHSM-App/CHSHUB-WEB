@@ -42,4 +42,5 @@ export const vendorBills = {
   approvals: (id) => api.get(`/accounts/vendor-bills/${id}/approvals`),
   addApprovers: (id, userIds) => api.post(`/accounts/vendor-bills/${id}/approvers`, { userIds }),
   decide: (approvalId, body) => api.post(`/accounts/vendor-bills/approvals/${approvalId}`, body),
+  pay: (id, body) => api.post(`/accounts/vendor-bills/${id}/payments`, body),
 };

@@ -59,6 +59,30 @@ router.get(
   }),
 );
 
+/**
+ * GET /api/web/billing/receipts/advance?flatId=
+ * Unapplied credit on a flat. sp_SettleMaintenancePayment parks any surplus
+ * from a payment on maintenance_cal.advance, and nothing else surfaces it, so
+ * without this an overpayment looks like money that vanished.
+ */
+router.get(
+  '/advance',
+  asyncHandler(async (req, res) => {
+    const flatId = int(req.query.flatId, 'flatId', { min: 1 });
+
+    const rows = await query('sp_MaintenanceReceipt', {
+      Action: 'GetAdvance',
+      FlatID: { type: sql.Int, value: flatId },
+      SocietyID: SOC(req.societyId),
+    });
+    const row = rows[0] ?? {};
+    return ok(res, {
+      advanceAvailable: Number(row.AdvanceAvailable || 0),
+      totalDue: Number(row.TotalDue || 0),
+    });
+  }),
+);
+
 /** GET /api/web/billing/receipts/pdc?flatId= — post-dated cheques on file. */
 router.get(
   '/pdc',

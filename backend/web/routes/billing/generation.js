@@ -14,10 +14,11 @@
 //     is a no-op for regular bills.
 //   * sp_new_maintenance ('generate') has NO such guard: every call creates a
 //     new add-on bill run. The API therefore refuses a second add-on run within
-//     the same calendar day unless `allowDuplicate: true` is passed.
+//     the same calendar day unless `allowDuplicate: true` is passed. A regular
+//     run earlier the same day does not count — different charges, not a repeat.
 const express = require('express');
 
-const { query, exec, sql } = require('../../lib/db');
+const { query, exec, sql, getPool } = require('../../lib/db');
 const { ApiError, ok, asyncHandler } = require('../../lib/http');
 const { int, num, bool } = require('../../lib/validate');
 const { requireSociety } = require('../../middleware/authenticate');
@@ -163,15 +164,29 @@ router.post(
     }
 
     const runs = await billRuns(req.societyId);
-    const today = new Date();
-    const todaysAddOn = runs.find((r) => {
-      const gen = r.gen_date ? new Date(r.gen_date) : null;
-      return gen && gen.toDateString() === today.toDateString();
-    });
+
+    // Only a previous *add-on* run counts as a duplicate. Grid_Show does not
+    // return bill_type, so asking it would have blocked an add-on whenever a
+    // regular bill had gone out the same day — two different charges, and the
+    // second is not a repeat of the first.
+    const pool = await getPool();
+    const todays = await pool
+      .request()
+      .input('society_id', sql.NVarChar(10), req.societyId)
+      .query(`
+        SELECT TOP 1 bill_id
+        FROM   dbo.maintenance_cal
+        WHERE  society_id = @society_id
+          AND  bill_type = 0
+          AND  gen_date >= CAST(GETDATE() AS DATE)
+          AND  gen_date <  DATEADD(DD, 1, CAST(GETDATE() AS DATE))
+        ORDER BY bill_id DESC
+      `);
+    const todaysAddOn = todays.recordset?.[0] ?? null;
 
     if (todaysAddOn && bool(req.body?.allowDuplicate, 'allowDuplicate', { default: false }) !== true) {
       throw ApiError.conflict(
-        'A bill run already exists for today. sp_new_maintenance does not guard against duplicates, so this would raise a second set of charges. Send { "allowDuplicate": true } only if that is intended.',
+        'An add-on run already exists for today. sp_new_maintenance does not guard against duplicates, so this would raise a second set of the same charges. Send { "allowDuplicate": true } only if that is intended.',
         { existingBillId: todaysAddOn.bill_id },
       );
     }

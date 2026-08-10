@@ -21,6 +21,8 @@ export const docTypes = resource('/masters/doc-types', 'doc_id');
 export const parkingPlaces = resource('/masters/parking-places', 'place_id');
 export const carPooling = resource('/masters/car-pooling', 'car_id');
 export const loans = resource('/masters/loans', 'loan_id');
+/** Flat, loan-type and share-certificate pickers for the loan form. */
+export const loanLookups = () => api.get('/masters/loans-lookups');
 
 export const lookups = {
   staffRoles: () => api.get('/masters/staff-roles'),
@@ -99,9 +101,13 @@ export const reports = {
   ownerLedger: (params) => api.get('/reports/owner-ledger', p(params)),
   agm: (from, to) => api.get('/reports/agm', { params: { from, to } }),
   incomeExpense: () => api.get('/reports/income-expense'),
+  // printshop.aspx — shop maintenance filtered by payment method and date.
+  shopMaintenance: (params) => api.get('/reports/shop-maintenance', p(params)),
   auditHeaders: () => api.get('/reports/audit/headers'),
   auditQuestions: () => api.get('/reports/audit/questions'),
   societyInfo: () => api.get('/reports/audit/society-info'),
+  // items: [{ headerId, sequence }] — the dragged order, saved in one call.
+  auditHeaderSequence: (items) => api.post('/reports/audit/headers/sequence', { items }),
 };
 
 /* ------------------------------------------------------------- village */

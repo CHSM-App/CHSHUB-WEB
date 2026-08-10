@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { tableToPdf } from './pdf.js';
+import { tableToPdf, elementsToPdf } from './pdf.js';
 
 // jsPDF writes a real file in the browser; in jsdom we only care that the
 // document is built and saved with the expected name.
 const saved = [];
 const text = [];
+const added = [];
+const pageBreaks = [];
 
 vi.mock('jspdf', () => ({
   jsPDF: class {
@@ -15,6 +17,10 @@ vi.mock('jspdf', () => ({
     rect() {}
     addPage() {
       this.pages = (this.pages ?? 1) + 1;
+      pageBreaks.push(this.pages);
+    }
+    addImage(image) {
+      added.push(image);
     }
     text(t) {
       text.push(String(t));
@@ -23,6 +29,16 @@ vi.mock('jspdf', () => ({
       saved.push(name);
     }
   },
+}));
+
+// A capture short enough to fit one page, so a sheet is never split by size
+// and the page count reflects the sheets alone.
+vi.mock('html2canvas', () => ({
+  default: async () => ({
+    width: 800,
+    height: 400,
+    toDataURL: () => 'data:image/png;base64,stub',
+  }),
 }));
 
 describe('tableToPdf', () => {
@@ -67,5 +83,35 @@ describe('tableToPdf', () => {
       tableToPdf({ columns: [{ key: 'a', label: 'A' }], rows: [], filename: 'empty' }),
     ).resolves.not.toThrow();
     expect(saved[0]).toMatch(/^empty-/);
+  });
+});
+
+describe('elementsToPdf', () => {
+  beforeEach(() => {
+    saved.length = 0;
+    added.length = 0;
+    pageBreaks.length = 0;
+  });
+
+  const sheet = () => {
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    return el;
+  };
+
+  it('starts a new page for each sheet', async () => {
+    const nodes = [sheet(), sheet(), sheet()];
+    await elementsToPdf(nodes, 'bills');
+
+    // Three sheets, so two breaks between them — a bill is never cut in half
+    // by a page ending mid-table.
+    expect(added).toHaveLength(3);
+    expect(pageBreaks).toHaveLength(2);
+    expect(saved[0]).toMatch(/^bills-/);
+  });
+
+  it('refuses an empty selection rather than saving a blank file', async () => {
+    await expect(elementsToPdf([], 'bills')).rejects.toThrow(/nothing to export/i);
+    expect(saved).toHaveLength(0);
   });
 });

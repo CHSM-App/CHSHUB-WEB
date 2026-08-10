@@ -13,6 +13,13 @@ import {
   TextAreaField,
   TextField,
 } from '@/components/FormControls.jsx';
+import {
+  openableUrl,
+  unopenableReason,
+  needsAuth,
+  fetchProtectedUrl,
+  revokeBlobUrl,
+} from '@/lib/storedFile';
 
 const money = (v) =>
   v == null || v === '' ? '—' : Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -548,7 +555,7 @@ export function PollsPage() {
           emptyTitle="No active polls"
           actions={(row) => (
             <>
-              <button type="button" className="btn-secondary mr-2" onClick={() => openPoll(row)}>
+              <button type="button" className="btn-secondary" onClick={() => openPoll(row)}>
                 Results
               </button>
               <button
@@ -873,6 +880,7 @@ export function DocumentsPage() {
   const [search, setSearch] = useState('');
   const [form, setForm] = useState(null);
   const [confirming, setConfirming] = useState(null);
+  const [viewing, setViewing] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -949,19 +957,29 @@ export function DocumentsPage() {
           exportName="society-documents"
           emptyTitle="No documents uploaded"
           actions={(row) => (
-            <button
-              type="button"
-              className="btn-danger"
-              onClick={() =>
-                setConfirming({
-                  title: 'Delete document',
-                  message: `Delete ${row.doc_name}?`,
-                  run: () => M.documents.remove(row.file_id),
-                })
-              }
-            >
-              Delete
-            </button>
+            <>
+              {/* upload_doc_search.aspx linked the stored file from each row.
+                  Rows whose path is on the old server's disk still get the
+                  button — the modal explains why they cannot be opened. */}
+              {String(row.file_save_path ?? '').trim() ? (
+                <button type="button" className="btn-secondary" onClick={() => setViewing(row)}>
+                  View
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="btn-danger"
+                onClick={() =>
+                  setConfirming({
+                    title: 'Delete document',
+                    message: `Delete ${row.doc_name}?`,
+                    run: () => M.documents.remove(row.file_id),
+                  })
+                }
+              >
+                Delete
+              </button>
+            </>
           )}
         />
       </div>
@@ -1047,7 +1065,93 @@ export function DocumentsPage() {
           }
         }}
       />
+
+      <DocumentFileModal doc={viewing} onClose={() => setViewing(null)} />
     </section>
+  );
+}
+
+/**
+ * Views the file stored against a society document.
+ *
+ * Files served by this API sit behind the bearer token, which an <iframe>
+ * cannot send, so the file is fetched through the authenticated client and
+ * shown as a blob. Older rows hold a path on the previous server's disk
+ * (`D:\VengurlaTech\…`) rather than an uploaded file; those cannot be reached
+ * over HTTP at all, so the modal explains that instead of failing silently.
+ */
+function DocumentFileModal({ doc, onClose }) {
+  const target = doc ? openableUrl(doc.file_save_path) : null;
+  const reason = doc ? unopenableReason(doc.file_save_path) : null;
+
+  const [src, setSrc] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!target) {
+      setSrc(null);
+      return undefined;
+    }
+    if (!needsAuth(target)) {
+      setSrc(target);
+      return undefined;
+    }
+
+    let cancelled = false;
+    let created = null;
+    setLoading(true);
+    setError(null);
+
+    fetchProtectedUrl(target, api.raw)
+      .then((blobUrl) => {
+        created = blobUrl;
+        if (cancelled) revokeBlobUrl(blobUrl);
+        else setSrc(blobUrl);
+      })
+      .catch((err) => !cancelled && setError(err))
+      .finally(() => !cancelled && setLoading(false));
+
+    return () => {
+      cancelled = true;
+      revokeBlobUrl(created);
+    };
+  }, [target]);
+
+  return (
+    <Modal
+      open={Boolean(doc)}
+      title={doc?.doc_name ? `Document — ${doc.doc_name}` : 'Document'}
+      onClose={onClose}
+      footer={
+        <>
+          {src ? (
+            <a className="btn-secondary" href={src} target="_blank" rel="noreferrer">
+              Open in new tab
+            </a>
+          ) : null}
+          <button type="button" className="btn-secondary" onClick={onClose}>
+            Close
+          </button>
+        </>
+      }
+    >
+      {loading ? <Spinner label="Loading file…" /> : null}
+      <ErrorNotice error={error} />
+      {src ? (
+        <iframe
+          title={`Document ${doc?.doc_name ?? ''}`}
+          src={src}
+          className="h-[60vh] w-full rounded border"
+          style={{ borderColor: '#e3e6f0' }}
+        />
+      ) : null}
+      {!target ? (
+        <p className="text-sm" style={{ color: '#6c757d' }}>
+          {reason}
+        </p>
+      ) : null}
+    </Modal>
   );
 }
 
@@ -1231,14 +1335,14 @@ export function VisitorsPage() {
             <>
               <button
                 type="button"
-                className="btn-secondary mr-2"
+                className="btn-secondary"
                 onClick={() => setDetail(row)}
               >
                 View
               </button>
               <button
                 type="button"
-                className="btn-secondary mr-2"
+                className="btn-secondary"
                 onClick={() => openEdit(row)}
               >
                 Edit
@@ -1246,7 +1350,7 @@ export function VisitorsPage() {
               {row.in_date && !row.out_date ? (
                 <button
                   type="button"
-                  className="btn-secondary mr-2"
+                  className="btn-secondary"
                   onClick={() =>
                     setConfirming({
                       title: 'Check out visitor',

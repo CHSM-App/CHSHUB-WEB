@@ -81,6 +81,11 @@ function date(value, field, { required = true } = {}) {
  * `new Date("14:30")` is Invalid Date, so those columns — all smalldatetime —
  * need the time anchored to a date before mssql can bind it. Anything that is
  * not a bare time falls through to `date()`.
+ *
+ * Anchored in UTC, not local time. The driver sends Dates as UTC, so a local
+ * `new Date(1900, 0, 1, 14, 30)` reaches SQL Server shifted by this machine's
+ * offset — in IST that stored 14:30 as 09:08, and the value read back never
+ * matched the one picked.
  */
 function time(value, field, { required = true } = {}) {
   if (isBlank(value)) {
@@ -93,7 +98,7 @@ function time(value, field, { required = true } = {}) {
 
   const [h, min, sec] = [Number(m[1]), Number(m[2]), Number(m[3] ?? 0)];
   if (h > 23 || min > 59 || sec > 59) throw ApiError.badRequest(`${field} must be a valid time`);
-  return new Date(1900, 0, 1, h, min, sec);
+  return new Date(Date.UTC(1900, 0, 1, h, min, sec));
 }
 
 /** Value restricted to a fixed set — used for SP @operation dispatch. */

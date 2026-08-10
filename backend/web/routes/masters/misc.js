@@ -4,7 +4,7 @@
 // and committee members.
 const express = require('express');
 
-const { query, exec, sql } = require('../../lib/db');
+const { query, exec, sql, getPool } = require('../../lib/db');
 const { ApiError, ok, asyncHandler } = require('../../lib/http');
 const { str, optionalStr, int, num, date, time } = require('../../lib/validate');
 const { requireSociety } = require('../../middleware/authenticate');
@@ -48,19 +48,23 @@ function simpleCrud({
     ...ops,
   };
 
-  router.get(
-    `/${path}`,
-    asyncHandler(async (req, res) => {
-      const search = searchable ? optionalStr(req.query.search, 'search', { max: 200 }) : null;
-      const sendSearch = search || (alwaysSendSearch ? '' : null);
-      const rows = await query(proc, {
-        operation: search ? op.search : op.list,
-        ...(socOnList ? { society_id: socParam(req.societyId) } : {}),
-        ...(sendSearch === null ? {} : { search: { type: sql.NVarChar(200), value: sendSearch } }),
-      });
-      return ok(res, { items: rows, count: rows.length });
-    }),
-  );
+  // `ops.list: false` for screens that register their own GET — same reason
+  // as remove below: Express takes the first matching route.
+  if (op.list !== false) {
+    router.get(
+      `/${path}`,
+      asyncHandler(async (req, res) => {
+        const search = searchable ? optionalStr(req.query.search, 'search', { max: 200 }) : null;
+        const sendSearch = search || (alwaysSendSearch ? '' : null);
+        const rows = await query(proc, {
+          operation: search ? op.search : op.list,
+          ...(socOnList ? { society_id: socParam(req.societyId) } : {}),
+          ...(sendSearch === null ? {} : { search: { type: sql.NVarChar(200), value: sendSearch } }),
+        });
+        return ok(res, { items: rows, count: rows.length });
+      }),
+    );
+  }
 
   router.get(
     `/${path}/:id`,
@@ -106,14 +110,19 @@ function simpleCrud({
     }),
   );
 
-  router.delete(
-    `/${path}/:id`,
-    asyncHandler(async (req, res) => {
-      const id = int(req.params.id, 'id', { min: 1 });
-      await exec(proc, { operation: op.remove, [idField]: { type: sql.Int, value: id } });
-      return ok(res, { deleted: true, id });
-    }),
-  );
+  // `ops.remove: false` for screens whose SP cannot delete correctly — they
+  // register their own DELETE below. Express takes the first matching route,
+  // so an override cannot simply be added after this one.
+  if (op.remove !== false) {
+    router.delete(
+      `/${path}/:id`,
+      asyncHandler(async (req, res) => {
+        const id = int(req.params.id, 'id', { min: 1 });
+        await exec(proc, { operation: op.remove, [idField]: { type: sql.Int, value: id } });
+        return ok(res, { deleted: true, id });
+      }),
+    );
+  }
 }
 
 /* ------------------------------------------------------------------- staff */
@@ -284,13 +293,48 @@ simpleCrud({
 
 /* --------------------------------------------------------------- inventory */
 
+/**
+ * GET /inventory — items received against a vendor bill.
+ *
+ * InventoryMaster.aspx's grid is built on this join: stock enters through
+ * VendorBill.aspx, so having a bill is what the screen means by an inventory
+ * item. Items with no bill (vendor_bill_id 0) are not listed.
+ *
+ * Every bill status except Rejected counts. sp_inventory_master's Grid_Show
+ * accepts only 2 (Approved) and 3 (Paid), which hides an item for as long as
+ * its bill sits at 1 (Pending) — so a line entered on the bill form did not
+ * appear here at all until someone approved it — and drops 5 (Partially Paid)
+ * outright. Its WHERE is also `vb.status=2 OR vb.status=3 AND i.society_id=
+ * @society_id`, and AND binds tighter than OR, so status-2 items leak across
+ * societies. The SP is left alone; the legacy page still calls it.
+ */
 router.get(
   '/inventory',
   asyncHandler(async (req, res) => {
-    const rows = await query('sp_inventory_master', {
-      operation: 'Grid_Show',
-      society_id: SOC(req.societyId),
-    });
+    const pool = await getPool();
+    const result = await pool
+      .request()
+      .input('society_id', sql.NVarChar(50), req.societyId)
+      .query(`
+        SELECT i.item_id, i.item_name, i.warranty, i.tax, i.total_amount, i.quantity,
+               i.unit, i.society_id, i.purchase_date, i.purchase_cost, i.vendor_id,
+               -- Grid_Show omits this, but the edit form has to send it back:
+               -- saved as 0 the item no longer joins to a bill and drops out
+               -- of the grid for good.
+               i.vendor_bill_id,
+               v.vendor_name, i.condition_status, i.last_audit_date, i.remarks,
+               i.created_at, i.updated_at,
+               DATEADD(MONTH, i.warranty, i.purchase_date) AS warranty_last_date
+        FROM dbo.inventory_master i
+        LEFT JOIN dbo.vendor_master v ON i.vendor_id = v.vendor_id
+        INNER JOIN dbo.vendor_bills vb ON vb.bill_id = i.vendor_bill_id
+        WHERE i.society_id = @society_id
+          -- 4 is Rejected: that bill was never received, so its lines are not
+          -- stock. Pending, Approved, Paid and Partially Paid all are.
+          AND vb.status <> 4
+        ORDER BY i.item_id DESC
+      `);
+    const rows = result.recordset ?? [];
     return ok(res, { items: rows, count: rows.length });
   }),
 );
@@ -316,6 +360,28 @@ router.post(
       society_id: SOC(req.societyId),
     });
     return ok(res, { saved: true }, 201);
+  }),
+);
+
+/**
+ * PATCH /inventory/:id/condition — set just the condition.
+ *
+ * InventoryMaster.aspx put a dropdown in each grid row and saved on change via
+ * the SP's `update_Condition`, which touches that one column. Going through
+ * the full UPDATE instead would make the caller resend every field, and any it
+ * left out would be written back as a default.
+ */
+router.put(
+  '/inventory/:id/condition',
+  asyncHandler(async (req, res) => {
+    const id = int(req.params.id, 'id', { min: 1 });
+    const conditionStatus = int(req.body?.conditionStatus, 'conditionStatus', { min: 0, max: 4 });
+    await exec('sp_inventory_master', {
+      operation: 'update_Condition',
+      item_id: { type: sql.Int, value: id },
+      condition_status: { type: sql.Int, value: conditionStatus },
+    });
+    return ok(res, { item_id: id, condition_status: conditionStatus });
   }),
 );
 
@@ -613,6 +679,9 @@ simpleCrud({
   path: 'loans',
   proc: 'sp_loan',
   idField: 'loan_id',
+  // Its Grid_Show cannot name the ids and its Delete branch is broken — both
+  // are handled below.
+  ops: { list: false, remove: false },
   fields: (b) => ({
     bank: { type: sql.NVarChar(50), value: str(b?.bank, 'bank', { max: 50 }) },
     flat_id: { type: sql.Int, value: int(b?.flatId, 'flatId', { min: 1 }) },
@@ -623,6 +692,86 @@ simpleCrud({
     loan_clearance: { type: sql.Date, value: date(b?.loanClearanceDate, 'loanClearanceDate', { required: false }) },
   }),
 });
+
+/**
+ * GET /masters/loans — override of simpleCrud's list.
+ *
+ * sp_loan's Grid_Show returns the loan row alone, so the grid could only show
+ * flat_id, type_id and cert_id — numbers that name nothing. The joins here add
+ * the flat number, loan type and certificate holder the ids point at.
+ */
+router.get(
+  '/loans',
+  asyncHandler(async (req, res) => {
+    const search = optionalStr(req.query.search, 'search', { max: 200 });
+    const pool = await getPool();
+    const result = await pool
+      .request()
+      .input('society_id', sql.NVarChar(10), req.societyId)
+      .input('search', sql.NVarChar(200), search ?? null)
+      .query(`
+        SELECT l.loan_id, l.flat_id, l.bank, l.noc_issued, l.type_id, l.society_noc,
+               l.loan_clearance, l.cert_id, l.society_id,
+               f.flat_no, t.loan_type, c.c_name
+        FROM dbo.loan l
+        LEFT JOIN dbo.flat_master f ON f.flat_id = l.flat_id
+        LEFT JOIN dbo.loan_type t ON t.type_id = l.type_id
+        LEFT JOIN dbo.certificate c ON c.cert_id = l.cert_id
+        WHERE l.society_id = @society_id
+          -- 0 is live here; see the DELETE handler below.
+          AND l.active_status = 0
+          AND (@search IS NULL OR l.bank LIKE @search + '%'
+               OR f.flat_no LIKE @search + '%')
+        ORDER BY l.loan_id DESC
+      `);
+    const rows = result.recordset ?? [];
+    return ok(res, { items: rows, count: rows.length });
+  }),
+);
+
+/**
+ * GET /masters/loans-lookups — the three pickers loan.aspx's modal carried:
+ * flat, loan type and share certificate. Each is a branch of sp_loan.
+ */
+router.get(
+  '/loans-lookups',
+  asyncHandler(async (req, res) => {
+    const soc = SOC(req.societyId);
+    const safe = (p) => p.catch(() => []);
+    const [flats, loanTypes, certificates] = await Promise.all([
+      safe(query('sp_loan', { operation: 'flat_master', society_id: soc })),
+      safe(query('sp_loan', { operation: 'loan_type', society_id: soc })),
+      safe(query('sp_loan', { operation: 'certificate', society_id: soc })),
+    ]);
+    return ok(res, { flats, loanTypes, certificates });
+  }),
+);
+
+/**
+ * DELETE /masters/loans/:id — override, because sp_loan's own Delete does not
+ * delete.
+ *
+ * It runs `active_status = 0`, and Grid_Show lists exactly the rows where
+ * active_status = 0 — so the row came straight back. Every other soft delete
+ * in this database sets 1 (21 procs do; sp_loan alone sets 0), which is what
+ * the branch was meant to say. Written here rather than fixed in the SP
+ * because loan.aspx still calls it.
+ */
+router.delete(
+  '/loans/:id',
+  asyncHandler(async (req, res) => {
+    const id = int(req.params.id, 'id', { min: 1 });
+    const pool = await getPool();
+    const result = await pool
+      .request()
+      .input('loan_id', sql.Int, id)
+      .input('society_id', sql.NVarChar(10), req.societyId)
+      .query('UPDATE loan SET active_status = 1 WHERE loan_id = @loan_id AND society_id = @society_id');
+
+    if (!result.rowsAffected?.[0]) throw ApiError.notFound('Loan not found');
+    return ok(res, { deleted: true, loan_id: id });
+  }),
+);
 
 /* -------------------------------------------------------- society profile */
 

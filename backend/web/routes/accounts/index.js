@@ -180,7 +180,9 @@ router.get(
 
 function shopParams(body) {
   return {
-    mrep_no: { type: sql.NVarChar(200), value: str(body?.reportNo, 'reportNo', { max: 200 }) },
+    // shop_maintenance.mrep_no is nvarchar(50) — declaring 200 here let a
+    // longer receipt no. through validation and silently truncated it.
+    mrep_no: { type: sql.NVarChar(50), value: str(body?.reportNo, 'reportNo', { max: 50 }) },
     m_date: { type: sql.SmallDateTime, value: date(body?.date, 'date', { required: false }) },
     led_id: { type: sql.Int, value: int(body?.ledgerId, 'ledgerId', { min: 1 }) },
     other_details: { type: sql.NVarChar(sql.MAX), value: optionalStr(body?.details, 'details') },
@@ -194,13 +196,13 @@ function shopParams(body) {
 router.post(
   '/shop-maintenance',
   asyncHandler(async (req, res) => {
-    await exec('sp_shop_maintenance', {
+    const created = await exec('sp_shop_maintenance', {
       operation: 'Update',
       shop_maint_id: { type: sql.Int, value: 0 },
       society_id: SOC50(req.societyId),
       ...shopParams(req.body),
     });
-    return ok(res, { created: true }, 201);
+    return ok(res, { shop_maint_id: created?.shop_maint_id ?? null }, 201);
   }),
 );
 
@@ -215,6 +217,22 @@ router.put(
       ...shopParams(req.body),
     });
     return ok(res, { shop_maint_id: id });
+  }),
+);
+
+// The legacy page's delete wrote to shop_vw — a three-table join, which SQL
+// Server refuses — so it never worked and no route was ported. FIX_shop_
+// maintenance.sql points the soft delete at the base table.
+router.delete(
+  '/shop-maintenance/:id',
+  asyncHandler(async (req, res) => {
+    const id = int(req.params.id, 'id', { min: 1 });
+    await exec('sp_shop_maintenance', {
+      operation: 'Delete',
+      shop_maint_id: { type: sql.Int, value: id },
+      society_id: SOC50(req.societyId),
+    });
+    return ok(res, { deleted: true, shop_maint_id: id });
   }),
 );
 

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { EmptyState, Spinner } from './ui.jsx';
+import ExportToolbar from './ExportToolbar.jsx';
 
 /**
  * Production data grid — replaces asp:GridView.
@@ -23,6 +24,8 @@ export default function DataGrid({
   onSelectionChange,
   pageSize = 25,
   sortable = true,
+  searchable = false,
+  searchPlaceholder = 'Search…',
   exportName,
   exportTitle,
   footer,
@@ -31,13 +34,28 @@ export default function DataGrid({
 }) {
   const [sort, setSort] = useState({ key: null, dir: 'asc' });
   const [page, setPage] = useState(0);
-  const [pdfBusy, setPdfBusy] = useState(false);
+  const [search, setSearch] = useState('');
+
+  // Matches against what each column renders, so a search hits the text the
+  // user can actually see rather than the raw record.
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return rows;
+    return rows.filter((r) =>
+      columns.some((c) => {
+        const v = c.render ? c.render(r[c.key], r) : r[c.key];
+        return typeof v === 'object' && v !== null
+          ? String(r[c.key] ?? '').toLowerCase().includes(term)
+          : String(v ?? '').toLowerCase().includes(term);
+      }),
+    );
+  }, [rows, columns, search]);
 
   const sorted = useMemo(() => {
-    if (!sort.key) return rows;
+    if (!sort.key) return filtered;
     const col = columns.find((c) => c.key === sort.key);
     const get = (r) => (col?.sortValue ? col.sortValue(r) : r[sort.key]);
-    return [...rows].sort((a, b) => {
+    return [...filtered].sort((a, b) => {
       const av = get(a);
       const bv = get(b);
       if (av == null) return 1;
@@ -48,7 +66,7 @@ export default function DataGrid({
           : String(av).localeCompare(String(bv), undefined, { numeric: true });
       return sort.dir === 'asc' ? cmp : -cmp;
     });
-  }, [rows, sort, columns]);
+  }, [filtered, sort, columns]);
 
   const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
   const safePage = Math.min(page, pageCount - 1);
@@ -81,46 +99,6 @@ export default function DataGrid({
     );
   };
 
-  /** CSV export — the legacy pages' "Export to Excel" button. */
-  const exportCsv = () => {
-    const head = columns.map((c) => `"${c.label}"`).join(',');
-    const body = sorted
-      .map((r) =>
-        columns
-          .map((c) => {
-            const v = c.exportValue ? c.exportValue(r) : r[c.key];
-            return `"${String(v ?? '').replace(/"/g, '""')}"`;
-          })
-          .join(','),
-      )
-      .join('\n');
-    const blob = new Blob([`${head}\n${body}`], { type: 'text/csv;charset=utf-8;' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `${exportName || 'export'}-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  };
-
-  /** PDF export — the legacy pages' "Download PDF" button. */
-  const exportPdf = async () => {
-    setPdfBusy(true);
-    try {
-      const { tableToPdf } = await import('@/lib/pdf');
-      await tableToPdf({
-        columns,
-        rows: sorted,
-        title: exportTitle ?? exportName,
-        filename: exportName || 'export',
-      });
-    } catch (err) {
-      // A failed export should report itself, not disappear into the console.
-      window.alert(`Could not create the PDF: ${err.message}`);
-    } finally {
-      setPdfBusy(false);
-    }
-  };
-
   if (loading) return <Spinner />;
   if (!rows.length) return <EmptyState title={emptyTitle} hint={emptyHint} />;
 
@@ -128,23 +106,29 @@ export default function DataGrid({
 
   return (
     <div>
-      {exportName ? (
-        <div className="flex justify-end gap-2 border-b border-slate-200 px-4 py-2 print:hidden">
-          <button type="button" className="btn-secondary text-xs" onClick={exportCsv}>
-            Export to Excel
-          </button>
-          <button
-            type="button"
-            className="btn-secondary text-xs"
-            onClick={exportPdf}
-            disabled={pdfBusy}
-          >
-            {pdfBusy ? 'Preparing…' : 'Download PDF'}
-          </button>
-          <button type="button" className="btn-secondary text-xs" onClick={() => window.print()}>
-            Print
-          </button>
+      {searchable ? (
+        <div className="px-4 pt-3 print:hidden">
+          <input
+            type="search"
+            className="field-input w-full sm:max-w-xs"
+            placeholder={searchPlaceholder}
+            value={search}
+            aria-label={searchPlaceholder}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(0);
+            }}
+          />
         </div>
+      ) : null}
+
+      {exportName ? (
+        <ExportToolbar
+          columns={columns}
+          rows={sorted}
+          exportName={exportName}
+          exportTitle={exportTitle}
+        />
       ) : null}
 
       {/* Table view */}
@@ -189,6 +173,18 @@ export default function DataGrid({
             </tr>
           </thead>
           <tbody>
+            {/* Without this a filtered-to-nothing search shows bare headers and
+                reads as "there is no data" rather than "nothing matched". */}
+            {!sorted.length ? (
+              <tr>
+                <td
+                  className="table-cell px-4 py-6 text-center text-sm text-slate-500"
+                  colSpan={columns.length + (selectable ? 1 : 0) + (actions ? 1 : 0)}
+                >
+                  No records match “{search}”.
+                </td>
+              </tr>
+            ) : null}
             {visible.map((row, i) => (
               <tr key={row[idKey] ?? i} className="hover:bg-slate-50">
                 {selectable ? (
@@ -219,7 +215,7 @@ export default function DataGrid({
                 */}
                 {actions ? (
                   <td className={`table-cell ${cellPad} w-px whitespace-nowrap print:hidden`}>
-                    <div className="flex items-center justify-end">{actions(row)}</div>
+                    <div className="flex items-center justify-end gap-2">{actions(row)}</div>
                   </td>
                 ) : null}
               </tr>
@@ -243,7 +239,7 @@ export default function DataGrid({
                 </div>
               ))}
               {actions ? (
-                <div className="flex flex-wrap justify-end gap-y-1 pt-2">{actions(row)}</div>
+                <div className="flex flex-wrap justify-end gap-2 gap-y-1 pt-2">{actions(row)}</div>
               ) : null}
             </li>
           ))}

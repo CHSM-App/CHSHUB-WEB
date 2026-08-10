@@ -31,6 +31,8 @@ import * as MP from './pages/masters/MasterPages.jsx';
 import * as CP from './pages/community/CommunityPages.jsx';
 import * as VP from './pages/village/VillagePages.jsx';
 import { AuditPage as AuditFullPage, BalanceSheetEditorPage } from './pages/reports/AuditBalancePages.jsx';
+import ShopMaintenanceReport from './pages/reports/ShopMaintenanceReport.jsx';
+import OwnerwiseMaintenanceReport from './pages/reports/OwnerwiseMaintenanceReport.jsx';
 
 import { PdcPage, PdcClearingPage } from './pages/billing/PdcPage.jsx';
 import {
@@ -44,7 +46,6 @@ import {
   ProfitLossPage,
   AgmReportPage,
   BalanceSheetPage,
-  OwnerLedgerPage,
 } from './pages/reports/FinancialReports.jsx';
 
 import * as S from './pages/screens.jsx';
@@ -136,7 +137,10 @@ export default function App() {
         <Route path="/reports/profit-loss" element={<ProfitLossPage />} />
         <Route path="/reports/agm" element={<AgmReportPage />} />
         <Route path="/reports/balance-sheet" element={<BalanceSheetEditorPage />} />
-        <Route path="/reports/owner-ledger" element={<OwnerLedgerPage />} />
+        {/* ownerwise_maintenance.aspx — replaces the ?ownerId=-only OwnerLedgerPage */}
+        <Route path="/reports/owner-ledger" element={<OwnerwiseMaintenanceReport />} />
+        {/* printshop.aspx */}
+        <Route path="/reports/shop-maintenance" element={<ShopMaintenanceReport />} />
 
         {/* Settings */}
         <Route path="/settings/accounts" element={<AccountSettingsPage />} />

@@ -45,8 +45,11 @@
 @layer components {
   /* Bootstrap .btn geometry: 0.375rem 0.75rem, 0.25rem radius, 1rem text. */
   .btn {
+    /* no-underline because several of these are <a>/<Link> rather than
+       <button> — a link styled as a button was keeping its underline and did
+       not match the buttons beside it. */
     @apply inline-flex items-center justify-center gap-2 text-center align-middle
-           transition-colors disabled:cursor-not-allowed disabled:opacity-65;
+           no-underline transition-colors disabled:cursor-not-allowed disabled:opacity-65;
     padding: 0.375rem 0.75rem;
     border-radius: 0.25rem;
     font-size: 0.875rem;
@@ -231,6 +234,14 @@
 
   main {
     padding: 0 !important;
+  }
+
+  /* A dialog prints on its own: the page behind it would otherwise be laid
+     out first and the dialog's contents appended after it. Modal sets this
+     class on <body> while it is open and portals itself to <body>, so the
+     app shell can be hidden without taking the dialog with it. */
+  body.modal-open > div:not(.modal-root) {
+    display: none !important;
   }
 
   .card {

@@ -105,7 +105,9 @@ const NAV = [
         label: 'Reports & Analytics',
         icon: 'chart',
         items: [
-          { to: '/accounts/shop-maintenance', label: 'Shop Maintenance' },
+          // Was pointing at the data-entry page, which Society Management
+          // already links to. printshop.aspx is the report this section meant.
+          { to: '/reports/shop-maintenance', label: 'Shop Maintenance' },
           { to: '/reports/owner-ledger', label: 'Ownerwise Maintenance' },
           { to: '/reports/profit-loss', label: 'Annual income & expenditure' },
           { to: '/reports/balance-sheet', label: 'Balance Sheet' },
@@ -116,6 +118,9 @@ const NAV = [
         icon: 'cogs',
         items: [
           { to: '/community/suggestions', label: 'Suggestion' },
+          // Rates and bill-generation settings. Routed all along, but nothing
+          // in the menu reached it.
+          { to: '/settings/accounts', label: 'Billing Settings' },
           { to: '/settings/terms', label: 'Terms & Conditions' },
         ],
       },

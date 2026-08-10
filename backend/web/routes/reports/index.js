@@ -4,7 +4,7 @@
 const express = require('express');
 
 const { query, exec, sql } = require('../../lib/db');
-const { ok, asyncHandler } = require('../../lib/http');
+const { ok, asyncHandler, ApiError } = require('../../lib/http');
 const { int, num, str, date, optionalStr } = require('../../lib/validate');
 const { requireSociety } = require('../../middleware/authenticate');
 
@@ -100,7 +100,20 @@ router.get(
   }),
 );
 
-/** GET /reports/owner-ledger?ownerId=&buildingId=&from=&to= */
+/**
+ * GET /reports/owner-ledger?ownerId=&buildingId=&from=&to=
+ * ownerwise_maintenance.aspx — "Owner wise Maintenance Bill Reports".
+ *
+ * The SP returns four kinds of row, tagged by `seq`: 1 opening balance,
+ * 2 the transactions, 3 total balance, 4 closing balance. The legacy grid
+ * highlighted 1, 3 and 4 with CSS nth-child rules; `seq` carries that
+ * intent properly, so the page colours off it.
+ *
+ * Its Period and transaction CTEs both filter on build_id, so a request
+ * without one returns the balance rows and no transactions at all — the
+ * legacy page always had a building selected (Page_Load defaulted it to 1),
+ * so buildingId is required here rather than quietly defaulting to 0.
+ */
 router.get(
   '/owner-ledger',
   asyncHandler(async (req, res) => {
@@ -108,11 +121,22 @@ router.get(
       operation: 'ownerwise_maintenance',
       society_id: SOC50(req.societyId),
       owner_id: { type: sql.Int, value: int(req.query.ownerId, 'ownerId', { min: 1 }) },
-      build_id: { type: sql.Int, value: int(req.query.buildingId, 'buildingId', { required: false, default: 0 }) },
+      build_id: { type: sql.Int, value: int(req.query.buildingId, 'buildingId', { min: 1 }) },
       date1: { type: sql.SmallDateTime, value: date(req.query.from, 'from') },
       date2: { type: sql.SmallDateTime, value: date(req.query.to, 'to') },
     });
-    return ok(res, { items: rows, count: rows.length });
+
+    // Only seq = 2 rows are real transactions; the rest are computed balances
+    // and would double-count in a total.
+    const tx = rows.filter((r) => Number(r.seq) === 2);
+    return ok(res, {
+      items: rows,
+      count: tx.length,
+      totals: {
+        maintenance: tx.reduce((s, r) => s + Number(r.Maintenance || 0), 0),
+        payment: tx.reduce((s, r) => s + Number(r.Payment || 0), 0),
+      },
+    });
   }),
 );
 
@@ -267,6 +291,49 @@ router.get(
   }),
 );
 
+/**
+ * GET /reports/shop-maintenance?payMethod=&date= — printshop.aspx's report.
+ *
+ * The legacy page built its WHERE clause by concatenating the two filter boxes
+ * straight into SQL (`pay_method like '<text>%'`, `m_date = '<text>'`) and ran
+ * it through a raw command. Both branches read the same shop_vw rows the
+ * Grid_Show branch returns, so this asks the SP for those and filters here —
+ * same result, without the injection.
+ *
+ * The filter values are the distinct pay_method values already on the society's
+ * rows, which is what filldrop() offered in the dropdown.
+ */
+router.get(
+  '/shop-maintenance',
+  asyncHandler(async (req, res) => {
+    const payMethod = optionalStr(req.query.payMethod, 'payMethod', { max: 50 });
+    const on = date(req.query.date, 'date', { required: false });
+
+    const rows = await query('sp_shop_maintenance', {
+      operation: 'Grid_Show',
+      society_id: SOC50(req.societyId),
+    });
+
+    // `like '<text>%'` in the original — a prefix match, not equality.
+    const byMethod = payMethod
+      ? rows.filter((r) => String(r.pay_method ?? '').toLowerCase().startsWith(payMethod.toLowerCase()))
+      : rows;
+    const items = on
+      ? byMethod.filter((r) => r.m_date && new Date(r.m_date).toDateString() === on.toDateString())
+      : byMethod;
+
+    // The dropdown listed the methods present on this society's rows.
+    const payMethods = [...new Set(rows.map((r) => r.pay_method).filter(Boolean))].sort();
+
+    return ok(res, {
+      items,
+      count: items.length,
+      total: items.reduce((s, r) => s + Number(r.amt || 0), 0),
+      payMethods,
+    });
+  }),
+);
+
 /* ------------------------------------------------------------------- audit */
 
 router.get(
@@ -322,16 +389,62 @@ router.post(
 router.post(
   '/audit/questions',
   asyncHandler(async (req, res) => {
+    const headerId = int(req.body?.headerId, 'headerId', { required: false, default: 0 });
+
+    // A question saved against another society's header is returned by
+    // get_questions but its header is not returned by get_main_points, so the
+    // page shows it as "unsectioned" with no way to fix it. The SP now rejects
+    // this too; checking here turns that into a clear 400 rather than the
+    // generic 500 a RAISERROR would produce.
+    const [header] = await query('sp_auditor_question_master', {
+      operation: 'get_main_points',
+      society_id: SOC(req.societyId),
+    }).then((rows) => rows.filter((r) => Number(r.audt_header_id) === headerId));
+
+    if (!header) throw ApiError.badRequest('That audit section does not belong to this society');
+
     await exec('sp_auditor_question_master', {
       operation: 'Update',
       audt_ques_id: { type: sql.Int, value: int(req.body?.questionId, 'questionId', { required: false, default: 0 }) },
       question_desc: { type: sql.NVarChar(sql.MAX), value: optionalStr(req.body?.question, 'question') },
       answer_desc: { type: sql.NVarChar(500), value: optionalStr(req.body?.answer, 'answer', { max: 500 }) },
       status_id: { type: sql.Int, value: int(req.body?.statusId, 'statusId', { required: false, default: 1 }) },
-      audit_header_id: { type: sql.Int, value: int(req.body?.headerId, 'headerId', { required: false, default: 0 }) },
+      audit_header_id: { type: sql.Int, value: headerId },
       society_id: SOC(req.societyId),
     });
     return ok(res, { saved: true }, 201);
+  }),
+);
+
+/**
+ * POST /reports/audit/headers/sequence — reorder the sections.
+ *
+ * Audit.aspx let the auditor drag the main points into order and saved the
+ * whole arrangement in one go (btnSaveSequence_Click looped the dragged list
+ * through the SP's Update_Sequence branch). get_main_points already returns
+ * them ordered by SequenceOrder, so this is what makes that ordering settable.
+ */
+router.post(
+  '/audit/headers/sequence',
+  asyncHandler(async (req, res) => {
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    if (items.length === 0) throw ApiError.badRequest('items is required');
+
+    // Validated up front so a bad entry cannot leave the order half-applied.
+    const ordered = items.map((item, i) => ({
+      headerId: int(item?.headerId, `items[${i}].headerId`, { min: 1 }),
+      sequence: int(item?.sequence, `items[${i}].sequence`, { min: 1 }),
+    }));
+
+    for (const { headerId, sequence } of ordered) {
+      await exec('sp_auditor_question_master', {
+        operation: 'Update_Sequence',
+        audit_header_id: { type: sql.Int, value: headerId },
+        sequence: { type: sql.Int, value: sequence },
+        society_id: SOC(req.societyId),
+      });
+    }
+    return ok(res, { saved: true, count: ordered.length });
   }),
 );
 

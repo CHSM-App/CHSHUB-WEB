@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import * as M from '@/api/modules';
 import { flats } from '@/api/masters';
 import { api } from '@/api/client';
@@ -27,6 +28,24 @@ const day = (v) => (v ? new Date(v).toLocaleDateString() : '—');
 const toDateInput = (v) => (v ? String(v).slice(0, 10) : '');
 
 /**
+ * A yyyy-mm-dd date shifted forward by whole months, as SQL Server's DATEADD
+ * does it — 31 Jan + 1 month is 28 Feb, not 3 March. `Date.setMonth` overflows
+ * into the next month instead, so the day is clamped to the target month's
+ * length. Kept in step with the grid's DATEADD(MONTH, ...) column.
+ */
+function addMonths(date, months) {
+  const s = String(date ?? '').slice(0, 10);
+  const n = Number(months);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s) || !Number.isFinite(n)) return '';
+
+  const [y, m, d] = s.split('-').map(Number);
+  const target = new Date(Date.UTC(y, m - 1 + n, 1));
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  target.setUTCDate(Math.min(d, lastDay));
+  return target.toISOString().slice(0, 10);
+}
+
+/**
  * Shared scaffold for the master screens: search, grid, modal form, delete.
  *
  * Unlike the earlier GenericCrudPage this uses DataGrid (sorting, paging, CSV
@@ -51,6 +70,8 @@ function MasterScreen({
   validate,
   emptyHint,
   extraActions,
+  headerActions,
+  filterRow,
 }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -61,18 +82,24 @@ function MasterScreen({
   const [form, setForm] = useState(null);
   const [confirming, setConfirming] = useState(null);
 
+  // `filterRow` screens narrow the loaded rows in the browser, so the term is
+  // not a query parameter. It is also kept out of the dependencies below:
+  // leaving it in rebuilt `load` on every keystroke, and the effect that calls
+  // it refetched the whole list each time — for a search the server never sees.
+  const queryTerm = filterRow ? '' : search;
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await resource.list(search ? { search } : undefined);
+      const data = await resource.list(queryTerm ? { search: queryTerm } : undefined);
       setRows(data.items ?? []);
     } catch (err) {
       setError(err);
     } finally {
       setLoading(false);
     }
-  }, [resource, search]);
+  }, [resource, queryTerm]);
 
   useEffect(() => {
     load();
@@ -93,6 +120,12 @@ function MasterScreen({
     () => Object.fromEntries(fields.map((f) => [f.name, f.default ?? ''])),
     [fields],
   );
+
+  const visibleRows = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!filterRow || !term) return rows;
+    return rows.filter((r) => filterRow(r, term));
+  }, [rows, search, filterRow]);
 
   const setField = (key) => (e) => {
     const { value, type, checked } = e.target;
@@ -123,7 +156,14 @@ function MasterScreen({
 
   return (
     <section>
-      <PageHeader title={title} subtitle={`${rows.length} record(s)`}>
+      <PageHeader
+        title={title}
+        subtitle={
+          visibleRows.length === rows.length
+            ? `${rows.length} record(s)`
+            : `${visibleRows.length} of ${rows.length} record(s)`
+        }
+      >
         {searchable ? (
           <input
             className="field-input w-56"
@@ -133,6 +173,8 @@ function MasterScreen({
             aria-label={`Search ${title}`}
           />
         ) : null}
+        {/* Screens whose legacy page carried an extra toolbar button. */}
+        {headerActions}
         {canCreate ? (
           <button type="button" className="btn-primary" onClick={() => setForm({ ...blank })}>
             Add
@@ -147,7 +189,7 @@ function MasterScreen({
       <div className="card overflow-hidden">
         <DataGrid
           columns={columns}
-          rows={rows}
+          rows={visibleRows}
           idKey={idKey}
           loading={loading}
           exportName={title.toLowerCase().replace(/\s+/g, '-')}
@@ -159,7 +201,7 @@ function MasterScreen({
               {/* Compact, so screens with extra actions still fit one line. */}
               <button
                 type="button"
-                className="btn-secondary mr-1 px-2 text-xs"
+                className="btn-secondary px-2 text-xs"
                 onClick={() => setForm({ ...toForm(row), __id: row[idKey] })}
               >
                 Edit
@@ -202,6 +244,9 @@ function MasterScreen({
         {form ? (
           <form id="master-form" onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2" noValidate>
             {fields.map((f) => {
+              // Values computed from other fields, recalculated as they change
+              // — the legacy pages did this with an AutoPostBack per input.
+              const derived = f.derive ? f.derive(form) : undefined;
               const span = f.span === 2 ? 'sm:col-span-2' : '';
               const common = {
                 key: f.name,
@@ -210,7 +255,7 @@ function MasterScreen({
                 required: f.required,
                 hint: f.hint,
                 className: span,
-                value: form[f.name] ?? '',
+                value: derived !== undefined ? derived : (form[f.name] ?? ''),
                 onChange: setField(f.name),
               };
               if (f.type === 'select') {
@@ -454,7 +499,7 @@ export function StaffMasterPage() {
               in a modal. */}
           <button
             type="button"
-            className="btn-secondary mr-1 px-2 text-xs"
+            className="btn-secondary px-2 text-xs"
             title={`View ID proof for ${row.name}`}
             onClick={() => setViewingFile({ path: row.id_path, name: row.name, label: 'ID proof' })}
           >
@@ -462,7 +507,7 @@ export function StaffMasterPage() {
           </button>
           <button
             type="button"
-            className="btn-secondary mr-1 px-2 text-xs"
+            className="btn-secondary px-2 text-xs"
             title={`Attendance for ${row.name}`}
             onClick={() => setAttendanceFor(row)}
           >
@@ -639,31 +684,157 @@ const inventoryResource = {
   remove: (id) => api.delete(`/masters/inventory/${id}`),
 };
 
+/**
+ * The condition codes InventoryMaster.aspx's grid dropdown wrote.
+ *
+ * These had drifted: this page previously offered Good/Needs repair/Damaged/
+ * Written off as 0-3, so a row saved here as "Good" (0) reads as the legacy
+ * page's "Select" — i.e. unset — and every other value named a different
+ * condition than the one stored. The legacy list is authoritative because the
+ * data was written against it.
+ */
 const CONDITIONS = [
-  { value: '0', label: 'Good' },
-  { value: '1', label: 'Needs repair' },
-  { value: '2', label: 'Damaged' },
-  { value: '3', label: 'Written off' },
+  { value: '0', label: 'Select' },
+  { value: '1', label: 'New' },
+  { value: '2', label: 'Good' },
+  { value: '3', label: 'Needs repair' },
+  { value: '4', label: 'Disposed' },
 ];
 
+/**
+ * The same list for the edit form, without the legacy "Select" entry.
+ *
+ * Code 0 means no condition recorded, which is what SelectField's own
+ * placeholder option already stands for — offering both put "Select" in the
+ * dropdown twice. The grid's plain <select> has no placeholder of its own, so
+ * it keeps the full list and can still show a stored 0.
+ */
+const CONDITION_CHOICES = CONDITIONS.filter((c) => c.value !== '0');
+
+const CONDITION_LABEL = Object.fromEntries(CONDITIONS.map((c) => [c.value, c.label]));
+
+/**
+ * The grid's condition dropdown, which saves as soon as it changes.
+ *
+ * InventoryMaster.aspx put this in every row with AutoPostBack, so marking an
+ * item as needing repair took one click rather than opening the edit form.
+ *
+ * The edited value is held by the page rather than this component: DataGrid
+ * renders a table and a stacked-card list from the same rows, so each item has
+ * two of these on screen and per-cell state would leave the hidden one showing
+ * a stale value once the breakpoint changed.
+ *
+ * The grid is not reloaded after a save — the request writes this one column,
+ * so the selection already shows what is stored. A failure puts the previous
+ * value back rather than leaving the box showing something the database does
+ * not hold.
+ */
+function ConditionCell({ row, value, onSaved }) {
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  // What the row itself holds, which is what the override is recorded against.
+  const stored = String(row.condition_status ?? '0');
+
+  const change = async (next) => {
+    const previous = value;
+    onSaved(row.item_id, next, stored);
+    setBusy(true);
+    setFailed(false);
+    try {
+      await api.put(`/masters/inventory/${row.item_id}/condition`, {
+        conditionStatus: Number(next),
+      });
+    } catch {
+      onSaved(row.item_id, previous, stored);
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <span className="inline-flex items-center gap-1">
+      <select
+        className="field-input px-2 py-1 text-xs"
+        value={value}
+        disabled={busy}
+        aria-label={`Condition for ${row.item_name ?? 'item'}`}
+        onChange={(e) => change(e.target.value)}
+      >
+        {CONDITIONS.map((c) => (
+          <option key={c.value} value={c.value}>
+            {c.label}
+          </option>
+        ))}
+      </select>
+      {failed ? (
+        <span className="text-xs text-red-600" role="alert">
+          Not saved
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 export function InventoryMasterPage() {
+  // Conditions changed in the grid since the row was loaded, by item_id.
+  // Shared by the table and card renderings of the same row — see
+  // ConditionCell.
+  //
+  // Each entry records the row value it was applied over. Saving the edit form
+  // reloads the grid, and a reloaded row already carries whatever was stored;
+  // once the row no longer shows the old value the override has been overtaken
+  // and is dropped, so it cannot mask a later change made elsewhere.
+  const [conditions, setConditions] = useState({});
+  const setCondition = useCallback(
+    (itemId, value, wasValue) =>
+      setConditions((p) => ({ ...p, [itemId]: { value, over: wasValue } })),
+    [],
+  );
+  const conditionOf = useCallback(
+    (row) => {
+      const stored = String(row.condition_status ?? '0');
+      const edit = conditions[row.item_id];
+      return edit && edit.over === stored ? edit.value : stored;
+    },
+    [conditions],
+  );
+
   return (
     <MasterScreen
       title="Inventory"
       resource={inventoryResource}
       idKey="item_id"
-      searchable={false}
+      // InventoryMaster.aspx's search box filtered the rendered table on
+      // keyup rather than querying — there is no search operation on this
+      // endpoint — so the same filtering happens here over the loaded rows.
+      filterRow={(r, term) =>
+        [r.item_name, r.vendor_name, r.unit, r.remarks, CONDITION_LABEL[conditionOf(r)]]
+          .some((v) => String(v ?? '').toLowerCase().includes(term))
+      }
+      // Stock enters through a vendor bill, as it does in the legacy app —
+      // InventoryMaster.aspx's "Add New Item" button is commented out and its
+      // grid only lists items billed against an approved vendor bill. Adding
+      // one here would save a row the grid then refuses to show.
+      canCreate={false}
+      headerActions={
+        <Link to="/accounts/vendor-bills" className="btn-primary">
+          Vendor Bills
+        </Link>
+      }
+      emptyHint="Items appear here once they are received against an approved vendor bill."
+      // Column order follows InventoryMaster.aspx's grid: item, vendor, date,
+      // quantity, warranty, total — then Condition last, immediately before
+      // the row actions, which is where the legacy dropdown sat. Unit and
+      // purchase cost have no legacy column; they follow the ones that do.
       columns={[
         { key: 'item_name', label: 'Item' },
-        { key: 'quantity', label: 'Qty', align: 'right' },
-        { key: 'unit', label: 'Unit' },
         { key: 'vendor_name', label: 'Vendor' },
-        { key: 'purchase_date', label: 'Purchased', render: day },
-        { key: 'purchase_cost', label: 'Cost', align: 'right', render: money },
-        { key: 'total_amount', label: 'Value', align: 'right', render: money },
+        { key: 'purchase_date', label: 'Date', render: day },
+        { key: 'quantity', label: 'Quantity', align: 'right' },
         {
           key: 'warranty_last_date',
-          label: 'Warranty until',
+          label: 'Warranty',
           render: (v) => {
             if (!v) return '—';
             const expired = new Date(v) < new Date();
@@ -675,6 +846,19 @@ export function InventoryMasterPage() {
             );
           },
         },
+        { key: 'total_amount', label: 'Total amount', align: 'right', render: money },
+        { key: 'unit', label: 'Unit' },
+        { key: 'purchase_cost', label: 'Cost', align: 'right', render: money },
+        // Editable in place, as the legacy grid had it — last data column,
+        // directly before Edit/Delete.
+        {
+          key: 'condition_status',
+          label: 'Condition',
+          render: (_v, row) => (
+            <ConditionCell row={row} value={conditionOf(row)} onSaved={setCondition} />
+          ),
+          exportValue: (row) => CONDITION_LABEL[conditionOf(row)] ?? '',
+        },
       ]}
       // Order follows InventoryMaster.aspx: item > date > cost > quantity >
       // warranty months > remark. (The legacy warranty-last-date box was
@@ -683,14 +867,33 @@ export function InventoryMasterPage() {
       // Unit, tax, total and condition have no legacy counterpart and follow after.
       fields={[
         { name: 'name', label: 'Item name', required: true },
+        // The vendor comes from the bill the item was received against, so it
+        // is shown but not editable — changing it here would say the stock
+        // arrived from someone other than the bill records.
+        {
+          name: 'vendorName',
+          label: 'Vendor name',
+          readOnly: true,
+          hint: 'From the vendor bill this item was received against.',
+        },
         { name: 'purchaseDate', label: 'Purchase date', type: 'date' },
         { name: 'purchaseCost', label: 'Purchase cost', type: 'number', step: '0.01' },
         { name: 'quantity', label: 'Quantity', type: 'number' },
         { name: 'warrantyMonths', label: 'Warranty (months)', type: 'number' },
+        // InventoryMaster.aspx showed this as a read-only box recomputed from
+        // purchase date + months. There is no column for it — the grid derives
+        // it with DATEADD — so it stays derived here too.
+        {
+          name: 'warrantyLastDate',
+          label: 'Warranty last date',
+          readOnly: true,
+          hint: 'Purchase date plus the warranty months.',
+          derive: (f) => addMonths(f.purchaseDate, f.warrantyMonths),
+        },
         { name: 'unit', label: 'Unit' },
         { name: 'tax', label: 'Tax', type: 'number', step: '0.01' },
         { name: 'totalAmount', label: 'Total amount', type: 'number', step: '0.01' },
-        { name: 'conditionStatus', label: 'Condition', type: 'select', options: CONDITIONS },
+        { name: 'conditionStatus', label: 'Condition', type: 'select', options: CONDITION_CHOICES },
         { name: 'remarks', label: 'Remarks', type: 'textarea', span: 2 },
       ]}
       toForm={(r) => ({
@@ -702,8 +905,18 @@ export function InventoryMasterPage() {
         totalAmount: r.total_amount ?? '',
         purchaseDate: toDateInput(r.purchase_date),
         warrantyMonths: r.warranty ?? '',
-        conditionStatus: String(r.condition_status ?? '0'),
+        // A condition changed in the grid is saved but the row still carries
+        // the value it was loaded with, so the override has to win here too.
+        // Reading r.condition_status alone showed the form the old value —
+        // and saving the form then wrote that stale value straight back.
+        conditionStatus: conditionOf(r),
         remarks: r.remarks ?? '',
+        // Shown read-only; carried so the save does not blank them. vendorId
+        // and vendorBillId were missing entirely, so editing an item detached
+        // it from its vendor and bill — both went back as 0.
+        vendorName: r.vendor_name ?? '',
+        vendorId: r.vendor_id ?? '',
+        vendorBillId: r.vendor_bill_id ?? '',
       })}
       validate={(f) => (String(f.name).trim() ? null : 'Item name is required')}
       stats={(rows) => (
@@ -1055,7 +1268,7 @@ export function ParkingAllotmentPage() {
               */}
               <button
                 type="button"
-                className="btn-secondary mr-1 px-2 text-xs"
+                className="btn-secondary px-2 text-xs"
                 title={`Change the place allotted to ${row.vehicle_no}`}
                 onClick={() =>
                   setForm({
@@ -1421,7 +1634,7 @@ export function CommitteeMembersPage() {
           emptyTitle="No Record Found"
           actions={(row) => (
             <>
-              <button type="button" className="btn-secondary mr-2" onClick={() => openEdit(row)}>
+              <button type="button" className="btn-secondary" onClick={() => openEdit(row)}>
                 Edit
               </button>
               <button type="button" className="btn-danger" onClick={() => setConfirming(row)}>

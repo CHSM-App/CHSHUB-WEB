@@ -227,7 +227,7 @@ export default function SocietyExpensePage() {
           emptyTitle="No expenses recorded"
           actions={(row) => (
             <>
-              <button type="button" className="btn-secondary mr-2" onClick={() => openEdit(row)}>
+              <button type="button" className="btn-secondary" onClick={() => openEdit(row)}>
                 Edit
               </button>
               <button

@@ -8,6 +8,9 @@ export const onboarding = {
   register: (body) => api.post('/onboarding/register', body),
   forgotPassword: (body) => api.post('/onboarding/forgot-password', body),
   changePassword: (body) => api.post('/onboarding/change-password', body),
+  /** The signed-in user's own account — the Profile modal from Site.Master. */
+  profile: () => api.get('/onboarding/profile'),
+  saveProfile: (body) => api.put('/onboarding/profile', body),
   saveSociety: (id, body) => api.put(`/onboarding/societies/${id}`, body),
   saveVillage: (id, body) => api.put(`/onboarding/villages/${id}`, body),
 };

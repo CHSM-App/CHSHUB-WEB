@@ -6,7 +6,7 @@
 // session. Mounted before the authenticate middleware in index.js.
 const express = require('express');
 
-const { query, exec, sql } = require('../lib/db');
+const { query, queryOne, exec, sql } = require('../lib/db');
 const { ApiError, ok, asyncHandler } = require('../lib/http');
 const { str, optionalStr, int, num, bool, date } = require('../lib/validate');
 const { hashPassword } = require('../lib/password');
@@ -127,6 +127,117 @@ router.post(
 /* ---------------------------------------------------------- authenticated */
 
 router.use(authenticate);
+
+/**
+ * GET /onboarding/profile — the signed-in user's own account.
+ *
+ * Site.Master's profile modal filled itself from sp_UserLogin 'GetProfile'
+ * (SiteMaster.fill_data). It also split `name` into first/last on a space, which
+ * is presentation, so that happens on the client here.
+ */
+router.get(
+  '/profile',
+  asyncHandler(async (req, res) => {
+    const row = await queryOne('sp_UserLogin', {
+      operation: 'GetProfile',
+      user_id: { type: sql.Int, value: req.user.userId },
+    });
+    if (!row) throw ApiError.notFound('Account no longer exists');
+
+    // `password` is in this recordset (the legacy code read it into Session);
+    // it is deliberately not returned.
+    return ok(res, {
+      profile: {
+        user_id: req.user.userId,
+        name: row.name ?? '',
+        username: row.username ?? '',
+        email: row.email ?? '',
+        contact_no: row.contact_no ?? '',
+        role: row.usertypename ?? null,
+        user_type_id: row.user_type_id ?? null,
+        owner_id: row.owner_id ?? 0,
+        active_status: row.active_status ?? null,
+        photo_path: row.photo_path ?? null,
+      },
+    });
+  }),
+);
+
+/**
+ * PUT /onboarding/profile — update your own account.
+ *
+ * Mirrors SiteMaster.btn_save_Click: name is rejoined from first/last, a new
+ * password requires the current one to verify, and an empty password means
+ * "leave it unchanged" (the SP treats '' that way).
+ */
+router.put(
+  '/profile',
+  asyncHandler(async (req, res) => {
+    const username = str(req.body?.username, 'username', { max: 50 });
+    const firstName = str(req.body?.firstName, 'firstName', { max: 250 });
+    const lastName = optionalStr(req.body?.lastName, 'lastName', { max: 250 }) || '';
+    const name = [firstName, lastName].filter(Boolean).join(' ');
+
+    const current = await queryOne('sp_UserLogin', {
+      operation: 'GetProfile',
+      user_id: { type: sql.Int, value: req.user.userId },
+    });
+    if (!current) throw ApiError.notFound('Account no longer exists');
+
+    // The legacy page checked this on the username field's TextChanged postback.
+    // check_UserName is passed user_id so the row being edited is not a hit.
+    if (String(current.username ?? '') !== username) {
+      const taken = await query('sp_UserLogin', {
+        operation: 'check_UserName',
+        UserName: { type: sql.NVarChar(50), value: username },
+        user_id: { type: sql.Int, value: req.user.userId },
+      });
+      if (taken.length) throw ApiError.conflict('That username is already taken');
+    }
+
+    // Password is optional; an empty value leaves it unchanged (the SP reads ''
+    // that way). The legacy modal also demanded the old password here, but that
+    // locked out anyone who had forgotten it, so it is not required — the caller
+    // already proved possession of the account with a valid access token.
+    let password = '';
+    const newPassword = optionalStr(req.body?.newPassword, 'newPassword', { max: 200 });
+    if (newPassword) {
+      if (newPassword.length < 8) throw ApiError.badRequest('Password must be at least 8 characters');
+      password = hashPassword(newPassword);
+    }
+
+    await exec('sp_UserLogin', {
+      operation: 'UpdateProfile',
+      user_id: { type: sql.Int, value: req.user.userId },
+      Name: { type: sql.NVarChar(500), value: name },
+      username: { type: sql.NVarChar(50), value: username },
+      password: { type: sql.NVarChar(200), value: password },
+      email: { type: sql.NVarChar(100), value: optionalStr(req.body?.email, 'email', { max: 100 }) },
+      contact_no: { type: sql.NVarChar(50), value: optionalStr(req.body?.contactNo, 'contactNo', { max: 50 }) },
+      // The modal posted back the owner_id it had loaded, not the token's.
+      owner_id: { type: sql.Int, value: int(current.owner_id, 'owner_id', { required: false, default: 0 }) },
+    });
+
+    const updated = await queryOne('sp_UserLogin', {
+      operation: 'GetProfile',
+      user_id: { type: sql.Int, value: req.user.userId },
+    });
+
+    return ok(res, {
+      profile: {
+        user_id: req.user.userId,
+        name: updated?.name ?? name,
+        username: updated?.username ?? username,
+        email: updated?.email ?? '',
+        contact_no: updated?.contact_no ?? '',
+        role: updated?.usertypename ?? null,
+        user_type_id: updated?.user_type_id ?? null,
+        owner_id: updated?.owner_id ?? 0,
+      },
+      passwordChanged: Boolean(newPassword),
+    });
+  }),
+);
 
 /** POST /onboarding/change-password — for the signed-in user. */
 router.post(

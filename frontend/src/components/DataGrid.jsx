@@ -28,6 +28,10 @@ export default function DataGrid({
   searchPlaceholder = 'Search…',
   exportName,
   exportTitle,
+  // Report screens pass these through to the PDF export, so it carries the
+  // same run criteria the printed page shows.
+  filters,
+  emphasiseRow,
   footer,
   responsiveCards = true,
   dense = false,
@@ -128,6 +132,8 @@ export default function DataGrid({
           rows={sorted}
           exportName={exportName}
           exportTitle={exportTitle}
+          filters={filters}
+          emphasiseRow={emphasiseRow}
         />
       ) : null}
 

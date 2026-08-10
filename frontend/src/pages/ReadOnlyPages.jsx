@@ -253,20 +253,11 @@ export const ActivityPage = () => (
   />
 );
 
-export const IncomeExpensePage = () => (
-  <DataTable
-    title="Income & expenditure"
-    load={M.reports.incomeExpense}
-    columns={[
-      { key: 'INCOME', label: 'Income head' },
-      { key: 'prev_year_income', label: 'Prev year', format: money },
-      { key: 'current_year_income', label: 'Current year', format: money },
-      { key: 'EXPENSE', label: 'Expense head' },
-      { key: 'prev_year_expense', label: 'Prev year', format: money },
-      { key: 'current_year_expense', label: 'Current year', format: money },
-    ]}
-  />
-);
+/*
+ * Income & expenditure lives in reports/IncomeExpenditureReport.jsx. It was
+ * here as a plain DataTable, which showed the same SP rows but without the
+ * totals row the legacy grid appended, or a print and PDF layout.
+ */
 
 export const AuditPage = () => (
   <DataTable

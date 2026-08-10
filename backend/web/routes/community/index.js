@@ -4,9 +4,9 @@
 // upload_doc_search and Vote.
 const express = require('express');
 
-const { query, exec, sql } = require('../../lib/db');
+const { query, queryOne, exec, sql } = require('../../lib/db');
 const { ApiError, ok, asyncHandler } = require('../../lib/http');
-const { str, optionalStr, int, num, date, time } = require('../../lib/validate');
+const { str, optionalStr, int, num, date, time, oneOf } = require('../../lib/validate');
 const { requireSociety } = require('../../middleware/authenticate');
 const { notifyGroup } = require('../../lib/notify');
 
@@ -624,6 +624,49 @@ router.get(
   }),
 );
 
+router.get(
+  '/suggestions/:id',
+  asyncHandler(async (req, res) => {
+    const id = int(req.params.id, 'id', { min: 1 });
+    const row = await queryOne('sp_suggestion_request_master', {
+      operation: 'Select',
+      sug_id: { type: sql.Int, value: id },
+    });
+    if (!row) throw new ApiError(404, 'Suggestion not found');
+    return ok(res, row);
+  }),
+);
+
+// Subject and details, the two fields suggestion_request.aspx's modal carried.
+router.post(
+  '/suggestions',
+  asyncHandler(async (req, res) => {
+    const created = await exec('sp_suggestion_request_master', {
+      operation: 'Update',
+      sug_id: { type: sql.Int, value: 0 },
+      subject: { type: sql.NVarChar(250), value: str(req.body?.subject, 'subject', { max: 250 }) },
+      details: { type: sql.NVarChar(500), value: str(req.body?.details, 'details', { max: 500 }) },
+      society_id: SOC(req.societyId),
+    });
+    return ok(res, { sug_id: created?.sug_id ?? null }, 201);
+  }),
+);
+
+router.put(
+  '/suggestions/:id',
+  asyncHandler(async (req, res) => {
+    const id = int(req.params.id, 'id', { min: 1 });
+    await exec('sp_suggestion_request_master', {
+      operation: 'Update',
+      sug_id: { type: sql.Int, value: id },
+      subject: { type: sql.NVarChar(250), value: str(req.body?.subject, 'subject', { max: 250 }) },
+      details: { type: sql.NVarChar(500), value: str(req.body?.details, 'details', { max: 500 }) },
+      society_id: SOC(req.societyId),
+    });
+    return ok(res, { updated: true, sug_id: id });
+  }),
+);
+
 router.delete(
   '/suggestions/:id',
   asyncHandler(async (req, res) => {
@@ -662,6 +705,15 @@ router.delete(
 
 /* ------------------------------------------------------------------- polls */
 
+/**
+ * ddlAudience value -> notification recipients group, per Vote.aspx.cs:84.
+ *
+ * The two numbering schemes are unrelated, so this cannot be an identity map:
+ * audience 3 means "owners only" but the owners group is 1, and audience 1
+ * means "all members" but that group is 5.
+ */
+const POLL_AUDIENCE_RECIPIENTS = { 1: 5, 2: 4, 3: 1, 4: 2 };
+
 router.get(
   '/polls',
   asyncHandler(async (req, res) => {
@@ -691,12 +743,17 @@ router.get(
 /**
  * POST /community/polls — start a poll. Replaces Vote.aspx.
  *
- * Options are stored as one comma-joined string in Polls.options, which is what
- * the legacy page wrote (`string.Join(",", optionsList)`); it also required at
- * least two, so that rule is kept.
+ * Three steps, in this order, exactly as btnStartPoll_Click did:
  *
- * Audience maps to a recipients group in the legacy page:
- *   1 all members · 2 associate committee · 3 managing committee
+ *   1. sp_polls   Mode='INSERT'      -> creates the poll, returns its PollId
+ *   2. sp_PollOptions Operation='INSERT' -> splits the comma-joined options
+ *                                           into poll_Options rows
+ *   3. notify the chosen audience    -> a "New Poll" alert per recipient
+ *
+ * Steps 1 and 2 are both required. sp_polls writes the option text into the
+ * Polls.options column but never creates poll_Options rows, and every read path
+ * — GetPolls, pollVotes, SELECTALL — joins poll_Options. A poll created with
+ * only the first call has no options to show or vote on.
  */
 router.post(
   '/polls',
@@ -709,10 +766,19 @@ router.post(
     const options = rawOptions.map((o) => String(o ?? '').trim()).filter(Boolean);
     if (options.length < 2) throw ApiError.badRequest('Provide at least two options for the poll');
     if (options.some((o) => o.includes(','))) {
-      // options is a comma-joined column, so a comma inside an option would
-      // silently split it into two.
+      // sp_PollOptions splits on commas with STRING_SPLIT, so a comma inside an
+      // option would silently become two options.
       throw ApiError.badRequest('Poll options cannot contain a comma');
     }
+
+    // ddlAudience on Vote.aspx offered exactly these four values.
+    const audience = oneOf(
+      optionalStr(req.body?.audience, 'audience', { max: 50 }) ?? '1',
+      'audience',
+      ['1', '2', '3', '4'],
+    );
+
+    const joined = options.join(',');
 
     const created = await exec('sp_polls', {
       Mode: 'INSERT',
@@ -726,29 +792,169 @@ router.post(
         value: req.body?.allowMultipleVotes ? 1 : 0,
       },
       OneVotePerUnit: { type: sql.Int, value: req.body?.oneVotePerUnit ? 1 : 0 },
-      Audience: {
-        type: sql.NVarChar(50),
-        value: optionalStr(req.body?.audience, 'audience', { max: 50 }) ?? '1',
-      },
-      options: { type: sql.NVarChar(sql.MAX), value: options.join(',') },
+      Audience: { type: sql.NVarChar(50), value: audience },
+      options: { type: sql.NVarChar(sql.MAX), value: joined },
       society_id: SOC50(req.societyId),
     });
 
-    return ok(res, { poll: created ?? null, options }, 201);
+    // PollId is per-society (MAX(PollId)+1 within the society), not an identity.
+    const pollId = int(created?.PollId, 'PollId', { required: false, default: 0 });
+    if (!pollId) throw ApiError.badRequest('The poll could not be created');
+
+    await exec('sp_PollOptions', {
+      Operation: 'INSERT',
+      PollId: { type: sql.Int, value: pollId },
+      Options: { type: sql.NVarChar(sql.MAX), value: joined },
+    });
+
+    // The audience value chosen on the form is not the recipients group id;
+    // btnStartPoll_Click translates between them (Vote.aspx.cs:84):
+    //   1 all members -> 5 · 2 association committee -> 4
+    //   3 owners only -> 1 · 4 tenants only          -> 2
+    const recipientsId = POLL_AUDIENCE_RECIPIENTS[audience] ?? 0;
+
+    // Best-effort, as in the legacy page: the poll exists either way, and a
+    // push failure must not report the creation as failed.
+    let notified = 0;
+    if (recipientsId) {
+      try {
+        notified = await notifyGroup({
+          societyId: req.societyId,
+          recipientsId,
+          type: 'Poll',
+          id: pollId,
+          title: 'New Poll',
+          body: 'Your Vote is Valuable',
+        });
+      } catch {
+        notified = 0;
+      }
+    }
+
+    return ok(res, { poll: created ?? null, PollId: pollId, options, notified }, 201);
   }),
 );
 
-/** DELETE /community/polls/:id */
+/**
+ * POST /community/polls/:id/vote — cast a vote on one option.
+ *
+ * Replaces VoteService.asmx/SaveVote, which the poll card called on click.
+ *
+ * sp_PollVoting enforces every rule itself and reports back in a `Message`
+ * column, so none of it is re-implemented here:
+ *
+ *   OneVotePerUnit=1     -> rejects if anyone in the same flat already voted
+ *   AllowMultipleVotes=0 -> a second vote MOVES the existing one to the new
+ *                           option rather than adding another
+ *   AllowMultipleVotes=1 -> one vote per option; re-voting the same option is
+ *                           rejected
+ *
+ * The flags come from the poll row, not the request: a client that sent its own
+ * could vote as many times as it liked.
+ */
+router.post(
+  '/polls/:id/vote',
+  asyncHandler(async (req, res) => {
+    const pollId = int(req.params.id, 'id', { min: 1 });
+    const optionId = int(req.body?.optionId, 'optionId', { min: 1 });
+
+    const poll = await queryOne('sp_polls', {
+      Mode: 'SELECT',
+      PollId: { type: sql.Int, value: pollId },
+      society_id: SOC50(req.societyId),
+    });
+    if (!poll) throw ApiError.notFound('Poll not found');
+
+    const result = await exec('sp_PollVoting', {
+      Operation: 'INSERT',
+      Society_id: { type: sql.NVarChar(10), value: req.societyId },
+      User_Id: { type: sql.Int, value: req.user.ownerId ?? req.user.userId },
+      Poll_id: { type: sql.Int, value: pollId },
+      Option_id: { type: sql.Int, value: optionId },
+      User_type: { type: sql.NVarChar(10), value: req.user.userTypeId ? 'Member' : 'Owner' },
+      AllowMultipleVotes: { type: sql.Int, value: Number(poll.AllowMultipleVotes) ? 1 : 0 },
+      OneVotePerUnit: { type: sql.Int, value: Number(poll.OneVotePerUnit) ? 1 : 0 },
+    });
+
+    // The refusals ("Someone from your flat has already voted…", "Already voted
+    // for this option") come back as a Message with no Voting_Id. Surface them
+    // as a 400 so the card can say why the click did nothing.
+    const message = result?.Message ?? '';
+    if (!result || (result.Voting_Id === undefined && !/success/i.test(message))) {
+      throw ApiError.badRequest(message || 'Your vote could not be recorded');
+    }
+
+    return ok(res, { message, Voting_Id: result.Voting_Id ?? null });
+  }),
+);
+
+/**
+ * DELETE /community/polls/:id
+ *
+ * 'DELETEALL', not 'DELETE': the plain mode removes only the Polls row, leaving
+ * poll_Options and poll_voting rows behind with no parent. DELETEALL clears all
+ * three in one transaction, which is what Vote.aspx used
+ * (DeletePollFromDatabase sets sql_operation = "deleteall").
+ *
+ * It also scopes by @user_id, so a poll can only be deleted by whoever started
+ * it — the legacy page hid the delete cross on everyone else's cards.
+ */
 router.delete(
   '/polls/:id',
   asyncHandler(async (req, res) => {
     const id = int(req.params.id, 'id', { min: 1 });
     await exec('sp_polls', {
-      Mode: 'DELETE',
+      Mode: 'DELETEALL',
       PollId: { type: sql.Int, value: id },
+      user_id: { type: sql.Int, value: req.user.ownerId ?? req.user.userId },
       society_id: SOC50(req.societyId),
     });
     return ok(res, { deleted: true, PollId: id });
+  }),
+);
+
+/* -------------------------------------------------------- notifications */
+
+/**
+ * GET /community/notifications — the bell dropdown in Site.Master.
+ *
+ * sp_dashboard 'Notification' returns only unseen rows (seen_status = 0) for
+ * this society and user, newest first, with `timestamp` already run through
+ * GetRelativeTime — so it arrives as "2 hours ago", not a date.
+ *
+ * The procedure is sp_dashboard, not sp_UserLogin: BL_User_Login.get_notification
+ * reads like a login call but its DA (DA_User_Login.cs:150) runs sp_dashboard.
+ */
+router.get(
+  '/notifications',
+  asyncHandler(async (req, res) => {
+    const rows = await query('sp_dashboard', {
+      operation: 'Notification',
+      society_id: SOC(req.societyId),
+      user_id: { type: sql.Int, value: req.user.userId },
+    });
+    return ok(res, { items: rows, count: rows.length });
+  }),
+);
+
+/**
+ * PUT /community/notifications/:id/seen — mark one alert as read.
+ *
+ * The SP's 'UpdateStatus' branch filters `where notify_status_id = @user_id`,
+ * so the row id has to be passed as @user_id. That reads like a bug but is what
+ * the procedure does, and the legacy page relied on it: DA_User_Login.cs:369
+ * assigns details.NoticeId to the "user_id" parameter for exactly this call.
+ */
+router.put(
+  '/notifications/:id/seen',
+  asyncHandler(async (req, res) => {
+    const id = int(req.params.id, 'id', { min: 1 });
+    await exec('sp_dashboard', {
+      operation: 'UpdateStatus',
+      user_id: { type: sql.Int, value: id },
+      society_id: SOC(req.societyId),
+    });
+    return ok(res, { seen: true, notify_status_id: id });
   }),
 );
 
@@ -767,15 +973,28 @@ router.get(
   }),
 );
 
-/** GET /community/messages/count — unread badge. */
+/**
+ * GET /community/messages/count — unread badge.
+ *
+ * Counted from the same GetMessages rows the page lists, NOT from
+ * get_messages_count. That branch counts every unread row in owner_Messages
+ * regardless of `type`, while GetMessages reads owner_messages_vw filtered to
+ * type = 'admin' — so the two disagree whenever a message has another type.
+ *
+ * They do disagree today: every stored message is type = 'security', so
+ * get_messages_count reports unread messages the page can never show, and the
+ * badge would never clear no matter how many were opened. Counting the listed
+ * rows keeps the badge and the list telling the same story.
+ */
 router.get(
   '/messages/count',
   asyncHandler(async (req, res) => {
     const rows = await query('sp_owner_master', {
-      operation: 'get_messages_count',
+      operation: 'GetMessages',
       society_id: SOC(req.societyId),
     });
-    return ok(res, { unread: rows[0]?.message_count ?? 0 });
+    const unread = rows.filter((r) => Number(r.view_status) === 0).length;
+    return ok(res, { unread });
   }),
 );
 

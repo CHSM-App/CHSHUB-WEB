@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthContext.jsx';
+import ProfileDialog from '@/pages/auth/ProfileDialog.jsx';
+import HeaderIcons from '@/components/HeaderIcons.jsx';
 
 /*
  * Navigation reproduces Site.Master's accordion exactly — the same two
@@ -109,7 +111,9 @@ const NAV = [
           // already links to. printshop.aspx is the report this section meant.
           { to: '/reports/shop-maintenance', label: 'Shop Maintenance' },
           { to: '/reports/owner-ledger', label: 'Ownerwise Maintenance' },
-          { to: '/reports/profit-loss', label: 'Annual income & expenditure' },
+          // v_profite_loss.aspx. This label used to point at /reports/profit-loss,
+          // a date-range report the legacy app did not have.
+          { to: '/reports/income-expense', label: 'Annual income & expenditure' },
           { to: '/reports/balance-sheet', label: 'Balance Sheet' },
         ],
       },
@@ -151,6 +155,26 @@ const NAV = [
  * Inline SVGs standing in for the legacy Font Awesome glyphs. Drawn here rather
  * than pulled from a CDN — the app must not depend on an external host.
  */
+/*
+ * Sidebar glyphs, one per Font Awesome icon Site.Master used. Drawn as inline
+ * SVG rather than pulling in Font Awesome: the legacy pages loaded the whole
+ * kit for nine icons, and these inherit the surrounding text colour.
+ *
+ *   home     fa-home            Dashboard        (Site.Master:956)
+ *   building fa-building        Property Master        :968
+ *   users    fa-users           People & Staff Master  :988
+ *   tools    fa-tools           Service & facility     :1007
+ *   city     fa-city            Society Management     :1027
+ *   bag      fa-shopping-bag    Vendor management      :1049
+ *   coins    fa-coins           Finance & billing      :1069
+ *   money    fa-money-bill-alt  Credit & Debit         :1087
+ *   chart    fa-chart-line      Reports & Analytics    :1111
+ *   cogs     fa-cogs            Others                 :1129
+ *   file     fa-file-alt        Village                :1161
+ *
+ * Not mapped: fa-tachometer-alt (:1145) sat on an "Admin Dashboard" item that
+ * has no route in this app yet.
+ */
 const ICONS = {
   home: 'M3 10.5 12 3l9 7.5M5.5 9.5V20h13V9.5',
   building: 'M4 21V4h10v17M14 21V9h6v12M7 8h2M7 12h2M7 16h2M17 12h1M17 16h1',
@@ -163,6 +187,10 @@ const ICONS = {
   chart: 'M3 3v18h18M7 15l4-5 3 3 5-7',
   cogs: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8-3a8 8 0 0 0-.2-1.7l2-1.5-2-3.4-2.3 1a8 8 0 0 0-3-1.7L14 2h-4l-.5 2.7a8 8 0 0 0-3 1.7l-2.3-1-2 3.4 2 1.5a8 8 0 0 0 0 3.4l-2 1.5 2 3.4 2.3-1a8 8 0 0 0 3 1.7L10 22h4l.5-2.7a8 8 0 0 0 3-1.7l2.3 1 2-3.4-2-1.5c.13-.55.2-1.12.2-1.7Z',
   file: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5ZM14 3v5h5M9 13h6M9 17h6',
+  // The three in the header dropdown — fa-user, fa-cogs and fa-sign-out-alt
+  // on the legacy Site.Master.
+  user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4 21a8 8 0 0 1 16 0',
+  logout: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
 };
 
 function Icon({ name }) {
@@ -199,6 +227,8 @@ export default function AppLayout() {
   // Accordion: data-parent="#accordionSidebar" meant only one group open.
   const [openGroup, setOpenGroup] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  // The Profile dialog, opened from the header dropdown as Site.Master did.
+  const [profileOpen, setProfileOpen] = useState(false);
 
   // Hide the Village section for society-only accounts.
   const sections = NAV.filter((g) => !g.villageOnly || Boolean(villageId));
@@ -231,8 +261,11 @@ export default function AppLayout() {
         Sticky white topbar with the CHS HUB mark on the left and the signed-in
         user on the right — the arrangement Site.Master used.
       */}
+      {/* app-topbar marks this as shell rather than page content, so printing
+          drops it — a report should start at its own title, not the CHS HUB
+          mark and account icons. */}
       <header
-        className="sticky top-0 z-50 flex items-center justify-between bg-white"
+        className="app-topbar sticky top-0 z-50 flex items-center justify-between bg-white"
         style={{ padding: '12px 24px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
       >
         <div className="flex items-center gap-4">
@@ -246,21 +279,23 @@ export default function AppLayout() {
             ☰
           </button>
 
-          {/* .chs-logo — red gradient, 12px radius (Site.Master:498). */}
-          <div
-            className="shrink-0"
+          {/* .chs-logo — red gradient, 12px radius (Site.Master:498). Links
+              home, which the legacy static div did not, but every other app
+              puts the mark to that use. */}
+          <Link
+            to="/"
+            className="chs-logo shrink-0"
+            aria-label="CHS HUB — go to dashboard"
             style={{
               background: 'linear-gradient(135deg, #c94040 0%, #e85555 100%)',
               borderRadius: '12px',
-              padding: '8px 12px',
               boxShadow: '0 2px 8px rgba(201, 64, 64, 0.3)',
             }}
           >
-            <div
-              className="text-center text-white"
+            <span
+              className="logo-text block text-center text-white"
               style={{
                 fontWeight: 800,
-                fontSize: '12px',
                 lineHeight: 1.1,
                 letterSpacing: '0.5px',
                 fontFamily: 'Arial, sans-serif',
@@ -269,29 +304,32 @@ export default function AppLayout() {
               CHS
               <br />
               HUB
-            </div>
-          </div>
+            </span>
+          </Link>
 
           {/* .society-name-pill — white rounded pill (Site.Master). */}
           <div
-            className="min-w-0"
+            className="society-name-pill min-w-0"
             style={{
               background: 'white',
               borderRadius: '20px',
-              padding: '10px 24px',
               boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-              maxWidth: '420px',
               border: '1px solid #0000ff1f',
             }}
           >
-            <p className="truncate text-sm font-semibold" style={{ color: '#012970' }}>
+            <p className="society-name-text truncate font-semibold" style={{ color: '#012970' }}>
               {user?.society_name || user?.village_name || 'Society Management'}
             </p>
           </div>
         </div>
 
-        {/* Profile dropdown — Profile / Settings / Log Out, as Site.Master had. */}
-        <div className="relative">
+        <div className="flex items-center gap-2">
+          {/* Polls, alerts bell and messages — the icon row Site.Master placed
+              immediately left of the profile menu. */}
+          <HeaderIcons />
+
+          {/* Profile dropdown — Profile / Settings / Log Out, as Site.Master had. */}
+          <div className="relative">
           <button
             type="button"
             className="flex items-center gap-2 rounded-full py-1 pl-1 pr-4"
@@ -321,37 +359,52 @@ export default function AppLayout() {
                 className="absolute right-0 z-50 mt-2 bg-white py-1"
                 style={{ width: 200, borderRadius: 12, boxShadow: '0 0.5rem 1rem rgba(0,0,0,.15)' }}
               >
-                <Link
-                  to="/settings/society"
+                {/* Each item carries the icon its Site.Master counterpart had:
+                    fa-user, fa-cogs and fa-sign-out-alt, muted to match. */}
+                <button
+                  type="button"
                   role="menuitem"
-                  className="block px-4 py-2 text-sm hover:bg-slate-50"
+                  className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-sm hover:bg-slate-50"
                   style={{ color: '#012970' }}
-                  onClick={() => setMenuOpen(false)}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setProfileOpen(true);
+                  }}
                 >
+                  <span className="text-slate-400">
+                    <Icon name="user" />
+                  </span>
                   Profile
-                </Link>
+                </button>
                 <Link
                   to="/settings/accounts"
                   role="menuitem"
-                  className="block px-4 py-2 text-sm hover:bg-slate-50"
+                  className="flex items-center gap-2.5 px-4 py-2 text-sm hover:bg-slate-50"
                   style={{ color: '#012970' }}
                   onClick={() => setMenuOpen(false)}
                 >
+                  <span className="text-slate-400">
+                    <Icon name="cogs" />
+                  </span>
                   Settings
                 </Link>
                 <div className="my-1 border-t" style={{ borderColor: '#e5e7eb' }} />
                 <button
                   type="button"
                   role="menuitem"
-                  className="block w-full px-4 py-2 text-left text-sm hover:bg-slate-50"
+                  className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-sm hover:bg-slate-50"
                   style={{ color: '#012970' }}
                   onClick={handleLogout}
                 >
+                  <span className="text-slate-400">
+                    <Icon name="logout" />
+                  </span>
                   Log Out
                 </button>
               </div>
             </>
           ) : null}
+          </div>
         </div>
       </header>
 
@@ -431,6 +484,8 @@ export default function AppLayout() {
           <Outlet />
         </main>
       </div>
+
+      <ProfileDialog open={profileOpen} onClose={() => setProfileOpen(false)} />
     </div>
   );
 }

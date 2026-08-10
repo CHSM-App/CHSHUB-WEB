@@ -34,33 +34,61 @@ router.get(
 );
 
 /**
+ * The ON/OFF switches account_setting.aspx showed as OFF/ON dropdowns. Stored
+ * as int 0/1, so they are read and written as numbers, not bits.
+ *
+ * Keyed by request field -> SP parameter, since the two names differ.
+ */
+const TOGGLES = [
+  ['memberOpeningBalance', 'mem_open_bal'],
+  ['memberChargesButton', 'mem_charge_btn'],
+  ['memberChargeAllocation', 'mem_charge_allocation'],
+  ['receiptsButton', 'receipt_btn'],
+  ['gstRounding', 'gst_round'],
+  ['chargesRounding', 'charge_round'],
+  ['paymentVoucherMultiEntry', 'payment_voucher'],
+  ['debitNoteVoucherMultiEntry', 'debit_note_voucher'],
+  ['creditNoteVoucherMultiEntry', 'credit_note_voucher'],
+  ['journalVoucherMultiEntry', 'general_voucher'],
+  ['receiptVoucherMultiEntry', 'receipt_voucher'],
+  ['buildingWisePayment', 'build_wise_payment'],
+  ['reminderEmailForDues', 'remainder_email_dues'],
+];
+
+/**
  * PUT /api/web/settings/account
  *
- * Uses @operation='Insert', which despite the name is an upsert: it updates
- * when a row exists for the society and inserts otherwise. The 'Update' branch
- * is not used — it keys off @acc_set_id and writes a different column set that
- * omits the billing fields this screen edits.
+ * Two SP calls, because neither branch of sp_account_setting covers the whole
+ * screen and both are in use by the legacy app:
+ *
+ *   'Insert' — despite the name an upsert on society_id. Writes the rates,
+ *              auto-generation flag, bill dates and interest rate.
+ *   'Update' — writes the ON/OFF switches, but keys off @acc_set_id and does
+ *              not touch auto_bill_generation / bill_gen_date / bill_due_period.
+ *
+ * 'Insert' runs first so a society with no row yet gets one, and the acc_set_id
+ * to key the second call by is then guaranteed to exist. Sending only the
+ * switches through 'Update' would blank the rates, since that branch writes
+ * rate columns too — so the rates are passed to both.
  */
 router.put(
   '/',
   asyncHandler(async (req, res) => {
     const body = req.body ?? {};
 
+    // Parsed once: both SP calls write the rate columns, and they must agree.
+    const rates = {
+      ratePerSqFt: num(body.ratePerSqFt, 'ratePerSqFt', { min: 0, required: false, default: 0 }),
+      twoWheelerRate: num(body.twoWheelerRate, 'twoWheelerRate', { min: 0, required: false, default: 0 }),
+      fourWheelerRate: num(body.fourWheelerRate, 'fourWheelerRate', { min: 0, required: false, default: 0 }),
+    };
+
     await exec('sp_account_setting', {
       operation: 'Insert',
       society_id: SOC(req.societyId),
-      rate_per_sqf: {
-        type: sql.Decimal(10, 2),
-        value: num(body.ratePerSqFt, 'ratePerSqFt', { min: 0, required: false, default: 0 }),
-      },
-      two_w_rate: {
-        type: sql.Decimal(10, 2),
-        value: num(body.twoWheelerRate, 'twoWheelerRate', { min: 0, required: false, default: 0 }),
-      },
-      four_w_rate: {
-        type: sql.Decimal(10, 2),
-        value: num(body.fourWheelerRate, 'fourWheelerRate', { min: 0, required: false, default: 0 }),
-      },
+      rate_per_sqf: { type: sql.Decimal(10, 2), value: rates.ratePerSqFt },
+      two_w_rate: { type: sql.Decimal(10, 2), value: rates.twoWheelerRate },
+      four_w_rate: { type: sql.Decimal(10, 2), value: rates.fourWheelerRate },
       auto_bill_generation: {
         type: sql.Bit,
         value: bool(body.autoBillGeneration, 'autoBillGeneration', { default: false }),
@@ -93,6 +121,36 @@ router.put(
         value: num(body.interestRate, 'interestRate', { min: 0, max: 21, required: false }),
       },
     });
+
+    // Second pass for the switches. The row is guaranteed to exist now, so the
+    // acc_set_id read back here always keys the UPDATE branch rather than
+    // falling into its INSERT (which would create a duplicate row).
+    const current = await readSettings(req.societyId);
+    const accSetId = int(current?.acc_set_id, 'acc_set_id', { required: false, default: 0 });
+
+    if (accSetId) {
+      await exec('sp_account_setting', {
+        operation: 'Update',
+        acc_set_id: { type: sql.Int, value: accSetId },
+        society_id: SOC(req.societyId),
+        // Rates repeated: the 'Update' branch writes these columns too, and
+        // omitting them would reset what the call above just saved.
+        rate_per_sqf: { type: sql.Decimal(10, 2), value: rates.ratePerSqFt },
+        two_w_rate: { type: sql.Decimal(10, 2), value: rates.twoWheelerRate },
+        four_w_rate: { type: sql.Decimal(10, 2), value: rates.fourWheelerRate },
+        ...Object.fromEntries(
+          TOGGLES.map(([field, param]) => [
+            param,
+            {
+              type: sql.Int,
+              // Absent means "leave as-is": fall back to the stored value so a
+              // partial payload cannot silently switch settings off.
+              value: bool(body[field], field, { default: Boolean(current?.[param]) }) ? 1 : 0,
+            },
+          ]),
+        ),
+      });
+    }
 
     return ok(res, { settings: await readSettings(req.societyId) });
   }),

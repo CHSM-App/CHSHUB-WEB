@@ -89,7 +89,15 @@ export const community = {
   polls: () => api.get('/community/polls'),
   pollVotes: (id) => api.get(`/community/polls/${id}/votes`),
   createPoll: (body) => api.post('/community/polls', body),
+  /** Cast a vote by clicking an option, as the legacy poll card did. */
+  votePoll: (id, optionId) => api.post(`/community/polls/${id}/vote`, { optionId }),
   removePoll: (id) => api.delete(`/community/polls/${id}`),
+  // Header bell and envelope — the alerts dropdown and unread count that
+  // Site.Master rendered next to the profile menu.
+  notifications: () => api.get('/community/notifications'),
+  markNotificationSeen: (id) => api.put(`/community/notifications/${id}/seen`),
+  messages: () => api.get('/community/messages'),
+  messagesCount: () => api.get('/community/messages/count'),
 };
 
 /* ------------------------------------------------------------- reports */

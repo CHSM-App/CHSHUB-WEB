@@ -10,7 +10,19 @@ import { useState } from 'react';
  *
  * `print:hidden` keeps the toolbar itself out of the printed page.
  */
-export default function ExportToolbar({ columns, rows, exportName, exportTitle }) {
+export default function ExportToolbar({
+  columns,
+  rows,
+  exportName,
+  exportTitle,
+  // Report screens pass these so the PDF carries the same run criteria and
+  // balance-row shading the printed page shows. Plain grids omit them.
+  filters,
+  emphasiseRow,
+  // [r, g, b] for the PDF's header fill and title rule, matching the accent
+  // the report uses on screen.
+  accent,
+}) {
   const [pdfBusy, setPdfBusy] = useState(false);
 
   /** CSV export — the legacy pages' "Export to Excel" button. */
@@ -46,6 +58,9 @@ export default function ExportToolbar({ columns, rows, exportName, exportTitle }
         rows,
         title: exportTitle ?? exportName,
         filename: exportName || 'export',
+        filters,
+        emphasiseRow,
+        ...(accent ? { accent } : {}),
       });
     } catch (err) {
       // A failed export should report itself, not disappear into the console.

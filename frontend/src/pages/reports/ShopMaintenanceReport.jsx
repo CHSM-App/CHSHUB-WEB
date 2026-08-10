@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { reports } from '@/api/modules';
 import DataGrid from '@/components/DataGrid.jsx';
+import ReportHeader, { ReportFooter, useSocietyInfo } from '@/components/ReportDocument.jsx';
 import { ErrorNotice, Field } from '@/components/ui.jsx';
 
 const money = (v) =>
@@ -25,6 +26,7 @@ const day = (v) => (v ? new Date(v).toLocaleDateString() : '—');
  * what the column actually holds, and the date is given its own column.
  */
 export default function ShopMaintenanceReport() {
+  const society = useSocietyInfo();
   const [payMethod, setPayMethod] = useState('');
   const [date, setDate] = useState('');
   const [data, setData] = useState(null);
@@ -67,10 +69,15 @@ export default function ShopMaintenanceReport() {
     { key: 'led_description', label: 'Ledger Details' },
     { key: 'm_date', label: 'Maintenance Date', render: day, exportValue: (r) => day(r.m_date) },
     { key: 'other_details', label: 'Other Details' },
-    { key: 'amt', label: 'Amount', render: money, exportValue: (r) => r.amt, align: 'right' },
+    { key: 'amt', label: 'Amount', render: money, exportValue: (r) => money(r.amt), align: 'right' },
     { key: 'pay_method', label: 'Payment Method' },
     { key: 'cheq_no', label: 'Cheque/UPI No' },
     { key: 'cheq_date', label: 'Cheque Date', render: day, exportValue: (r) => day(r.cheq_date) },
+  ];
+
+  const reportFilters = [
+    { label: 'Payment Method', value: payMethod || 'All' },
+    { label: 'Maintenance Date', value: date ? new Date(date).toLocaleDateString('en-GB') : 'All' },
   ];
 
   return (
@@ -141,6 +148,10 @@ export default function ShopMaintenanceReport() {
 
       <ErrorNotice error={error} onRetry={() => run(payMethod, date)} />
 
+      {/* Letterhead prints above the grid; on screen the page header and the
+          filter form already carry this, so it stays hidden there. */}
+      <ReportHeader title="Shop Maintenance Report" info={society} filters={reportFilters} />
+
       <DataGrid
         columns={columns}
         rows={items}
@@ -149,7 +160,8 @@ export default function ShopMaintenanceReport() {
         emptyTitle="No shop maintenance records found"
         emptyHint="Try clearing the payment method or date filter."
         exportName="shop-maintenance-report"
-        exportTitle="Shop Maintenance Reports"
+        exportTitle="Shop Maintenance Report"
+        filters={reportFilters}
         // Totals the rows the grid is actually showing, so a search inside the
         // grid narrows the total with it.
         footer={(shown) => (

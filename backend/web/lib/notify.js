@@ -31,12 +31,18 @@ function messaging() {
  *
  * Owners and tenants are both rows in owner_master, split by `type`; members
  * are committee logins in UserLogin.
+ *
+ * Group 5 is not in that list but sp_owner_master/get_users defines it as
+ * everyone — a UNION of the owner/tenant select and the UserLogin one. Polls
+ * addressed to "All Members" use it (Vote.aspx.cs:84), and without it here they
+ * would fall through to the default and miss every committee member.
  */
 const GROUPS = {
   1: { owners: ['Owner'], members: false },
   2: { owners: ['Rent'], members: false },
   3: { owners: ['Owner', 'Rent'], members: false },
   4: { owners: [], members: true },
+  5: { owners: ['Owner', 'Rent'], members: true },
 };
 
 /**

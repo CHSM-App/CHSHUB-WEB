@@ -21,6 +21,8 @@ const router = express.Router();
 // Categories are a fixed set: a caller-supplied folder name would allow writing
 // outside the uploads tree.
 const CATEGORIES = [
+  // The profile modal in Site.Master wrote img/ProfilePic/owner_<id>.png.
+  'profile-photos',
   'owner-photos',
   'owner-documents',
   'agreements',

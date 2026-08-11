@@ -29,6 +29,10 @@ export default defineConfig({
             // Same reasoning for the spreadsheet parser: only the Import Data
             // modal needs it, so it must not sit in the shared vendor chunk.
             { name: 'xlsx-vendor', test: /node_modules[\\/](xlsx|cfb|codepage|crc-32|adler-32)[\\/]/ },
+            // ApexCharts draws the dashboard's Maintenance Tracker and nothing
+            // else. It is the heaviest dependency here, so it gets its own
+            // chunk and loads only when that panel renders.
+            { name: 'chart-vendor', test: /node_modules[\\/](apexcharts|react-apexcharts|svg\.js|@svgdotjs)[\\/]/ },
             { name: 'vendor', test: /node_modules[\\/]/ },
           ],
         },

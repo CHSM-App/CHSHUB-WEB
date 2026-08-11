@@ -24,12 +24,63 @@
  * requested with system fallbacks — no webfont is fetched, so nothing depends on
  * an external host.
  */
+/*
+ * Dashboard design tokens. The legacy palette above stays authoritative for
+ * forms, tables and the nav — these only add the tints and elevations the
+ * dashboard tiles need, derived from the same #012970 / #4e73df family so the
+ * two halves of the app still read as one product.
+ */
+:root {
+  --ink: #012970;
+  --ink-muted: #6b7280;
+  --surface: #ffffff;
+  --page: #f4f7fb;
+  --line: #e3e6f0;
+
+  --accent: #4e73df;
+  --accent-strong: #1d4ed8;
+  --success: #1cc88a;
+  --danger: #e74a3b;
+  --warning: #f6c23e;
+
+  /* Two-stop gradients for the headline tiles. */
+  --grad-danger: linear-gradient(135deg, #ff6b6b 0%, #e74a3b 100%);
+  --grad-success: linear-gradient(135deg, #34e0a1 0%, #1cc88a 100%);
+  --grad-accent: linear-gradient(135deg, #6f8ff5 0%, #4e73df 100%);
+
+  /* Elevation ramp — resting, hover, floating. */
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+  --shadow-md: 0 4px 6px -2px rgba(16, 24, 40, 0.03), 0 12px 16px -4px rgba(16, 24, 40, 0.08);
+  --shadow-lg: 0 8px 8px -4px rgba(16, 24, 40, 0.03), 0 20px 24px -4px rgba(16, 24, 40, 0.1);
+
+  /*
+   * Shell depth. The legacy app painted the page white and let the sidebar card
+   * float on nothing, which read as flat — the rail, the topbar and the content
+   * all sat on the same value. These give the shell a tinted ground so the
+   * white surfaces on top of it actually read as raised.
+   */
+  --page-tint-a: #eef3fb;
+  --page-tint-b: #f7f9fd;
+  --shell-line: rgba(1, 41, 112, 0.08);
+  --shell-shadow: 0 1px 2px rgba(1, 41, 112, 0.04), 0 8px 24px -8px rgba(1, 41, 112, 0.12);
+  --shell-shadow-lifted: 0 2px 4px rgba(1, 41, 112, 0.05), 0 16px 32px -12px rgba(1, 41, 112, 0.18);
+}
+
 @layer base {
   html {
     @apply antialiased;
   }
   body {
-    background-color: #fff;
+    /*
+     * A very soft blue-grey wash instead of flat white. Every surface in the
+     * app — topbar, sidebar rail, cards, tables — is white, so on a white page
+     * none of them read as surfaces at all. The tint is kept near-white
+     * (roughly 3% off) so text contrast is untouched and printed pages, which
+     * force #fff below, are unaffected.
+     */
+    background-color: var(--page-tint-b);
+    background-image: linear-gradient(180deg, var(--page-tint-a) 0%, var(--page-tint-b) 420px);
+    background-attachment: fixed;
     color: #012970;
     font-family: 'Open Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
     font-weight: 500;
@@ -129,12 +180,135 @@
     color: #dc3545;
   }
 
-  /* SB Admin 2 .card — white, soft shadow, 0.35rem radius. */
+  /*
+   * SB Admin 2 .card. The legacy 1.75rem grey blur read as haze rather than
+   * elevation, especially now that the page carries a tint; this keeps the
+   * white surface and the border but swaps in the shell's ambient shadow and a
+   * slightly softer radius so cards, the nav rail and the topbar agree.
+   */
   .card {
     background-color: #fff;
-    border: 1px solid #e3e6f0;
-    border-radius: 0.35rem;
-    box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+    border: 1px solid var(--shell-line);
+    border-radius: 12px;
+    box-shadow: var(--shell-shadow);
+  }
+
+  /*
+   * Dashboard surfaces. A softer, larger-radius sibling of .card used only on
+   * the dashboard, so restyling it cannot disturb the forms and grids that the
+   * legacy .card rule above still backs.
+   */
+  .panel {
+    background-color: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+  }
+  /* Only tiles that lead somewhere lift — a hover cue that nothing happens on
+     click would be a false affordance. */
+  .panel-interactive:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+  }
+
+  /* Panel title row: label left, optional controls right. */
+  .panel-title {
+    @apply flex flex-wrap items-center justify-between gap-3;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--line);
+  }
+  .panel-title h6 {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+  .panel-body {
+    padding: 20px;
+  }
+
+  /*
+   * Headline tile — gradient wash, oversized glyph bled into the corner.
+   * The gradient is set per-tile via --tile-grad.
+   */
+  .stat-tile {
+    position: relative;
+    overflow: hidden;
+    border-radius: 16px;
+    padding: 20px;
+    color: #fff;
+    background: var(--tile-grad, var(--grad-accent));
+    box-shadow: var(--shadow-md);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+  }
+  .stat-tile:hover {
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-3px);
+  }
+  /* Tile for the narrow left column. Trimmed from the full-width original so
+     three fit across two thirds of the page, but kept tall enough that the
+     figure still reads as a headline rather than a table row. */
+  .stat-tile-compact {
+    padding: 18px;
+    border-radius: 14px;
+    min-height: 104px;
+  }
+  /* Soft highlight blooming from the top-right, so the fill is not a flat
+     diagonal. Sits under the content via the stacking context below. */
+  .stat-tile::after {
+    content: '';
+    position: absolute;
+    top: -60%;
+    right: -25%;
+    width: 260px;
+    height: 260px;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.14);
+    pointer-events: none;
+  }
+  .stat-tile > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Tint chips behind the small figures (helpdesk counters, PDC count). */
+  .stat-chip {
+    border-radius: 12px;
+    padding: 14px 16px;
+    background: var(--chip-bg, #f1f5fd);
+    border: 1px solid var(--chip-border, transparent);
+  }
+
+  /* Skeleton shimmer used while the dashboard payload is in flight. */
+  .skeleton {
+    background: linear-gradient(90deg, #eef2f7 25%, #f8fafc 37%, #eef2f7 63%);
+    background-size: 400% 100%;
+    animation: skeleton-sweep 1.4s ease infinite;
+    border-radius: 8px;
+  }
+  @keyframes skeleton-sweep {
+    0% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0 50%;
+    }
+  }
+
+  /* Users who prefer reduced motion get the surface without the sweep, and
+     tiles that settle instead of sliding. */
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton {
+      animation: none;
+    }
+    .panel,
+    .panel-interactive:hover,
+    .stat-tile,
+    .stat-tile:hover {
+      transition: none;
+      transform: none;
+    }
   }
 
   /* Bootstrap .table with .thead-light. */
@@ -153,58 +327,122 @@
     border-top: 1px solid #e3e6f0;
   }
 
-  /* Legacy sidebar: idle #374151, hover #e0f2ff/#2563eb, active #dbeafe/#1d4ed8. */
+  /*
+   * Legacy sidebar colours: idle #374151, hover #e0f2ff/#2563eb, active
+   * #dbeafe/#1d4ed8. Kept exactly — what is added is depth: the active row now
+   * carries a gradient and a left accent bar rather than a flat tint block, and
+   * icons dim when idle so the active one leads the eye.
+   */
   .sidebar-item {
-    @apply flex items-center;
+    @apply relative flex items-center;
     padding: 10px 14px;
     font-size: 14px;
     color: #374151;
-    border-radius: 8px;
+    border-radius: 10px;
     text-decoration: none;
-    transition: background 0.2s ease, color 0.2s ease;
+    transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+  }
+  /* Left accent bar. Rendered on every row but scaled to nothing until the row
+     is hovered or active, so it grows out of the edge instead of popping in. */
+  .sidebar-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 3px;
+    height: 20px;
+    border-radius: 0 3px 3px 0;
+    background: var(--accent-strong);
+    transform: translateY(-50%) scaleY(0);
+    transition: transform 0.2s ease;
+  }
+  .sidebar-item svg {
+    color: #9aa3b2;
+    transition: color 0.2s ease;
   }
   .sidebar-item:hover {
     background-color: #e0f2ff;
     color: #2563eb;
   }
+  .sidebar-item:hover::before {
+    transform: translateY(-50%) scaleY(0.6);
+  }
+  .sidebar-item:hover svg {
+    color: #2563eb;
+  }
   .sidebar-item.active {
-    background-color: #dbeafe;
+    background-image: linear-gradient(100deg, #dbeafe 0%, #eaf2ff 100%);
     font-weight: 600;
+    color: #1d4ed8;
+    box-shadow: inset 0 0 0 1px rgba(29, 78, 216, 0.1);
+  }
+  .sidebar-item.active::before {
+    transform: translateY(-50%) scaleY(1);
+  }
+  .sidebar-item.active svg {
     color: #1d4ed8;
   }
   .sidebar-heading {
-    font-size: 12px;
-    font-weight: 600;
+    font-size: 11px;
+    font-weight: 700;
     text-transform: uppercase;
-    color: #6b7280;
-    margin: 8px 0;
+    letter-spacing: 0.06em;
+    color: #8b94a5;
+    margin: 10px 0 6px;
     padding: 0 14px;
   }
 
-  /* Sub-menu under an expanded group — legacy .collapse-inner. */
+  /*
+   * Sub-menu under an expanded group — legacy .collapse-inner. A hairline rail
+   * runs down the group so the children read as belonging to the parent row
+   * rather than floating as a loose list, and each link gets a real hover
+   * surface instead of only an underline.
+   */
   .collapse-inner {
-    padding-left: 28px;
+    position: relative;
+    padding-left: 16px;
+    margin-left: 22px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    margin-top: 6px;
-    margin-bottom: 6px;
+    gap: 2px;
+    margin-top: 4px;
+    margin-bottom: 8px;
+    border-left: 1.5px solid #e4ebf6;
   }
   .collapse-inner a {
-    color: #007bff;
-    font-weight: bold;
+    position: relative;
+    color: #4a6fa5;
+    font-weight: 600;
     font-size: 13px;
     text-decoration: none;
-    padding: 2px 0;
+    padding: 6px 10px;
+    border-radius: 7px;
+    transition: background 0.15s ease, color 0.15s ease;
   }
   .collapse-inner a:hover {
-    text-decoration: underline;
+    background: #f0f6ff;
+    color: #0b5ed7;
+    text-decoration: none;
   }
-  /* #accordionSidebar .collapse-inner a.active in the legacy stylesheet. */
+  /* #accordionSidebar .collapse-inner a.active in the legacy stylesheet — the
+     colour is kept, and the row now also carries a dot on the rail so the
+     current page is findable without reading every label. */
   .collapse-inner a.active {
-    background: transparent;
+    background: #eaf2ff;
     color: #007bff;
-    font-weight: 600;
+    font-weight: 700;
+  }
+  .collapse-inner a.active::before {
+    content: '';
+    position: absolute;
+    left: -17.5px;
+    top: 50%;
+    width: 7px;
+    height: 7px;
+    border-radius: 9999px;
+    background: #007bff;
+    transform: translateY(-50%);
+    box-shadow: 0 0 0 3px #fff;
   }
 
   /*
@@ -268,8 +506,10 @@
     display: none !important;
   }
 
+  /* The screen body carries a tinted gradient; paper must not. `background`
+     shorthand clears the image as well as the colour. */
   body {
-    background: #fff;
+    background: #fff !important;
   }
 
   main {

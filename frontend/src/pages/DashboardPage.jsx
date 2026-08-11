@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
  * every other screen; the dashboard shows a skeleton for the moment it takes.
  */
 const ReactApexChart = lazy(() => import('react-apexcharts'));
-import { reports } from '@/api/modules';
+import { reports, village } from '@/api/modules';
 import { buildings, flats, wings } from '@/api/masters';
 import { pdc } from '@/api/onboarding';
 import { useAuth } from '@/auth/AuthContext.jsx';
@@ -432,9 +432,905 @@ function DashboardSkeleton() {
   );
 }
 
+/*
+ * .stat-card-modern's four colour schemes. Each drives the 4px bar across the
+ * top of the card, the icon plate behind the glyph, the collection-rate figure
+ * and the progress fill — exactly as --card-gradient-start / --card-gradient-end
+ * and --icon-bg / --icon-color do in village_dashboard.aspx.
+ */
+const VILLAGE_TONES = {
+  home: { start: '#48bb78', end: '#38a169', iconBg: 'rgba(72,187,120,0.1)' },
+  water: { start: '#4299e1', end: '#3182ce', iconBg: 'rgba(66,153,225,0.1)' },
+  waste: { start: '#ed8936', end: '#dd6b20', iconBg: 'rgba(237,137,54,0.1)' },
+  population: { start: '#9f7aea', end: '#805ad5', iconBg: 'rgba(159,122,234,0.1)' },
+};
+
 /**
- * Society dashboard — replaces dashboard.aspx, Admin_Dashboard.aspx and
- * village_dashboard.aspx (the Village tab appears only for village accounts).
+ * .section-title-modern — a 38px indigo gradient square carrying the section's
+ * glyph, with the heading beside it.
+ */
+function SectionHeading({ title, icon }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span
+        className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px] text-white"
+        style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
+        aria-hidden="true"
+      >
+        <svg
+          width="17"
+          height="17"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          {icon}
+        </svg>
+      </span>
+      {/* 18px/700 in the legacy stylesheet, where .panel-title h6 is 15px. */}
+      <h6 style={{ fontSize: '18px', fontWeight: 700, color: '#1a202c' }}>{title}</h6>
+    </div>
+  );
+}
+
+/** The gradient rule across the top of every card (.stat-card-modern::before). */
+function CardTopRule({ tone }) {
+  return (
+    <span
+      className="absolute inset-x-0 top-0 h-1"
+      style={{ background: `linear-gradient(90deg, ${tone.start}, ${tone.end})` }}
+      aria-hidden="true"
+    />
+  );
+}
+
+/** .card-icon-modern — the tinted rounded plate holding the card's glyph. */
+function CardIcon({ tone, children }) {
+  return (
+    <span
+      className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-[14px]"
+      style={{ background: tone.iconBg, color: tone.end }}
+      aria-hidden="true"
+    >
+      <svg
+        width="22"
+        height="22"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        {children}
+      </svg>
+    </span>
+  );
+}
+
+/**
+ * One of the three tax cards: icon and trend badge on top, the title, the
+ * `paid / total` pair, a Collection Rate bar, then a Paid / Pending footer —
+ * the shape of .stat-card-modern in village_dashboard.aspx.
+ */
+function VillageStatCard({ title, paid, total, paidCount, pendingCount, icon, tone, to, note }) {
+  const pct =
+    paid == null || !Number(total)
+      ? null
+      : Math.min(100, Math.round((Number(paid) / Number(total)) * 100));
+
+  return (
+    <Link to={to} className="panel panel-interactive relative block overflow-hidden p-6">
+      <CardTopRule tone={tone} />
+
+      <div className="flex items-start justify-between gap-2">
+        <CardIcon tone={tone}>{icon}</CardIcon>
+        {/*
+          .card-trend held a hardcoded "8%" / "12%" / "15%" with an up arrow —
+          there is no earlier period stored to compare against, so a trend would
+          have to be invented. The slot keeps the collection rate instead.
+        */}
+        {pct != null ? (
+          <span
+            className="rounded-lg px-3 py-1.5 text-xs font-semibold"
+            style={{ background: tone.iconBg, color: tone.end }}
+          >
+            {pct}%
+          </span>
+        ) : null}
+      </div>
+
+      <p
+        className="mt-5 text-[13px] font-semibold uppercase"
+        style={{ color: '#718096', letterSpacing: '0.5px' }}
+      >
+        {title}
+      </p>
+
+      {/* .card-value-modern — 32px figure beside a 20px muted total. */}
+      <p className="mt-3 flex items-baseline gap-2">
+        <span className="text-[32px] font-bold leading-none" style={{ color: '#1a202c' }}>
+          {paid == null ? '—' : money(paid)}
+        </span>
+        <span className="text-xl font-semibold" style={{ color: '#a0aec0' }}>
+          / {money(total)}
+        </span>
+      </p>
+
+      {/* .progress-section */}
+      <div className="mt-4">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-[13px] font-medium" style={{ color: '#4a5568' }}>
+            Collection Rate
+          </span>
+          <span className="text-sm font-bold" style={{ color: tone.end }}>
+            {pct == null ? '—' : `${pct}%`}
+          </span>
+        </div>
+        <span
+          className="block h-2 w-full overflow-hidden rounded-[10px]"
+          style={{ background: '#f7fafc' }}
+        >
+          <span
+            className="block h-full rounded-[10px] transition-[width] duration-700"
+            style={{
+              width: `${pct ?? 0}%`,
+              background: `linear-gradient(90deg, ${tone.start}, ${tone.end})`,
+            }}
+          />
+        </span>
+      </div>
+
+      {/* .card-footer-modern — the Paid / Pending pair. */}
+      <div
+        className="mt-4 flex items-center justify-between border-t pt-4"
+        style={{ borderColor: '#f1f3f5' }}
+      >
+        {note ? (
+          <span className="text-xs" style={{ color: '#718096' }}>
+            {note}
+          </span>
+        ) : (
+          <>
+            <span className="text-xs" style={{ color: '#718096' }}>
+              {money(paidCount)} Paid
+            </span>
+            <span className="text-xs" style={{ color: '#718096' }}>
+              {money(pendingCount)} Pending
+            </span>
+          </>
+        )}
+      </div>
+    </Link>
+  );
+}
+
+/** The Total Population card, which shows counts rather than money. */
+function VillagePopulationCard({ residents, houses }) {
+  const tone = VILLAGE_TONES.population;
+
+  return (
+    <Link to="/village/residents" className="panel panel-interactive relative block overflow-hidden p-6">
+      <CardTopRule tone={tone} />
+
+      <div className="flex items-start justify-between gap-2">
+        <CardIcon tone={tone}>
+          <path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM2 20a6 6 0 0 1 12 0M17 11a3 3 0 1 0 0-6M16 20h6a5 5 0 0 0-4-4.9" />
+        </CardIcon>
+      </div>
+
+      <p
+        className="mt-5 text-[13px] font-semibold uppercase"
+        style={{ color: '#718096', letterSpacing: '0.5px' }}
+      >
+        Total Population
+      </p>
+      <p className="mt-3 text-[32px] font-bold leading-none" style={{ color: '#1a202c' }}>
+        {money(residents)}
+      </p>
+
+      {/*
+        .population-grid held two boxes, Male and Female. house_owner has no
+        gender column, so that split cannot be derived from the data — these
+        report residents and houses, which can.
+      */}
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        {[
+          {
+            label: 'Residents',
+            value: residents,
+            colour: '#3182ce',
+            icon: <path d="M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM5 21a7 7 0 0 1 14 0" />,
+          },
+          {
+            label: 'Houses',
+            value: houses,
+            colour: '#d53f8c',
+            icon: <path d="M4 20V9l8-5 8 5v11M9 20v-6h6v6" />,
+          },
+        ].map((b) => (
+          <div
+            key={b.label}
+            className="rounded-xl py-3 text-center"
+            style={{ background: tone.iconBg }}
+          >
+            <span
+              className="mx-auto mb-1 block w-fit"
+              style={{ color: b.colour }}
+              aria-hidden="true"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                {b.icon}
+              </svg>
+            </span>
+            <p className="text-lg font-bold" style={{ color: '#1a202c' }}>
+              {money(b.value)}
+            </p>
+            <p className="text-[11px]" style={{ color: '#718096' }}>
+              {b.label}
+            </p>
+          </div>
+        ))}
+      </div>
+    </Link>
+  );
+}
+
+/**
+ * The banner across the top: the village's name over the figures that answer
+ * "how are we doing" — collected this year, still outstanding, and the two
+ * counts that size the place.
+ *
+ * It carries the same deep-blue wash as the signed-out pages, so the first
+ * thing a village account sees after signing in is recognisably the same
+ * product it signed in through.
+ */
+function VillageHero({ name, collected, outstanding, houses, staff }) {
+  /*
+   * A missing figure is shown as zero, not as an em dash. These are counts and
+   * sums over the village's own rows: a village with nothing recorded has zero
+   * outstanding and zero staff, and "—" made an empty village look like a
+   * broken page — particularly beside "₹", which read as "₹—".
+   */
+  const n = (v) => Number(v ?? 0);
+
+  const FIGURES = [
+    {
+      label: 'Collected',
+      sub: 'last 12 months',
+      value: `₹${money(n(collected))}`,
+      icon: <path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />,
+    },
+    {
+      label: 'Outstanding',
+      sub: 'still due',
+      value: `₹${money(n(outstanding))}`,
+      icon: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+    },
+    {
+      label: 'Houses',
+      sub: 'on the register',
+      value: money(n(houses)),
+      icon: <path d="M4 20V9l8-5 8 5v11M9 20v-6h6v6" />,
+    },
+    {
+      label: 'Staff',
+      sub: 'on the books',
+      value: money(n(staff)),
+      icon: <path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM2 20a6 6 0 0 1 12 0M17 11a3 3 0 1 0 0-6M16 20h6a5 5 0 0 0-4-4.9" />,
+    },
+  ];
+
+  return (
+    <div
+      className="relative overflow-hidden rounded-2xl px-6 py-6 text-white sm:px-8"
+      style={{
+        // Lighter and bluer than the sign-in panel's near-black start: at that
+        // depth the village name sat dark-on-dark and barely read.
+        background: 'linear-gradient(120deg, #1e3a8a 0%, #2563eb 55%, #4f7df3 100%)',
+        boxShadow: 'var(--shadow-md)',
+      }}
+    >
+      {/* Soft blooms so the fill is not a flat diagonal. */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        aria-hidden="true"
+        style={{
+          backgroundImage:
+            'radial-gradient(560px circle at 8% 0%, rgba(147,197,253,0.35), transparent 62%),' +
+            'radial-gradient(420px circle at 96% 110%, rgba(167,139,250,0.32), transparent 60%)',
+        }}
+      />
+
+      <div className="relative">
+        <p
+          className="text-[11px] font-semibold uppercase tracking-[0.14em]"
+          style={{ color: 'rgba(255,255,255,0.75)' }}
+        >
+          Gram Panchayat
+        </p>
+        {/* Pure white with a soft shadow, so the name reads at a glance. */}
+        <h2
+          className="mt-1 text-[26px] font-bold leading-tight tracking-tight text-white sm:text-3xl"
+          style={{ textShadow: '0 1px 12px rgba(2,20,60,0.35)' }}
+        >
+          {name}
+        </h2>
+
+        {/* Each figure sits on its own translucent plate rather than floating on
+            the gradient, which is what made the row read as unfinished. */}
+        <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {FIGURES.map((f) => (
+            <div
+              key={f.label}
+              className="rounded-xl px-4 py-3"
+              style={{
+                background: 'rgba(255,255,255,0.12)',
+                border: '1px solid rgba(255,255,255,0.16)',
+                backdropFilter: 'blur(6px)',
+              }}
+            >
+              <div className="flex items-center gap-1.5" style={{ color: 'rgba(255,255,255,0.8)' }}>
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  {f.icon}
+                </svg>
+                <span className="text-[11px] font-semibold uppercase tracking-wide">{f.label}</span>
+              </div>
+              <p className="mt-1 text-xl font-bold text-white sm:text-2xl">{f.value}</p>
+              <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                {f.sub}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * Twelve months of collection as a bar chart, drawn as plain elements rather
+ * than pulled through ApexCharts — this is one series of twelve values, and the
+ * society dashboard already pays the 240KB for the charts that need it.
+ *
+ * The API returns only months that saw receipts, so the run is zero-filled here
+ * and the chart shows a continuous year.
+ */
+function VillageTrend({ trend }) {
+  const now = new Date();
+  const months = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
+    const row = trend?.find((t) => t.y === d.getFullYear() && t.m === d.getMonth() + 1);
+    return {
+      key: `${d.getFullYear()}-${d.getMonth()}`,
+      label: MONTH_LABELS[d.getMonth()],
+      collected: Number(row?.collected ?? 0),
+      receipts: Number(row?.receipts ?? 0),
+    };
+  });
+
+  const peak = Math.max(...months.map((m) => m.collected), 1);
+
+  return (
+    <div className="flex h-[220px] items-end gap-1.5 sm:gap-2">
+      {months.map((m) => (
+        <div key={m.key} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+          <div className="flex w-full flex-1 items-end">
+            <div
+              className="w-full rounded-t-md transition-[height] duration-700"
+              style={{
+                // A month with nothing collected still shows a 2px stub, so the
+                // axis reads as twelve months rather than a gap.
+                height: `${Math.max(2, (m.collected / peak) * 100)}%`,
+                background:
+                  m.collected > 0
+                    ? 'linear-gradient(180deg, #6f8ff5 0%, #4e73df 100%)'
+                    : '#eef2f9',
+              }}
+              title={`${m.label}: ₹${money(m.collected)} from ${m.receipts} receipt(s)`}
+            />
+          </div>
+          <span className="text-[10px]" style={{ color: '#a0aec0' }}>
+            {m.label}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/*
+ * A colour and glyph per receipt kind, keyed to Village_payment_type's codes —
+ * 1 Property Tax, 2 Water Charges, 3 Waste Charges. They match the stat card
+ * above that reports the same tax, so a green row in the activity list and the
+ * green Property Tax card are recognisably about one thing.
+ */
+const RECEIPT_TONES = {
+  1: {
+    fg: '#38a169',
+    bg: 'rgba(72,187,120,0.15)',
+    icon: <path d="M4 20V9l8-5 8 5v11M9 20v-6h6v6" />,
+  },
+  2: {
+    fg: '#3182ce',
+    bg: 'rgba(66,153,225,0.15)',
+    icon: <path d="M12 3s6 6.6 6 10.5A6 6 0 0 1 6 13.5C6 9.6 12 3 12 3Z" />,
+  },
+  3: {
+    fg: '#dd6b20',
+    bg: 'rgba(237,137,54,0.15)',
+    icon: <path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13M10 11v5M14 11v5" />,
+  },
+  default: {
+    fg: '#805ad5',
+    bg: 'rgba(159,122,234,0.15)',
+    icon: <path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />,
+  },
+};
+
+/** Collection split by what was paid for, as a labelled share bar. */
+function VillageSplit({ split }) {
+  const rows = (split ?? []).filter((s) => Number(s.amount) > 0);
+  const total = rows.reduce((sum, s) => sum + Number(s.amount), 0);
+  const COLOURS = ['#48bb78', '#4299e1', '#ed8936', '#9f7aea'];
+
+  if (!total) return <EmptyState title="Nothing collected yet" />;
+
+  return (
+    <div>
+      {/* The total leads, so the panel says something before the breakdown. */}
+      <p className="text-2xl font-bold leading-none" style={{ color: '#1a202c' }}>
+        ₹{money(total)}
+      </p>
+      <p className="mt-1 text-xs" style={{ color: '#a0aec0' }}>
+        across {rows.length} {rows.length === 1 ? 'category' : 'categories'}
+      </p>
+
+      {/* One stacked bar, so the shares are comparable at a glance. */}
+      <span
+        className="mt-4 flex h-2.5 w-full overflow-hidden rounded-full"
+        style={{ background: '#f7fafc' }}
+      >
+        {rows.map((s, i) => (
+          <span
+            key={s.label ?? i}
+            style={{ width: `${(Number(s.amount) / total) * 100}%`, background: COLOURS[i % COLOURS.length] }}
+          />
+        ))}
+      </span>
+
+      <ul className="mt-4 space-y-2.5">
+        {rows.map((s, i) => (
+          <li key={s.label ?? i} className="flex items-center gap-2.5">
+            <span
+              className="h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{ background: COLOURS[i % COLOURS.length] }}
+              aria-hidden="true"
+            />
+            <span className="min-w-0 flex-1 truncate text-[13px]" style={{ color: '#4a5568' }}>
+              {s.label || 'Other'}
+            </span>
+            <span className="shrink-0 text-[13px] font-bold" style={{ color: '#1a202c' }}>
+              ₹{money(s.amount)}
+            </span>
+            <span className="w-9 shrink-0 text-right text-[11px]" style={{ color: '#a0aec0' }}>
+              {Math.round((Number(s.amount) / total) * 100)}%
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/*
+ * village_dashboard.aspx, reproduced against real data and extended.
+ *
+ * The legacy page's own shape is kept — four stat cards across the top, then
+ * Recent Activities beside Quick Actions — with a summary banner above them and
+ * a collection trend and split beneath, because the legacy page had no reporting
+ * of its own at all.
+ *
+ * It also had no data source: every figure was a literal in
+ * village_dashboard.aspx.cs (`int waterTaxPaid = 27300;`) and its activity list
+ * was written by hand. GET /village/dashboard computes all of this from the
+ * house, house_tax, water_tax, house_owner, house_tax_receipt, Village_staff and
+ * Village_payment_type tables the village screens already write.
+ */
+function VillageDashboard() {
+  const { user } = useAuth();
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    village
+      .dashboard()
+      .then((d) => !cancelled && setData(d))
+      .catch((err) => !cancelled && setError(err));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /*
+   * The four tiles under the legacy "Quick Actions" heading.
+   *
+   * Each carries a one-line `hint` naming the screen it opens: the legacy tiles
+   * were an icon over a label, and "Taxes" or "Analytics & Reports" does not on
+   * its own say what pressing it does.
+   *
+   * The legacy page pointed both "Add Announcement" and "Add Government Scheme"
+   * at v_announcement.aspx — schemes were announced as notices. That is kept,
+   * and the hints say so rather than implying two separate screens.
+   */
+  const ACTIONS = [
+    {
+      label: 'Add Announcement',
+      hint: 'Post a notice to the village',
+      to: '/community/notices',
+      icon: <path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1ZM16 9a4 4 0 0 1 0 6" />,
+    },
+    {
+      label: 'Taxes',
+      hint: 'Property and water tax bills',
+      to: '/village/house-tax',
+      icon: <path d="M6 3h9l4 4v14H6V3ZM15 3v4h4M9 12h6M9 16h6" />,
+    },
+    {
+      label: 'Add Government Scheme',
+      hint: 'Announce a scheme as a notice',
+      to: '/community/notices',
+      icon: <path d="M5 4h14v16H5V4ZM9 9h6M9 13h6M9 17h3" />,
+    },
+    {
+      label: 'Analytics & Reports',
+      hint: 'Balance sheet and history',
+      to: '/village/balance-sheet',
+      icon: <path d="M4 19h16M7 16V9m5 7V5m5 11v-4" />,
+    },
+  ];
+
+  if (error) return <ErrorNotice error={error} />;
+  if (!data) {
+    return (
+      <div className="space-y-5">
+        <div className="skeleton h-[180px] rounded-2xl" />
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="skeleton h-[168px]" />
+          ))}
+        </div>
+        <div className="grid gap-5 lg:grid-cols-[2fr_1fr]">
+          <div className="skeleton h-[320px]" />
+          <div className="skeleton h-[320px]" />
+        </div>
+      </div>
+    );
+  }
+
+  const collected = (data.trend ?? []).reduce((sum, t) => sum + Number(t.collected ?? 0), 0);
+
+  return (
+    <div className="space-y-5">
+      <VillageHero
+        name={user?.village_name || 'Your village'}
+        collected={collected}
+        outstanding={data.outstanding}
+        houses={data.houses}
+        staff={data.staff}
+      />
+
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <VillageStatCard
+          title="Property Tax (Yearly)"
+          paid={data.propertyTax?.paid}
+          total={data.propertyTax?.total}
+          paidCount={data.propertyTax?.paidCount}
+          pendingCount={data.propertyTax?.pendingCount}
+          to="/village/house-tax"
+          tone={VILLAGE_TONES.home}
+          icon={<path d="M4 20V9l8-5 8 5v11M9 20v-6h6v6" />}
+        />
+        <VillageStatCard
+          title="Water Tax (Monthly)"
+          paid={data.waterTax?.paid}
+          total={data.waterTax?.total}
+          paidCount={data.waterTax?.paidCount}
+          pendingCount={data.waterTax?.pendingCount}
+          to="/village/water-tax"
+          tone={VILLAGE_TONES.water}
+          icon={<path d="M12 3s6 6.6 6 10.5A6 6 0 0 1 6 13.5C6 9.6 12 3 12 3Z" />}
+        />
+        <VillageStatCard
+          title="Waste Tax (Monthly)"
+          paid={data.wasteTax?.paid}
+          total={data.wasteTax?.total}
+          to="/village/payments"
+          tone={VILLAGE_TONES.waste}
+          icon={<path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13M10 11v5M14 11v5" />}
+          // wasteTax.paid is null: waste_charges is a per-house charge on
+          // dbo.house with no billing table, so nothing records collection.
+          note="Charged per house — no collection record"
+        />
+        <VillagePopulationCard residents={data.residents} houses={data.houses} />
+      </div>
+
+      {/* Reporting the legacy page had none of: what came in over the year, and
+          what it was collected against. */}
+      <div className="grid gap-5 lg:grid-cols-[2fr_1fr]">
+        <div className="panel">
+          <div className="panel-title">
+            <SectionHeading
+              title="Collection Trend"
+              icon={<path d="M4 19h16M7 15l4-5 3 3 5-7" />}
+            />
+            <span className="text-xs" style={{ color: '#a0aec0' }}>
+              Last 12 months
+            </span>
+          </div>
+          <div className="panel-body">
+            <VillageTrend trend={data.trend} />
+          </div>
+        </div>
+
+        {/* Quick Actions sits up here beside the trend, where it is reachable
+            without scrolling past the activity list. */}
+        <div className="panel">
+          <div className="panel-title">
+            <SectionHeading
+              title="Quick Actions"
+              icon={<path d="M13 2 4.5 13H11l-1 9 8.5-11H12l1-9Z" />}
+            />
+          </div>
+          <div className="panel-body">
+            {/*
+              A row per action — icon, then the label over a line naming the
+              screen it opens, then a chevron. The legacy tiles were an icon
+              over a bare label, which left "Taxes" and "Analytics & Reports"
+              saying nothing about where they lead.
+            */}
+            <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-1">
+              {ACTIONS.map((a) => (
+                <Link
+                  key={a.label}
+                  to={a.to}
+                  className="group flex items-center gap-3 rounded-xl p-3 no-underline transition-colors hover:bg-[#eef3fb]"
+                  style={{ background: '#f7fafc', border: '1px solid var(--line)' }}
+                >
+                  <span
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] text-white transition-transform group-hover:scale-105"
+                    style={{
+                      background: 'linear-gradient(135deg, #6f8ff5, #4e73df)',
+                      boxShadow: '0 4px 12px -2px rgba(78,115,223,0.45)',
+                    }}
+                    aria-hidden="true"
+                  >
+                    <svg
+                      width="19"
+                      height="19"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.9"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      {a.icon}
+                    </svg>
+                  </span>
+
+                  <span className="min-w-0 flex-1">
+                    <span
+                      className="block truncate text-sm font-semibold"
+                      style={{ color: '#2d3748' }}
+                    >
+                      {a.label}
+                    </span>
+                    <span className="block truncate text-xs" style={{ color: '#718096' }}>
+                      {a.hint}
+                    </span>
+                  </span>
+
+                  {/* Slides a little on hover, so the row reads as going
+                      somewhere rather than toggling something. */}
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="shrink-0 transition-transform group-hover:translate-x-0.5"
+                    style={{ color: '#a0aec0' }}
+                    aria-hidden="true"
+                  >
+                    <path d="m9 6 6 6-6 6" />
+                  </svg>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-[2fr_1fr]">
+        <div className="panel">
+          <div className="panel-title">
+            <SectionHeading
+              title="Recent Activities"
+              icon={
+                <>
+                  <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+                  <path d="M3 4v4h4M12 8v4l3 2" />
+                </>
+              }
+            />
+            {/* .view-all-link, beside the title in the legacy header. */}
+            <Link
+              to="/village/payments"
+              className="text-xs font-semibold no-underline hover:underline"
+              style={{ color: 'var(--accent-strong)' }}
+            >
+              View All →
+            </Link>
+          </div>
+          <div className="panel-body">
+            {data.activity?.length ? (
+              /*
+                Each receipt is its own row, coloured by what was paid for.
+                The legacy list was one flat grey block repeated with the same
+                green icon and the same "Completed" badge on every line, which
+                gave the eye nothing to scan — the amount is the thing being
+                reported, so it leads on the right, and the type carries the
+                colour.
+              */
+              <ul className="space-y-2.5">
+                {data.activity.map((a, i) => {
+                  const t = RECEIPT_TONES[a.typeCode] ?? RECEIPT_TONES.default;
+                  return (
+                    <li
+                      key={`${a.receipt_no}-${i}`}
+                      className="group relative flex items-center gap-3.5 overflow-hidden rounded-xl p-3.5 transition-colors hover:bg-[#f1f5fb]"
+                      style={{ background: '#f8fafc', border: '1px solid var(--line)' }}
+                    >
+                      {/* A colour bar down the left edge, so a run of rows reads
+                          as a grouped list rather than a wall of grey. */}
+                      <span
+                        className="absolute inset-y-0 left-0 w-1"
+                        style={{ background: t.fg }}
+                        aria-hidden="true"
+                      />
+
+                      <span
+                        className="ml-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                        style={{ background: t.bg, color: t.fg }}
+                        aria-hidden="true"
+                      >
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          {t.icon}
+                        </svg>
+                      </span>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p
+                            className="truncate text-sm font-semibold"
+                            style={{ color: '#2d3748' }}
+                          >
+                            {a.owner_name || 'Unknown'}
+                          </p>
+                          {a.house_no ? (
+                            <span
+                              className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold"
+                              style={{ background: '#eef2f9', color: '#718096' }}
+                            >
+                              No. {a.house_no}
+                            </span>
+                          ) : null}
+                        </div>
+
+                        <div className="mt-1 flex items-center gap-2 text-[11px]" style={{ color: '#a0aec0' }}>
+                          <span className="font-semibold" style={{ color: t.fg }}>
+                            {a.typeName || 'Payment'}
+                          </span>
+                          <span aria-hidden="true">·</span>
+                          <span>
+                            {a.pay_date
+                              ? new Date(a.pay_date).toLocaleDateString(undefined, {
+                                  day: 'numeric',
+                                  month: 'short',
+                                  year: 'numeric',
+                                })
+                              : '—'}
+                          </span>
+                          {a.receipt_no ? (
+                            <>
+                              <span aria-hidden="true">·</span>
+                              <span className="truncate">#{a.receipt_no}</span>
+                            </>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {/* The figure the row exists to report. */}
+                      <span
+                        className="shrink-0 text-[15px] font-bold tabular-nums"
+                        style={{ color: '#1a202c' }}
+                      >
+                        ₹{money(a.amount)}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <EmptyState title="No recent activity" />
+            )}
+          </div>
+        </div>
+
+        {/*
+          The split sits beside the activity list, where both answer the same
+          question — what has actually been collected. `self-start` keeps it at
+          its own height: a grid item stretches to its row by default, which
+          left three short rows of text spread down a panel as tall as the
+          eight-item activity list beside it.
+        */}
+        <div className="panel self-start">
+          <div className="panel-title">
+            <SectionHeading
+              title="Collected By Type"
+              icon={<path d="M12 3v9l6.5 3.8A9 9 0 1 0 12 3Z" />}
+            />
+          </div>
+          <div className="panel-body">
+            <VillageSplit split={data.split} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Society dashboard — replaces dashboard.aspx and Admin_Dashboard.aspx.
+ * A village account gets VillageDashboard above instead.
  */
 export default function DashboardPage() {
   const { user, villageId } = useAuth();
@@ -442,7 +1338,16 @@ export default function DashboardPage() {
   const [masters, setMasters] = useState(null);
   const [expenseChart, setExpenseChart] = useState([]);
   const [error, setError] = useState(null);
-  const [tab, setTab] = useState('overview');
+  /*
+   * A village account opens on the Village tab.
+   *
+   * login1.aspx.cs branched on the account itself — `if (!string.IsNullOrEmpty(
+   * result.Village_Id)) Response.Redirect("village_dashboard.aspx")` — so a
+   * village login never saw the society dashboard. The two pages are one screen
+   * here with village_dashboard.aspx as its Village tab, and defaulting to
+   * Overview would land a village account on society figures it has none of.
+   */
+  const [tab, setTab] = useState(villageId ? 'village' : 'overview');
   /*
    * Maintenance Tracker — CheckBox1 / CheckBox2 on dashboard.aspx.
    *
@@ -573,17 +1478,25 @@ export default function DashboardPage() {
 
       <ErrorNotice error={error} />
 
-      <Tabs
-        tabs={[
-          { id: 'overview', label: 'Overview' },
-          { id: 'financial', label: 'Financial' },
-          { id: 'activity', label: 'Activity' },
-          ...(villageId ? [{ id: 'village', label: 'Village' }] : []),
-        ]}
-        active={tab}
-        onChange={setTab}
-        className="mb-4"
-      />
+      {/*
+        A village account gets the Village panel and nothing else — the legacy
+        app sent it to village_dashboard.aspx, a page of its own that never
+        carried the society figures. Overview, Financial and Activity are all
+        built from bills, flats and maintenance a village does not have, so on
+        those accounts they would read as a dashboard reporting zero.
+      */}
+      {villageId ? null : (
+        <Tabs
+          tabs={[
+            { id: 'overview', label: 'Overview' },
+            { id: 'financial', label: 'Financial' },
+            { id: 'activity', label: 'Activity' },
+          ]}
+          active={tab}
+          onChange={setTab}
+          className="mb-4"
+        />
+      )}
 
       {tab === 'overview' ? (
         /*
@@ -932,24 +1845,7 @@ export default function DashboardPage() {
         </div>
       ) : null}
 
-      {tab === 'village' ? (
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            { to: '/village/houses', label: 'Houses', hint: 'Open the houses register' },
-            { to: '/village/house-tax', label: 'House tax', hint: 'Open house tax' },
-            { to: '/village/water-tax', label: 'Water tax', hint: 'Open water tax' },
-            { to: '/village/payments', label: 'Pending payments', hint: 'Open pending charges' },
-          ].map((v) => (
-            <Link key={v.to} to={v.to} className="panel panel-interactive block p-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{v.label}</p>
-              <p className="mt-1 text-2xl font-bold" style={{ color: 'var(--ink)' }}>
-                —
-              </p>
-              <p className="mt-1 text-xs text-slate-500">{v.hint}</p>
-            </Link>
-          ))}
-        </div>
-      ) : null}
+      {tab === 'village' ? <VillageDashboard /> : null}
     </section>
   );
 }

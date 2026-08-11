@@ -11,10 +11,78 @@ const { requireSociety } = require('../../middleware/authenticate');
 const { notifyGroup } = require('../../lib/notify');
 
 const router = express.Router();
-router.use(requireSociety);
 
 const SOC = (v) => ({ type: sql.NVarChar(10), value: v });
 const SOC50 = (v) => ({ type: sql.NVarChar(50), value: v });
+
+/* ------------------------------------------------------- shell endpoints -- */
+
+/*
+ * The alerts bell and the message count in the topbar, which every signed-in
+ * account has — including a village one, whose society_id is NULL.
+ *
+ * These sit above the society guard below for that reason: behind it they
+ * returned 403 on every page a village account opened, which the client
+ * surfaced as "Network Error" beside whatever the page had actually loaded.
+ * They are still scoped, by whichever tenant the token carries.
+ */
+function tenantId(req) {
+  return req.user?.societyId || req.user?.villageId || null;
+}
+
+/**
+ * GET /community/notifications — the bell dropdown in Site.Master.
+ *
+ * sp_dashboard 'Notification' returns only unseen rows (seen_status = 0) for
+ * this tenant and user, newest first, with `timestamp` already run through
+ * GetRelativeTime — so it arrives as "2 hours ago", not a date.
+ *
+ * The procedure is sp_dashboard, not sp_UserLogin: BL_User_Login.get_notification
+ * reads like a login call but its DA (DA_User_Login.cs:150) runs sp_dashboard.
+ */
+router.get(
+  '/notifications',
+  asyncHandler(async (req, res) => {
+    const rows = await query('sp_dashboard', {
+      operation: 'Notification',
+      society_id: SOC(tenantId(req)),
+      user_id: { type: sql.Int, value: req.user.userId },
+    });
+    return ok(res, { items: rows, count: rows.length });
+  }),
+);
+
+/**
+ * GET /community/messages/count — the unread badge on the envelope icon.
+ *
+ * Counted from the same GetMessages rows the page lists, NOT from
+ * get_messages_count. That branch counts every unread row in owner_Messages
+ * regardless of `type`, while GetMessages reads owner_messages_vw filtered to
+ * type = 'admin' — so the two disagree whenever a message has another type.
+ *
+ * They do disagree today: every stored message is type = 'security', so
+ * get_messages_count reports unread messages the page can never show, and the
+ * badge would never clear no matter how many were opened. Counting the listed
+ * rows keeps the badge and the list telling the same story.
+ */
+router.get(
+  '/messages/count',
+  asyncHandler(async (req, res) => {
+    const rows = await query('sp_owner_master', {
+      operation: 'GetMessages',
+      society_id: SOC(tenantId(req)),
+    });
+    const unread = rows.filter((r) => Number(r.view_status) === 0).length;
+    return ok(res, { unread });
+  }),
+);
+
+/*
+ * Society-only below this line. A village's announcements are not notices —
+ * they live in village_announcement and are served by /village/announcements,
+ * which scopes by village_id.
+ */
+router.use(requireSociety);
 
 /* ----------------------------------------------------------------- notices */
 
@@ -915,27 +983,8 @@ router.delete(
 
 /* -------------------------------------------------------- notifications */
 
-/**
- * GET /community/notifications — the bell dropdown in Site.Master.
- *
- * sp_dashboard 'Notification' returns only unseen rows (seen_status = 0) for
- * this society and user, newest first, with `timestamp` already run through
- * GetRelativeTime — so it arrives as "2 hours ago", not a date.
- *
- * The procedure is sp_dashboard, not sp_UserLogin: BL_User_Login.get_notification
- * reads like a login call but its DA (DA_User_Login.cs:150) runs sp_dashboard.
- */
-router.get(
-  '/notifications',
-  asyncHandler(async (req, res) => {
-    const rows = await query('sp_dashboard', {
-      operation: 'Notification',
-      society_id: SOC(req.societyId),
-      user_id: { type: sql.Int, value: req.user.userId },
-    });
-    return ok(res, { items: rows, count: rows.length });
-  }),
-);
+/* GET /community/notifications is mounted above the society guard, with the
+   message count — both are topbar features a village account has too. */
 
 /**
  * PUT /community/notifications/:id/seen — mark one alert as read.
@@ -974,29 +1023,9 @@ router.get(
 );
 
 /**
- * GET /community/messages/count — unread badge.
- *
- * Counted from the same GetMessages rows the page lists, NOT from
- * get_messages_count. That branch counts every unread row in owner_Messages
- * regardless of `type`, while GetMessages reads owner_messages_vw filtered to
- * type = 'admin' — so the two disagree whenever a message has another type.
- *
- * They do disagree today: every stored message is type = 'security', so
- * get_messages_count reports unread messages the page can never show, and the
- * badge would never clear no matter how many were opened. Counting the listed
- * rows keeps the badge and the list telling the same story.
+ * GET /community/messages/count is mounted above the society guard, with the
+ * notifications bell — both are topbar features a village account has too.
  */
-router.get(
-  '/messages/count',
-  asyncHandler(async (req, res) => {
-    const rows = await query('sp_owner_master', {
-      operation: 'GetMessages',
-      society_id: SOC(req.societyId),
-    });
-    const unread = rows.filter((r) => Number(r.view_status) === 0).length;
-    return ok(res, { unread });
-  }),
-);
 
 /** PUT /community/messages/:id/read — mark one message read. */
 router.put(

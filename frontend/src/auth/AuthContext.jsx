@@ -67,6 +67,45 @@ export function AuthProvider({ children }) {
     return next.user;
   }, []);
 
+  /**
+   * Store a session handed back by something other than /auth/login.
+   *
+   * Registering signs the new account in — new_registration.aspx went straight
+   * on to the tenant setup form, with no sign-in in between — so the tokens
+   * arrive on the register response and have to be adopted the same way a
+   * login's would be.
+   */
+  const adoptSession = useCallback((data) => {
+    const next = {
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
+      expiresAt: data.expiresAt,
+      user: data.user,
+    };
+    writeSession(next);
+    setSession(next);
+    return next.user;
+  }, []);
+
+  /**
+   * Re-read the signed-in user from /auth/me and fold it into the session.
+   *
+   * The society wizard changes what the session says about the account — a
+   * society that had no name now has one — and nothing else would notice until
+   * the next reload. Returns the fresh user so a caller can act on it.
+   */
+  const refreshUser = useCallback(async () => {
+    const { user } = await api.get('/auth/me');
+    setSession((prev) => {
+      const base = prev ?? readSession();
+      if (!base) return prev;
+      const next = { ...base, user };
+      writeSession(next);
+      return next;
+    });
+    return user;
+  }, []);
+
   const logout = useCallback(async () => {
     const current = readSession();
     try {
@@ -90,8 +129,10 @@ export function AuthProvider({ children }) {
       loading,
       login,
       logout,
+      refreshUser,
+      adoptSession,
     }),
-    [session, loading, login, logout],
+    [session, loading, login, logout, refreshUser, adoptSession],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -101,4 +142,16 @@ export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used inside <AuthProvider>');
   return ctx;
+}
+
+/**
+ * The signed-in user, or null when there is no provider above.
+ *
+ * For components that only want to *decorate* with session data and must still
+ * render without it — the export toolbar stamps the society or village name
+ * onto a PDF, and a grid rendered on its own in a test has no provider.
+ * Anything that depends on the session to work should use useAuth().
+ */
+export function useOptionalUser() {
+  return useContext(AuthContext)?.user ?? null;
 }

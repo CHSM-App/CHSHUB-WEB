@@ -10,6 +10,44 @@ const { str, optionalStr, int, num, date, time } = require('../../lib/validate')
 const { requireSociety } = require('../../middleware/authenticate');
 
 const router = express.Router();
+
+/**
+ * GET /masters/regions?stateId=&districtId= — the cascading state → district →
+ * division lists behind society_search.aspx's three dropdowns.
+ *
+ * Mounted BEFORE requireSociety. These are the Indian state, district and
+ * division tables — reference data belonging to no tenant, and the same three
+ * lists new_village.aspx put behind its own dropdowns. Behind the society guard
+ * a village account (whose society_id is NULL by definition) got a 403 and an
+ * empty State dropdown, leaving its setup form impossible to complete.
+ *
+ * The legacy page built these queries by string concatenation
+ * (`"... Where state_id=" + ddl_state.SelectedValue`, society_search.aspx.cs:391).
+ * There is no stored procedure for them, so the tables are read directly here —
+ * with bound parameters, not concatenation.
+ */
+router.get(
+  '/regions',
+  asyncHandler(async (req, res) => {
+    const stateId = int(req.query.stateId, 'stateId', { min: 0, required: false, default: 0 });
+    const districtId = int(req.query.districtId, 'districtId', { min: 0, required: false, default: 0 });
+
+    const pool = await getPool();
+    const request = pool.request().input('state_id', sql.Int, stateId).input('district_id', sql.Int, districtId);
+
+    const result = await request.query(`
+      SELECT state_id, state FROM dbo.state ORDER BY state;
+      SELECT district_id, district, state_id FROM dbo.district
+      WHERE @state_id = 0 OR state_id = @state_id ORDER BY district;
+      SELECT division_id, division, district_id FROM dbo.division
+      WHERE @district_id = 0 OR district_id = @district_id ORDER BY division;`);
+
+    const [states, districts, divisions] = result.recordsets;
+    return ok(res, { states, districts, divisions });
+  }),
+);
+
+// Everything below this line is society-scoped.
 router.use(requireSociety);
 
 const SOC = (v) => ({ type: sql.NVarChar(10), value: v });
@@ -813,36 +851,6 @@ router.get(
       items: rows.map(({ password, token, web_token, ...rest }) => rest),
       count: rows.length,
     });
-  }),
-);
-
-/**
- * GET /masters/regions?stateId=&districtId= — the cascading state → district →
- * division lists behind society_search.aspx's three dropdowns.
- *
- * The legacy page built these queries by string concatenation
- * (`"... Where state_id=" + ddl_state.SelectedValue`, society_search.aspx.cs:391).
- * There is no stored procedure for them, so the tables are read directly here —
- * with bound parameters, not concatenation.
- */
-router.get(
-  '/regions',
-  asyncHandler(async (req, res) => {
-    const stateId = int(req.query.stateId, 'stateId', { min: 0, required: false, default: 0 });
-    const districtId = int(req.query.districtId, 'districtId', { min: 0, required: false, default: 0 });
-
-    const pool = await require('../../lib/db').getPool();
-    const request = pool.request().input('state_id', sql.Int, stateId).input('district_id', sql.Int, districtId);
-
-    const result = await request.query(`
-      SELECT state_id, state FROM dbo.state ORDER BY state;
-      SELECT district_id, district, state_id FROM dbo.district
-      WHERE @state_id = 0 OR state_id = @state_id ORDER BY district;
-      SELECT division_id, division, district_id FROM dbo.division
-      WHERE @district_id = 0 OR district_id = @district_id ORDER BY division;`);
-
-    const [states, districts, divisions] = result.recordsets;
-    return ok(res, { states, districts, divisions });
   }),
 );
 

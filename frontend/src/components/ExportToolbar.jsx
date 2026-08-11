@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useOptionalUser } from '@/auth/AuthContext.jsx';
 
 /**
  * The three export actions every legacy grid page carried — "Export to Excel",
@@ -15,6 +16,10 @@ export default function ExportToolbar({
   rows,
   exportName,
   exportTitle,
+  // Whose records these are, printed under the report title. Defaults to the
+  // signed-in society or village, so every export says whose sheet it is
+  // without each page having to pass it.
+  exportSubtitle,
   // Report screens pass these so the PDF carries the same run criteria and
   // balance-row shading the printed page shows. Plain grids omit them.
   filters,
@@ -23,6 +28,10 @@ export default function ExportToolbar({
   // the report uses on screen.
   accent,
 }) {
+  // Optional: a grid rendered without an AuthProvider (as tests do) still
+  // exports, just without the tenant line.
+  const user = useOptionalUser();
+  const tenantName = user?.society_name || user?.village_name || '';
   const [pdfBusy, setPdfBusy] = useState(false);
 
   /** CSV export — the legacy pages' "Export to Excel" button. */
@@ -40,7 +49,22 @@ export default function ExportToolbar({
           .join(','),
       )
       .join('\n');
-    const blob = new Blob([`${head}\n${body}`], { type: 'text/csv;charset=utf-8;' });
+    /*
+     * The same heading the PDF carries — report name, then whose records these
+     * are — so a spreadsheet opened weeks later still says what it is. Both are
+     * quoted single-cell rows, followed by a blank line, so the column headers
+     * still land on their own row for a parser.
+     */
+    const heading = [
+      `"${String(exportTitle ?? exportName ?? 'Export').replace(/"/g, '""')}"`,
+      tenantName ? `"${tenantName.replace(/"/g, '""')}"` : null,
+      `"Printed ${new Date().toLocaleDateString()}"`,
+      '',
+    ]
+      .filter((l) => l !== null)
+      .join('\n');
+
+    const blob = new Blob([`${heading}\n${head}\n${body}`], { type: 'text/csv;charset=utf-8;' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `${exportName || 'export'}-${new Date().toISOString().slice(0, 10)}.csv`;
@@ -57,6 +81,7 @@ export default function ExportToolbar({
         columns,
         rows,
         title: exportTitle ?? exportName,
+        subtitle: exportSubtitle ?? tenantName,
         filename: exportName || 'export',
         filters,
         emphasiseRow,

@@ -11,8 +11,27 @@ const { ApiError, ok, asyncHandler } = require('../lib/http');
 const { str, optionalStr, int, num, bool, date } = require('../lib/validate');
 const { hashPassword } = require('../lib/password');
 const { authenticate } = require('../middleware/authenticate');
+// Registering signs the new account in, so the tenant setup form can open
+// straight away — as new_registration.aspx did.
+const { accessTokenFor, issueRefreshToken } = require('../lib/tokens');
+const { publicUser } = require('../lib/publicUser');
 
 const router = express.Router();
+
+/**
+ * Normalise a tenant kind to the numeric code UserLogin.type actually holds.
+ *
+ * The column is nvarchar, but the procs compare it to a number, so only '1' and
+ * '2' are safe to store there. Accepts either the word ('Society' / 'Village',
+ * which is what the registration form shows and what the legacy WebForms page
+ * wrote) or the code itself. Anything unrecognised falls back to a society,
+ * which is the default the registration screen opens on.
+ */
+function tenantTypeCode(value) {
+  const raw = String(value ?? '').trim().toLowerCase();
+  if (raw === 'village' || raw === '2') return '2';
+  return '1';
+}
 
 /* ------------------------------------------------------------ public ---- */
 
@@ -58,6 +77,13 @@ router.get(
  *
  * The password is hashed in the legacy PBKDF2 format so the existing ASP.NET
  * login and this API both accept it.
+ *
+ * Returns a session as well as the new account. new_registration.aspx posted
+ * straight on to new_society.aspx / new_village.aspx, so the tenant setup form
+ * opened immediately after the account was created, with no sign-in in between.
+ * That form saves against the signed-in tenant here, so registering has to
+ * hand back the tokens that let it — otherwise the user is bounced to /login
+ * and the two pages stop being one flow.
  */
 router.post(
   '/register',
@@ -73,6 +99,70 @@ router.post(
     });
     if (existing.length) throw ApiError.conflict('That username is already taken');
 
+    const typeCode = tenantTypeCode(req.body?.type);
+    const isVillage = typeCode === '2';
+
+    /*
+     * Create the tenant row BEFORE the account, and hang the account off it.
+     *
+     * sp_UserLogin's 'Update' branch only inserts into UserLogin — it does not
+     * create a society or village, it just stores whatever @society_id it was
+     * handed. DA_New_Registration.update_registration() therefore made three
+     * calls in order, and this reproduces them:
+     *
+     *   1. sp_UserLogin 'new_society' / 'new_village'
+     *        inserts the empty tenant row, allocating the next id (C10001…,
+     *        V10001…), and returns its society_master_id / id.
+     *   2. sp_society_master / sp_village_master 'Select'
+     *        reads that row back to get the generated society_id / village_id.
+     *   3. sp_UserLogin 'Update'
+     *        inserts the account carrying that id.
+     *
+     * Skipping step 1 leaves society_id NULL, and then the setup form has no
+     * tenant to save against — which is what stopped it opening at all.
+     *
+     * A society_id sent by the client still wins, so an account can be added to
+     * an existing society rather than always minting a new one.
+     */
+    let societyId = optionalStr(req.body?.societyId, 'societyId', { max: 10 });
+    let villageId = optionalStr(req.body?.villageId, 'villageId', { max: 10 });
+
+    if (!societyId && !villageId) {
+      const createdRows = await query('sp_UserLogin', {
+        operation: isVillage ? 'new_village' : 'new_society',
+      });
+      // The branch ends with `SELECT TOP (1) society_master_id ... ORDER BY
+      // society_id DESC`, so the new row's key is the only column returned.
+      const created = createdRows[0] ?? {};
+      const masterId = created.society_master_id ?? created.id ?? created.village_master_id;
+
+      if (masterId == null) {
+        throw new ApiError(500, `Could not create the ${isVillage ? 'village' : 'society'}`, {
+          code: 'TENANT_CREATE_FAILED',
+        });
+      }
+
+      if (isVillage) {
+        const rows = await query('sp_village_master', {
+          operation: 'Select',
+          id: { type: sql.Int, value: Number(masterId) },
+        });
+        villageId = rows[0]?.village_id ?? null;
+      } else {
+        const rows = await query('sp_society_master', {
+          operation: 'Select',
+          society_master_id: { type: sql.Int, value: Number(masterId) },
+        });
+        societyId = rows[0]?.society_id ?? null;
+      }
+
+      if (!societyId && !villageId) {
+        throw new ApiError(500, `Could not read back the new ${isVillage ? 'village' : 'society'}`, {
+          code: 'TENANT_READBACK_FAILED',
+        });
+      }
+    }
+
     await exec('sp_UserLogin', {
       operation: 'Update',
       user_id: { type: sql.Int, value: 0 },
@@ -81,14 +171,65 @@ router.post(
       password: { type: sql.NVarChar(200), value: hashPassword(password) },
       email: { type: sql.NVarChar(100), value: optionalStr(req.body?.email, 'email', { max: 100 }) },
       contact_no: { type: sql.NVarChar(50), value: optionalStr(req.body?.contactNo, 'contactNo', { max: 50 }) },
+      // new_registration.aspx collected an address and DA_New_Registration
+      // passed it as @address1; sp_UserLogin declares it NVARCHAR(50).
+      address1: { type: sql.NVarChar(50), value: optionalStr(req.body?.address, 'address', { max: 50 }) },
       user_type_id: { type: sql.Int, value: int(req.body?.userTypeId, 'userTypeId', { required: false, default: 2 }) },
       owner_id: { type: sql.Int, value: int(req.body?.ownerId, 'ownerId', { required: false, default: 0 }) },
-      society_id: { type: sql.NVarChar(10), value: optionalStr(req.body?.societyId, 'societyId', { max: 10 }) },
-      village_id: { type: sql.NVarChar(10), value: optionalStr(req.body?.villageId, 'villageId', { max: 10 }) },
-      type: { type: sql.NVarChar(50), value: optionalStr(req.body?.type, 'type', { max: 50 }) || '1' },
+      society_id: { type: sql.NVarChar(10), value: societyId },
+      village_id: { type: sql.NVarChar(10), value: villageId },
+      /*
+       * UserLogin.type is nvarchar, but every proc that reads it compares it to
+       * a number — validateuser's login branch does
+       * `case when UserLogin.type=1 then 'Society' else 'Village' end`, which
+       * makes SQL Server convert the stored string to int. Writing the word
+       * 'Society' there therefore stores fine and then fails every subsequent
+       * login with "Conversion failed when converting the nvarchar value
+       * 'Society' to data type int".
+       *
+       * So the tenant kind is stored as the code the procs expect — 1 for a
+       * society, 2 for a village — regardless of which spelling the client
+       * sends.
+       */
+      type: { type: sql.NVarChar(50), value: typeCode },
     });
 
-    return ok(res, { registered: true }, 201);
+    /*
+     * Read the account back through the same proc the login route uses, so the
+     * session carries exactly the shape /auth/login and /auth/me return —
+     * including the society_id that 'Update' just created, which the setup
+     * wizard saves against.
+     */
+    const rows = await query('validateuser', {
+      operation: 'login',
+      username: { type: sql.VarChar(250), value: username },
+    });
+    const user = rows[0];
+    if (!user) {
+      // The insert reported success but the row is not readable — surface that
+      // rather than returning a session with nothing behind it.
+      throw new ApiError(500, 'Account was created but could not be signed in', {
+        code: 'REGISTER_INCOMPLETE',
+      });
+    }
+
+    const accessToken = accessTokenFor(user);
+    const refresh = await issueRefreshToken(
+      user,
+      optionalStr(req.body?.deviceInfo, 'deviceInfo', { max: 500 }),
+    );
+
+    return ok(
+      res,
+      {
+        registered: true,
+        accessToken,
+        refreshToken: refresh.token,
+        expiresAt: refresh.expiresAt,
+        user: publicUser(user),
+      },
+      201,
+    );
   }),
 );
 

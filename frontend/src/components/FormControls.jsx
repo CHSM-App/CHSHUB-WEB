@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { api } from '@/api/client';
+import { useOptionalUser } from '@/auth/AuthContext.jsx';
 
 /** Labelled input with inline validation message. Replaces asp:TextBox + validator. */
 export function TextField({ label, error, required, hint, type = 'text', className = '', ...rest }) {
@@ -286,16 +287,41 @@ export function Tabs({ tabs, active, onChange, className = '' }) {
 
 /** Page header with title, subtitle and an actions slot. */
 export function PageHeader({ title, subtitle, children }) {
+  const user = useOptionalUser();
+  const tenantName = user?.society_name || user?.village_name || '';
+
   return (
-    <header className="mb-4 flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h1 className="text-xl font-bold tracking-tight" style={{ color: 'var(--ink)' }}>
-          {title}
-        </h1>
-        {subtitle ? <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p> : null}
+    <>
+      {/*
+        The printed heading — report name, whose records these are, and the
+        date. Hidden on screen (see .print-head in index.css), where the header
+        below already says all this and the shell supplies the society name.
+        Printing it here means every page that uses PageHeader gets the same
+        block the PDF export draws.
+      */}
+      <div className="print-head">
+        <div className="print-title">{title}</div>
+        {tenantName ? <div className="print-subtitle">{tenantName}</div> : null}
+        <div className="print-meta">
+          Printed{' '}
+          {new Date().toLocaleDateString(undefined, {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+          })}
+        </div>
       </div>
-      {children ? <div className="flex flex-wrap items-center gap-2 print:hidden">{children}</div> : null}
-    </header>
+
+      <header className="mb-4 flex flex-wrap items-start justify-between gap-3 print:hidden">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight" style={{ color: 'var(--ink)' }}>
+            {title}
+          </h1>
+          {subtitle ? <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p> : null}
+        </div>
+        {children ? <div className="flex flex-wrap items-center gap-2 print:hidden">{children}</div> : null}
+      </header>
+    </>
   );
 }
 

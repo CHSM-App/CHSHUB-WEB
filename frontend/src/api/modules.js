@@ -128,6 +128,13 @@ export const reports = {
 
 /* ------------------------------------------------------------- village */
 export const village = {
+  /** Figures behind village_dashboard.aspx's cards and activity list. */
+  dashboard: () => api.get('/village/dashboard'),
+  /** v_announcement.aspx — its own table, not the society notice list. */
+  announcements: (params) => api.get('/village/announcements', p(params)),
+  createAnnouncement: (body) => api.post('/village/announcements', body),
+  updateAnnouncement: (id, body) => api.put(`/village/announcements/${id}`, body),
+  removeAnnouncement: (id) => api.delete(`/village/announcements/${id}`),
   houses: (params) => api.get('/village/houses', p(params)),
   createHouse: (body) => api.post('/village/houses', body),
   updateHouse: (id, body) => api.put(`/village/houses/${id}`, body),

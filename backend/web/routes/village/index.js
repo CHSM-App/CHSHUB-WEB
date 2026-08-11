@@ -8,7 +8,7 @@ const express = require('express');
 
 const { query, exec, sql } = require('../../lib/db');
 const { ApiError, ok, asyncHandler } = require('../../lib/http');
-const { str, optionalStr, int, num, date } = require('../../lib/validate');
+const { str, optionalStr, int, num, date, oneOf } = require('../../lib/validate');
 const { requireVillage } = require('../../middleware/authenticate');
 
 const router = express.Router();
@@ -444,13 +444,20 @@ router.post(
     const chequeDate = date(req.body?.chequeDate, 'chequeDate', { required: false });
     const remark = optionalStr(req.body?.remark, 'remark', { max: 250 });
 
-    // The legacy page made the reference mandatory for anything but cash, and
-    // the cheque number mandatory for cheques.
-    if (payMode !== 1 && !transactionRef) {
-      throw ApiError.badRequest('Transaction reference is required for UPI and cheque payments');
+    /*
+     * What the legacy modal actually asked for, per method. toggleTransactionRef()
+     * showed Transaction Reference only for UPI (4) and only Cheque No. plus
+     * Cheque Date for cheques (2); cash asked for nothing.
+     *
+     * Requiring a reference for cheques as well — which this used to — rejected
+     * every cheque payment the form could produce, because the form never
+     * offered that box for a cheque.
+     */
+    if (payMode === 4 && !transactionRef) {
+      throw ApiError.badRequest('Transaction reference is required for a UPI payment');
     }
-    if (payMode === 2 && !chequeNo) {
-      throw ApiError.badRequest('Cheque number is required for a cheque payment');
+    if (payMode === 2 && (!chequeNo || !chequeDate)) {
+      throw ApiError.badRequest('Cheque number and cheque date are required for a cheque payment');
     }
 
     // Only settle bills that belong to this village and are still unpaid —
@@ -515,6 +522,246 @@ router.get(
       village_id: VIL(req.villageId),
     });
     return ok(res, { address: rows[0]?.address_line1 ?? null });
+  }),
+);
+
+/* ---------------------------------------------------------- announcements */
+
+/*
+ * v_announcement.aspx. Its three tabs — General, Meeting Updates, and Work &
+ * Budget Information — are the `category` column; the legacy page had no table
+ * behind it at all, filling each tab from a DataTable built in code and keeping
+ * anything added in a static in-memory list.
+ *
+ * Every branch is scoped to req.villageId, which comes from the token.
+ * See SQL/ADD_village_announcement.sql.
+ */
+const ANNOUNCEMENT_CATEGORIES = ['General', 'Meeting', 'WorkBudget'];
+
+router.get(
+  '/announcements',
+  asyncHandler(async (req, res) => {
+    const search = optionalStr(req.query.search, 'search', { max: 200 });
+    const rows = await query('sp_village_announcement', {
+      operation: search ? 'Search' : 'Grid_Show',
+      village_id: VIL(req.villageId),
+      ...(search ? { search: { type: sql.NVarChar(200), value: search } } : {}),
+    });
+    return ok(res, { items: rows, count: rows.length });
+  }),
+);
+
+router.post(
+  '/announcements',
+  asyncHandler(async (req, res) => {
+    const created = await exec('sp_village_announcement', {
+      operation: 'Update',
+      announcement_id: { type: sql.Int, value: 0 },
+      village_id: VIL(req.villageId),
+      category: {
+        type: sql.NVarChar(20),
+        value:
+          oneOf(req.body?.category, 'category', ANNOUNCEMENT_CATEGORIES, { required: false }) ??
+          'General',
+      },
+      title: { type: sql.NVarChar(150), value: str(req.body?.title, 'title', { max: 150 }) },
+      description: {
+        type: sql.NVarChar(500),
+        value: optionalStr(req.body?.description, 'description', { max: 500 }),
+      },
+      date: { type: sql.Date, value: date(req.body?.date, 'date', { required: false }) },
+      valid_to: { type: sql.Date, value: date(req.body?.validTo, 'validTo', { required: false }) },
+    });
+    return ok(res, { announcement_id: created?.announcement_id ?? null }, 201);
+  }),
+);
+
+router.put(
+  '/announcements/:id',
+  asyncHandler(async (req, res) => {
+    const id = int(req.params.id, 'id', { min: 1 });
+    await exec('sp_village_announcement', {
+      operation: 'Update',
+      announcement_id: { type: sql.Int, value: id },
+      // The SP matches on village_id as well, so one village cannot edit
+      // another's announcement by guessing an id.
+      village_id: VIL(req.villageId),
+      category: {
+        type: sql.NVarChar(20),
+        value: oneOf(req.body?.category, 'category', ANNOUNCEMENT_CATEGORIES, { required: false }),
+      },
+      title: { type: sql.NVarChar(150), value: str(req.body?.title, 'title', { max: 150 }) },
+      description: {
+        type: sql.NVarChar(500),
+        value: optionalStr(req.body?.description, 'description', { max: 500 }),
+      },
+      date: { type: sql.Date, value: date(req.body?.date, 'date', { required: false }) },
+      valid_to: { type: sql.Date, value: date(req.body?.validTo, 'validTo', { required: false }) },
+    });
+    return ok(res, { announcement_id: id });
+  }),
+);
+
+router.delete(
+  '/announcements/:id',
+  asyncHandler(async (req, res) => {
+    const id = int(req.params.id, 'id', { min: 1 });
+    await exec('sp_village_announcement', {
+      operation: 'Delete',
+      announcement_id: { type: sql.Int, value: id },
+      village_id: VIL(req.villageId),
+    });
+    return ok(res, { deleted: true, announcement_id: id });
+  }),
+);
+
+/* --------------------------------------------------------------- dashboard */
+
+/**
+ * GET /village/dashboard — the figures behind village_dashboard.aspx.
+ *
+ * The legacy page had no data source at all: every number on it was a literal
+ * in village_dashboard.aspx.cs (`int waterTaxPaid = 27300;`,
+ * `int malePopulation = 2845;`) and its "Recent Activities" list was written by
+ * hand. There is no stored procedure for any of it, so the counts are computed
+ * here from the tables the village screens already write.
+ *
+ * Every branch is scoped to req.villageId, which comes from the token.
+ *
+ * Property tax is billed yearly and water/waste monthly, matching the legacy
+ * card titles: "Property Tax (Yearly)", "Water Tax (Monthly)",
+ * "Waste Tax (Monthly)".
+ *
+ * `due` on a tax row is what is still owed, so paid = amount - due. Rows are
+ * summed rather than counted because the cards show money, not bills.
+ */
+router.get(
+  '/dashboard',
+  asyncHandler(async (req, res) => {
+    const pool = await require('../../lib/db').getPool();
+    const result = await pool
+      .request()
+      .input('village_id', sql.NVarChar(10), req.villageId)
+      .query(`
+        -- Property tax, current financial year (the legacy card is "Yearly").
+        -- paidCount / pendingCount feed the card's "356 Paid / 94 Pending"
+        -- footer: a bill counts as settled once nothing is left due on it.
+        SELECT
+          ISNULL(SUM(ISNULL(house_tax_amount, 0)), 0)                        AS total,
+          ISNULL(SUM(ISNULL(house_tax_amount, 0) - ISNULL(due, 0)), 0)       AS paid,
+          -- SUM over no rows is NULL, which would render as an empty footer
+          -- rather than "0 Paid".
+          ISNULL(SUM(CASE WHEN ISNULL(due, 0) <= 0 THEN 1 ELSE 0 END), 0)    AS paidCount,
+          ISNULL(SUM(CASE WHEN ISNULL(due, 0) >  0 THEN 1 ELSE 0 END), 0)    AS pendingCount
+        FROM dbo.house_tax
+        WHERE village_id = @village_id
+          AND ISNULL(active_status, 0) = 0
+          AND YEAR(ISNULL(from_date, GETDATE())) = YEAR(GETDATE());
+
+        -- Water tax, current month.
+        SELECT
+          ISNULL(SUM(ISNULL(water_tax_amount, 0)), 0)                        AS total,
+          ISNULL(SUM(ISNULL(water_tax_amount, 0) - ISNULL(due, 0)), 0)       AS paid,
+          -- SUM over no rows is NULL, which would render as an empty footer
+          -- rather than "0 Paid".
+          ISNULL(SUM(CASE WHEN ISNULL(due, 0) <= 0 THEN 1 ELSE 0 END), 0)    AS paidCount,
+          ISNULL(SUM(CASE WHEN ISNULL(due, 0) >  0 THEN 1 ELSE 0 END), 0)    AS pendingCount
+        FROM dbo.water_tax
+        WHERE village_id = @village_id
+          AND ISNULL(active_status, 0) = 0
+          AND YEAR(ISNULL(from_date, GETDATE()))  = YEAR(GETDATE())
+          AND MONTH(ISNULL(from_date, GETDATE())) = MONTH(GETDATE());
+
+        -- Waste tax is a per-house charge on dbo.house, not a billed table of
+        -- its own, so the monthly total is the sum of those charges. Nothing
+        -- records what has been collected against it.
+        SELECT
+          ISNULL(SUM(ISNULL(waste_charges, 0)), 0) AS total,
+          CAST(NULL AS DECIMAL(18, 2))             AS paid
+        FROM dbo.house
+        WHERE village_id = @village_id;
+
+        -- Population. house_owner carries no gender column, so the legacy
+        -- card's male/female split cannot be derived and only the total is
+        -- reported.
+        SELECT COUNT(*) AS residents
+        FROM dbo.house_owner
+        WHERE village_id = @village_id
+          AND ISNULL(active_status, 0) = 0;
+
+        SELECT COUNT(*) AS houses
+        FROM dbo.house
+        WHERE village_id = @village_id;
+
+        -- Twelve months of collection, for the trend chart. Months with no
+        -- receipts are absent here and zero-filled on the client, so the line
+        -- runs flat rather than stopping short.
+        SELECT
+          YEAR(pay_date)                       AS y,
+          MONTH(pay_date)                      AS m,
+          ISNULL(SUM(ISNULL(Amount_paid, 0)), 0) AS collected,
+          COUNT(*)                             AS receipts
+        FROM dbo.house_tax_receipt
+        WHERE village_id = @village_id
+          AND pay_date IS NOT NULL
+          AND pay_date >= DATEADD(MONTH, -11, DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1))
+        GROUP BY YEAR(pay_date), MONTH(pay_date)
+        ORDER BY y, m;
+
+        -- Collection split by what was being paid for. Village_payment_type
+        -- names the codes (1 Property Tax, 2 Water Charges, 3 Waste Charges).
+        SELECT
+          t.payment_type_name                    AS label,
+          ISNULL(SUM(ISNULL(r.Amount_paid, 0)), 0) AS amount,
+          COUNT(*)                               AS receipts
+        FROM dbo.house_tax_receipt r
+        LEFT JOIN dbo.Village_payment_type t ON r.payment_type = t.payment_type
+        WHERE r.village_id = @village_id
+        GROUP BY t.payment_type_name
+        ORDER BY amount DESC;
+
+        -- Outstanding across both billed taxes, and the staff on the books.
+        SELECT
+          (SELECT ISNULL(SUM(ISNULL(due, 0)), 0) FROM dbo.house_tax
+            WHERE village_id = @village_id AND ISNULL(active_status, 0) = 0)
+          + (SELECT ISNULL(SUM(ISNULL(due, 0)), 0) FROM dbo.water_tax
+            WHERE village_id = @village_id AND ISNULL(active_status, 0) = 0) AS outstanding,
+          (SELECT COUNT(*) FROM dbo.Village_staff WHERE village_id = @village_id) AS staff;
+
+        -- Recent activity: the last receipts, which is what the legacy list
+        -- pretended to show.
+        SELECT TOP 8
+          r.receipt_no,
+          r.pay_date,
+          r.Amount_paid       AS amount,
+          r.payment_type      AS typeCode,
+          t.payment_type_name AS typeName,
+          h.house_no,
+          o.name              AS owner_name
+        FROM dbo.house_tax_receipt r
+        LEFT JOIN dbo.house h                  ON r.house_id = h.house_id
+        LEFT JOIN dbo.house_owner o            ON o.house_id = h.house_id
+                                              AND ISNULL(o.active_status, 0) = 0
+        LEFT JOIN dbo.Village_payment_type t   ON r.payment_type = t.payment_type
+        WHERE r.village_id = @village_id
+        ORDER BY r.pay_date DESC, r.house_receipt_id DESC;
+      `);
+
+    const [propertyTax, waterTax, wasteTax, population, houses, trend, split, totals, activity] =
+      result.recordsets;
+
+    return ok(res, {
+      propertyTax: propertyTax[0] ?? { total: 0, paid: 0, paidCount: 0, pendingCount: 0 },
+      waterTax: waterTax[0] ?? { total: 0, paid: 0, paidCount: 0, pendingCount: 0 },
+      wasteTax: wasteTax[0] ?? { total: 0, paid: null },
+      residents: population[0]?.residents ?? 0,
+      houses: houses[0]?.houses ?? 0,
+      outstanding: totals[0]?.outstanding ?? 0,
+      staff: totals[0]?.staff ?? 0,
+      trend,
+      split,
+      activity,
+    });
   }),
 );
 

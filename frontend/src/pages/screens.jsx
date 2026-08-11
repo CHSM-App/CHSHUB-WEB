@@ -695,20 +695,33 @@ export const VendorsPage = () => (
 
 /* ------------------------------------------------------------ community */
 
+/*
+ * Notices — the society's notice_search.aspx and, for a village account, the
+ * "Announcements" v_announcement.aspx put in the village menu.
+ *
+ * The legacy village page split its list across three tabs (General, Meeting,
+ * Work & Budget) and held everything in a `static List<Announcement>` in
+ * memory: nothing was written to a database, so an app restart lost the lot and
+ * every village shared one list. notice_master has no category column to
+ * reproduce those tabs with, and inventing one would mean a schema change to
+ * mimic a page that stored nothing. This keeps the real, per-tenant notices the
+ * society side already had, which is what the announcements were meant to be.
+ */
 export const NoticesPage = () => (
   <GenericCrudPage
-    title="Notices"
+    title="Announcements"
     resource={M.notices}
     idKey="notice_id"
     columns={[
       { key: 'name', label: 'Title' },
       { key: 'description', label: 'Description' },
-      { key: 'date', label: 'Published', format: day },
+      { key: 'date', label: 'Date', format: day },
       { key: 'valid_to', label: 'Valid to', format: day },
     ]}
     fields={[
-      { name: 'title', label: 'Title', required: true, span: 2 },
-      { name: 'description', label: 'Description', type: 'textarea', span: 2 },
+      // The legacy modal's own fields and placeholders, less Category.
+      { name: 'title', label: 'Title', required: true, span: 2, placeholder: 'Enter announcement title' },
+      { name: 'description', label: 'Description', type: 'textarea', span: 2, placeholder: 'Enter description' },
       { name: 'validTo', label: 'Valid until', type: 'date' },
       { name: 'recipientsId', label: 'Recipients', type: 'select', lookup: 'recipients', optionValue: 'recipients_id', optionLabel: 'recipients' },
     ]}

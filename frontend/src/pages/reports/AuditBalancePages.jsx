@@ -17,9 +17,23 @@ const money = (v) =>
 // Audit.aspx printed dd/MM/yyyy under the signature block.
 const auditDate = () => new Date().toLocaleDateString('en-GB');
 
-// LoadAuditPeriod() hardcoded this string; there is no stored period to read,
-// so it is carried over as-is rather than invented from the current date.
-const AUDIT_PERIOD = 'दि.०१-०४-२०२४ ते दि. ३१-०३-२०२५ अखेरचे';
+/** Marathi digits, for the audit period the legacy page printed in Devanagari. */
+const mrDigits = (n) => String(n).replace(/\d/g, (d) => '०१२३४५६७८९'[Number(d)]);
+
+/**
+ * The financial year being audited, as "दि.०१-०४-YYYY ते दि. ३१-०३-YYYY अखेरचे".
+ *
+ * LoadAuditPeriod() wrote 2024–25 as a literal, so every report printed that
+ * range whatever year it was run in. There is no stored period to read, but the
+ * Indian financial year runs 1 April to 31 March, which today's date does give:
+ * before April the year under audit is the one that started last April.
+ */
+const auditPeriod = (now = new Date()) => {
+  const startYear = now.getMonth() < 3 ? now.getFullYear() - 1 : now.getFullYear();
+  return `दि.${mrDigits('01')}-${mrDigits('04')}-${mrDigits(startYear)} ते दि. ${mrDigits(
+    '31',
+  )}-${mrDigits('03')}-${mrDigits(startYear + 1)} अखेरचे`;
+};
 
 /**
  * The society's address as the legacy page built it — the parts joined with
@@ -664,7 +678,7 @@ export function AuditPage() {
           innerRef={formRef}
           sections={grouped}
           info={societyInfo}
-          period={AUDIT_PERIOD}
+          period={auditPeriod()}
         />
       </Modal>
 

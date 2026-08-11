@@ -1,6 +1,37 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { EmptyState, Spinner } from './ui.jsx';
 import ExportToolbar from './ExportToolbar.jsx';
+
+/**
+ * True while the browser is preparing a printed page.
+ *
+ * `print` is a CSS media, so a stylesheet can hide things — but it cannot make
+ * a component render rows it decided not to render. Paging is exactly that
+ * case, so the state has to reach JavaScript.
+ */
+function usePrinting() {
+  const [printing, setPrinting] = useState(false);
+
+  useEffect(() => {
+    const mql = window.matchMedia?.('print');
+    const onChange = (e) => setPrinting(e.matches);
+
+    // Safari and older browsers fire the window events but not the media query.
+    const before = () => setPrinting(true);
+    const after = () => setPrinting(false);
+
+    mql?.addEventListener?.('change', onChange);
+    window.addEventListener('beforeprint', before);
+    window.addEventListener('afterprint', after);
+    return () => {
+      mql?.removeEventListener?.('change', onChange);
+      window.removeEventListener('beforeprint', before);
+      window.removeEventListener('afterprint', after);
+    };
+  }, []);
+
+  return printing;
+}
 
 /**
  * Production data grid — replaces asp:GridView.
@@ -22,6 +53,13 @@ export default function DataGrid({
   selectable = false,
   selectedIds = [],
   onSelectionChange,
+  /*
+   * Put the tick column last rather than first, and head it "Select". Most
+   * grids select-then-act, so the box leads; v_tax_payment.aspx's pending grid
+   * reads its amounts first and offers the tick at the end, for the reminder
+   * below it.
+   */
+  selectionAtEnd = false,
   pageSize = 25,
   sortable = true,
   searchable = false,
@@ -72,9 +110,17 @@ export default function DataGrid({
     });
   }, [filtered, sort, columns]);
 
+  /*
+   * Paging is a screen affordance. Printing a paged grid would put 25 of 200
+   * records on paper and silently drop the rest, so the whole set is rendered
+   * while the print dialog is open.
+   */
+  const printing = usePrinting();
+
   const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
   const safePage = Math.min(page, pageCount - 1);
-  const visible = pageSize ? sorted.slice(safePage * pageSize, (safePage + 1) * pageSize) : sorted;
+  const visible =
+    pageSize && !printing ? sorted.slice(safePage * pageSize, (safePage + 1) * pageSize) : sorted;
 
   const toggleSort = (key) => {
     if (!sortable) return;
@@ -142,7 +188,7 @@ export default function DataGrid({
         <table className="min-w-full">
           <thead>
             <tr>
-              {selectable ? (
+              {selectable && !selectionAtEnd ? (
                 <th className="table-head w-10">
                   <input
                     type="checkbox"
@@ -176,6 +222,20 @@ export default function DataGrid({
               {actions ? (
                 <th className="table-head w-px whitespace-nowrap text-right print:hidden">Actions</th>
               ) : null}
+              {selectable && selectionAtEnd ? (
+                <th className="table-head w-20 whitespace-nowrap print:hidden">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-slate-300"
+                      checked={allOnPageSelected}
+                      onChange={toggleAll}
+                      aria-label="Select all rows on this page"
+                    />
+                    Select
+                  </label>
+                </th>
+              ) : null}
             </tr>
           </thead>
           <tbody>
@@ -193,7 +253,7 @@ export default function DataGrid({
             ) : null}
             {visible.map((row, i) => (
               <tr key={row[idKey] ?? i} className="hover:bg-slate-50">
-                {selectable ? (
+                {selectable && !selectionAtEnd ? (
                   <td className={`table-cell ${cellPad}`}>
                     <input
                       type="checkbox"
@@ -222,6 +282,17 @@ export default function DataGrid({
                 {actions ? (
                   <td className={`table-cell ${cellPad} w-px whitespace-nowrap print:hidden`}>
                     <div className="flex items-center justify-end gap-2">{actions(row)}</div>
+                  </td>
+                ) : null}
+                {selectable && selectionAtEnd ? (
+                  <td className={`table-cell ${cellPad} print:hidden`}>
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-slate-300"
+                      checked={selectedIds.includes(row[idKey])}
+                      onChange={() => toggleOne(row[idKey])}
+                      aria-label={`Select row ${i + 1}`}
+                    />
                   </td>
                 ) : null}
               </tr>

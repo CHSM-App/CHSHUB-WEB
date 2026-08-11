@@ -1,68 +1,154 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { onboarding } from '@/api/onboarding';
 import { lookups } from '@/api/modules';
 import { api } from '@/api/client';
 import { useAuth } from '@/auth/AuthContext.jsx';
 import { ErrorNotice, Field, Modal, Spinner } from '@/components/ui.jsx';
-import { PageHeader } from '@/components/FormControls.jsx';
+import { PageHeader, TextField } from '@/components/FormControls.jsx';
+import { AuthLink, AuthSplitLayout, AuthSubmit, Glyph } from '@/components/AuthLayout.jsx';
 import ExcelImport from '@/pages/settings/ExcelImport.jsx';
 
-/** Card shell shared by the pre-login screens. */
-function AuthCard({ title, subtitle, children, footer }) {
+/*
+ * The boxes new_registration.aspx marked `required`. Its needs-validation
+ * script blocked the submit while any of them was empty or whitespace, so the
+ * same list gates Create Account here.
+ */
+const REQUIRED_FIELDS = [
+  ['name', 'Name'],
+  ['address', 'Address'],
+  ['contactNo', 'Contact No.'],
+  ['email', 'Email'],
+  ['username', 'Username'],
+  ['password', 'Password'],
+  ['confirm', 'Re-enter Password'],
+];
+
+/** A confirmation panel — the outcome of a submitted form. */
+function SuccessNotice({ children }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
-      <div className="card w-full max-w-md p-6">
-        <h1 className="text-lg font-semibold text-slate-800">{title}</h1>
-        {subtitle ? <p className="mt-1 text-sm text-slate-500">{subtitle}</p> : null}
-        {children}
-        {footer ? <div className="mt-4 text-center text-sm text-slate-500">{footer}</div> : null}
-      </div>
+    <div
+      className="flex items-start gap-3 rounded-lg border p-4"
+      style={{ borderColor: '#bbf7d0', background: '#f0fdf4' }}
+    >
+      <span className="mt-0.5 shrink-0 text-green-600" aria-hidden="true">
+        <Glyph>
+          <circle cx="12" cy="12" r="9" />
+          <path d="m8.5 12.5 2.5 2.5 4.5-5" />
+        </Glyph>
+      </span>
+      <p className="text-sm text-green-800">{children}</p>
     </div>
   );
 }
 
-/** Replaces new_registration.aspx. */
+/**
+ * Replaces new_registration.aspx.
+ *
+ * The legacy page's fields and their order are kept exactly: the
+ * Society/Village radio pair at the top, then Name, Address, Contact No.,
+ * Email, a Username that fills itself from the email address, Password and
+ * Re-enter Password.
+ *
+ * No society is chosen here. new_registration.aspx.cs sent the account on to
+ * new_society.aspx (or new_village.aspx for the Village option), where the
+ * society is named and its address entered — so that belongs to the next step,
+ * not this form. That redirect is reproduced: registering returns a session, so
+ * submitting this form lands directly on the matching setup page with no
+ * sign-in in between, exactly as the legacy flow did.
+ *
+ * The one behaviour deliberately not reproduced is the pair of OTP "Verify"
+ * buttons beside mobile and email: new_registration.aspx.cs generated an OTP,
+ * sent it and then never checked what was typed back, so the buttons swapped a
+ * field for an OTP box and did nothing else. There is no verify endpoint behind
+ * them here.
+ */
 export function RegisterPage() {
   const navigate = useNavigate();
+  const { adoptSession } = useAuth();
   const [form, setForm] = useState({
+    type: 'Society',
     name: '',
+    address: '',
     username: '',
     password: '',
     confirm: '',
     email: '',
     contactNo: '',
-    societyId: '',
   });
-  const [societies, setSocieties] = useState([]);
+  // The legacy page filled the (disabled) username box from the email on its
+  // TextChanged postback. Kept, but only until the user types a username of
+  // their own — after that, editing the email must not overwrite it.
+  const [usernameEdited, setUsernameEdited] = useState(false);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);
-
-  useEffect(() => {
-    onboarding
-      .societies()
-      .then((d) => setSocieties(d.items ?? []))
-      .catch(() => {});
-  }, []);
 
   const setField = (key) => (e) => {
     const { value } = e.target;
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  const onEmailChange = (e) => {
+    const { value } = e.target;
+    setForm((prev) => ({
+      ...prev,
+      email: value,
+      username: usernameEdited ? prev.username : value,
+    }));
+  };
+
+  const onUsernameChange = (e) => {
+    setUsernameEdited(true);
+    setForm((prev) => ({ ...prev, username: e.target.value }));
+  };
+
   const onSubmit = async (event) => {
     event.preventDefault();
     setError(null);
+
+    // new_registration.aspx's needs-validation script rejected a required field
+    // holding only whitespace ("Whitespace is not allowed") before any of the
+    // format checks below ran.
+    if (REQUIRED_FIELDS.some(([key]) => form[key].trim() === '')) {
+      setError(new Error('Please fill in every required field.'));
+      return;
+    }
+
+    // Then its per-type checks, in the same order: the phone box required
+    // exactly 10 digits, the email had to match RegularExpressionValidator, and
+    // cvPassword compared the two passwords.
+    if (!/^\d{10}$/.test(form.contactNo)) {
+      setError(new Error('Phone number must be exactly 10 digits'));
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      setError(new Error('Please enter a valid email address'));
+      return;
+    }
     if (form.password !== form.confirm) {
       setError(new Error('Passwords do not match'));
       return;
     }
+
     setBusy(true);
     try {
-      await onboarding.register(form);
-      setDone(true);
-      setTimeout(() => navigate('/login'), 1500);
+      // btn_save_Click checked the address against sp_UserLogin 'check_Email'
+      // before saving anything, and stopped with a message if it was taken.
+      const { available } = await onboarding.checkEmail(form.email);
+      if (!available) {
+        setError(new Error('This Email ID Already Registered With Us'));
+        return;
+      }
+
+      // Registering hands back a session, so the tenant setup form opens
+      // immediately — new_registration.aspx.cs redirected straight to
+      // new_society.aspx / new_village.aspx with no sign-in in between.
+      const data = await onboarding.register({
+        ...form,
+        deviceInfo: navigator.userAgent?.slice(0, 500),
+      });
+      adoptSession(data);
+      navigate(form.type === 'Village' ? '/setup/village' : '/setup/society', { replace: true });
     } catch (err) {
       setError(err);
     } finally {
@@ -70,62 +156,127 @@ export function RegisterPage() {
     }
   };
 
-  if (done) {
-    return (
-      <AuthCard title="Registration submitted" subtitle="Redirecting you to sign in…">
-        <p className="mt-4 text-sm text-green-700">Your account has been created.</p>
-      </AuthCard>
-    );
-  }
-
-  // Society list is deduplicated: the view returns one row per flat.
-  const uniqueSocieties = Array.from(
-    new Map(societies.map((s) => [s.society_id, s])).values(),
-  );
-
   return (
-    <AuthCard
-      title="Create an account"
-      subtitle="Register a committee or admin login"
-      footer={<Link to="/login" className="text-blue-600 hover:underline">Back to sign in</Link>}
+    <AuthSplitLayout
+      wide
+      title="Create Account"
+      subtitle="Register a committee or admin login."
+      footer={
+        <>
+          Already have an account? <AuthLink to="/login">Sign in</AuthLink>
+        </>
+      }
     >
-      <form onSubmit={onSubmit} className="mt-6 space-y-4" noValidate>
-        <Field label="Full name" required>
-          <input className="field-input" value={form.name} onChange={setField('name')} required />
+      <form onSubmit={onSubmit} className="space-y-4" noValidate>
+        {/* The Society / Village radio pair the legacy page opened with. */}
+        <fieldset className="flex items-center gap-5">
+          <legend className="sr-only">Account type</legend>
+          {['Society', 'Village'].map((option) => (
+            <label key={option} className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="radio"
+                name="type"
+                value={option}
+                checked={form.type === option}
+                onChange={setField('type')}
+                style={{ accentColor: 'var(--accent-strong)' }}
+              />
+              <span style={{ color: 'var(--ink)' }}>{option}</span>
+            </label>
+          ))}
+        </fieldset>
+
+        {/* Fields follow new_registration.aspx's own order and placeholders:
+            Name, Address, Contact No., Email, Username, Password,
+            Re-enter Password. */}
+        <Field label="Name" required>
+          <input
+            className="field-input"
+            placeholder="Enter Name"
+            value={form.name}
+            onChange={setField('name')}
+            required
+          />
         </Field>
-        <Field label="Society">
-          <select className="field-input" value={form.societyId} onChange={setField('societyId')}>
-            <option value="">Select a society…</option>
-            {uniqueSocieties.map((s) => (
-              <option key={s.society_id} value={s.society_id}>
-                {s.society_name}
-              </option>
-            ))}
-          </select>
+
+        <Field label="Address" required>
+          <input
+            className="field-input"
+            placeholder="Enter Address"
+            maxLength={50}
+            value={form.address}
+            onChange={setField('address')}
+            required
+          />
         </Field>
+
+        <Field label="Contact No." required>
+          <input
+            className="field-input"
+            type="tel"
+            inputMode="numeric"
+            maxLength={10}
+            placeholder="Enter Contact No."
+            value={form.contactNo}
+            onChange={setField('contactNo')}
+            required
+          />
+        </Field>
+
+        <Field label="Email" required>
+          <input
+            className="field-input"
+            type="email"
+            placeholder="Enter Email"
+            value={form.email}
+            onChange={onEmailChange}
+            required
+          />
+        </Field>
+
+        {/* The legacy username box was disabled and filled from the email.
+            Kept editable: a username you cannot correct is a dead end if the
+            address is already taken. */}
         <Field label="Username" required>
-          <input className="field-input" autoComplete="username" value={form.username} onChange={setField('username')} required />
+          <input
+            className="field-input"
+            placeholder="Username"
+            autoComplete="username"
+            value={form.username}
+            onChange={onUsernameChange}
+            required
+          />
         </Field>
-        <Field label="Email">
-          <input className="field-input" type="email" value={form.email} onChange={setField('email')} />
-        </Field>
-        <Field label="Contact number">
-          <input className="field-input" value={form.contactNo} onChange={setField('contactNo')} />
-        </Field>
-        <Field label="Password" required hint="At least 8 characters">
-          <input className="field-input" type="password" autoComplete="new-password" value={form.password} onChange={setField('password')} required />
-        </Field>
-        <Field label="Confirm password" required>
-          <input className="field-input" type="password" autoComplete="new-password" value={form.confirm} onChange={setField('confirm')} required />
-        </Field>
+
+        <TextField
+          label="Password"
+          name="password"
+          type="password"
+          required
+          placeholder="Enter Password"
+          autoComplete="new-password"
+          value={form.password}
+          onChange={setField('password')}
+        />
+
+        <TextField
+          label="Re-enter Password"
+          name="confirm"
+          type="password"
+          required
+          placeholder="Re-enter Password"
+          autoComplete="new-password"
+          value={form.confirm}
+          onChange={setField('confirm')}
+        />
 
         <ErrorNotice error={error} />
 
-        <button type="submit" className="btn-primary w-full" disabled={busy}>
-          {busy ? 'Creating…' : 'Create account'}
-        </button>
+        <AuthSubmit busy={busy} busyLabel="Creating…">
+          Create Account
+        </AuthSubmit>
       </form>
-    </AuthCard>
+    </AuthSplitLayout>
   );
 }
 
@@ -160,36 +311,58 @@ export function ForgotPasswordPage() {
   };
 
   return (
-    <AuthCard
+    <AuthSplitLayout
       title="Reset password"
-      subtitle="Set a new password for your account"
-      footer={<Link to="/login" className="text-blue-600 hover:underline">Back to sign in</Link>}
+      subtitle="Set a new password for your account."
+      footer={<AuthLink to="/login">Back to sign in</AuthLink>}
     >
       {done ? (
-        <p className="mt-6 text-sm text-green-700">
+        <SuccessNotice>
           If an account exists for that email address, its password has been updated. You can now
           sign in.
-        </p>
+        </SuccessNotice>
       ) : (
-        <form onSubmit={onSubmit} className="mt-6 space-y-4" noValidate>
+        <form onSubmit={onSubmit} className="space-y-4" noValidate>
           <Field label="Email address" required>
-            <input className="field-input" type="email" value={form.email} onChange={setField('email')} required />
+            <input
+              className="field-input"
+              type="email"
+              placeholder="Enter your email"
+              value={form.email}
+              onChange={setField('email')}
+              required
+            />
           </Field>
-          <Field label="New password" required hint="At least 8 characters">
-            <input className="field-input" type="password" autoComplete="new-password" value={form.newPassword} onChange={setField('newPassword')} required />
-          </Field>
-          <Field label="Confirm password" required>
-            <input className="field-input" type="password" autoComplete="new-password" value={form.confirm} onChange={setField('confirm')} required />
-          </Field>
+          <TextField
+            label="New password"
+            name="newPassword"
+            type="password"
+            required
+            placeholder="Enter new password"
+            autoComplete="new-password"
+            hint="At least 8 characters"
+            value={form.newPassword}
+            onChange={setField('newPassword')}
+          />
+          <TextField
+            label="Confirm password"
+            name="confirm"
+            type="password"
+            required
+            placeholder="Re-enter new password"
+            autoComplete="new-password"
+            value={form.confirm}
+            onChange={setField('confirm')}
+          />
 
           <ErrorNotice error={error} />
 
-          <button type="submit" className="btn-primary w-full" disabled={busy}>
-            {busy ? 'Updating…' : 'Reset password'}
-          </button>
+          <AuthSubmit busy={busy} busyLabel="Updating…">
+            Reset password
+          </AuthSubmit>
         </form>
       )}
-    </AuthCard>
+    </AuthSplitLayout>
   );
 }
 

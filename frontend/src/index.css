@@ -94,6 +94,12 @@
 }
 
 @layer components {
+  /* The printed report heading. Only paper shows it — on screen the page has
+     its own PageHeader, and the media query below turns this on. */
+  .print-head {
+    display: none;
+  }
+
   /* Bootstrap .btn geometry: 0.375rem 0.75rem, 0.25rem radius, 1rem text. */
   .btn {
     /* no-underline because several of these are <a>/<Link> rather than
@@ -506,10 +512,60 @@
     display: none !important;
   }
 
+  /*
+   * Summary tiles above a grid are a screen affordance — a strip of coloured
+   * boxes repeating figures the table already carries. On paper they push the
+   * records down and read as part of the report, so pages mark that strip
+   * `print:hidden`.
+   */
+
   /* The screen body carries a tinted gradient; paper must not. `background`
      shorthand clears the image as well as the colour. */
   body {
     background: #fff !important;
+  }
+
+  /*
+   * A receipt prints on its own sheet, without the report heading the rest of
+   * the app puts at the top: it carries its own header naming the village, and
+   * a second title above it would read as two documents.
+   */
+  body.modal-open .print-head {
+    display: none !important;
+  }
+
+  /*
+   * Printed heading: the report's name over whose records these are, then a
+   * rule — the same block the PDF export draws, so a printed page and a
+   * downloaded one are the same document.
+   *
+   * Hidden on screen, where the page already has its own header.
+   */
+  .print-head {
+    display: block !important;
+    margin-bottom: 10px;
+    text-align: center;
+  }
+  .print-head .print-title {
+    font-size: 15pt;
+    font-weight: 700;
+    color: #333;
+  }
+  .print-head .print-subtitle {
+    margin-top: 2px;
+    font-size: 10pt;
+    color: #555;
+  }
+  .print-head .print-meta {
+    margin-top: 2px;
+    font-size: 8pt;
+    color: #888;
+  }
+  .print-head::after {
+    content: '';
+    display: block;
+    margin-top: 6px;
+    border-bottom: 1.5pt solid #667eea;
   }
 
   main {
@@ -523,6 +579,56 @@
   body.modal-open > div:not(.modal-root) {
     display: none !important;
   }
+
+  /*
+   * A dialog's own geometry is for a screen: a fixed overlay centring a panel
+   * of a set width, which scrolls its body. Left alone, that panel keeps its
+   * width and its scroll on paper, so the content is cut off down the
+   * right-hand edge and stops at whatever the panel could show. Flattened to
+   * ordinary flow, it fills the page and runs onto a second sheet if it needs
+   * one.
+   *
+   * The panel and its scrolling body are targeted, not `> *`: emptying the
+   * padding of every descendant collapses the content's own inner spacing.
+   */
+  .modal-root {
+    position: static !important;
+    display: block !important;
+    overflow: visible !important;
+    background: transparent !important;
+    padding: 0 !important;
+  }
+  .modal-root > div {
+    position: static !important;
+    max-width: none !important;
+    width: auto !important;
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+  /* Modal's body is the scrolling middle section between header and footer. */
+  .modal-root > div > div {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* The dialog's own title bar and button row are chrome, not the receipt. */
+  .modal-root header,
+  .modal-root footer {
+    display: none !important;
+  }
+
+  /*
+   * The receipt dialog is not printed from the DOM at all — Print Receipt
+   * builds the same PDF the Download button produces and sends that to the
+   * printer, so both give the identical document. Nothing here needs to
+   * reproduce the on-screen receipt for paper.
+   */
 
   .card {
     border: none;

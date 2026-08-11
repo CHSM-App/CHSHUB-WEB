@@ -116,6 +116,14 @@ export const reports = {
   societyInfo: () => api.get('/reports/audit/society-info'),
   // items: [{ headerId, sequence }] — the dragged order, saved in one call.
   auditHeaderSequence: (items) => api.post('/reports/audit/headers/sequence', { items }),
+  balanceSheet: () => api.get('/reports/balance-sheet'),
+  saveBalanceHead: (body) => api.post('/reports/balance-sheet/heads', body),
+  saveBalanceSubPoint: (body) => api.post('/reports/balance-sheet/sub-points', body),
+  removeBalanceSubPoint: (id) => api.delete(`/reports/balance-sheet/sub-points/${id}`),
+  // Removes the head and every sub-point under it, in one call.
+  removeBalanceHead: (id) => api.delete(`/reports/balance-sheet/heads/${id}`),
+  // items: [{ headId, sequence }] — both columns, in the order they were dropped.
+  balanceHeadSequence: (items) => api.post('/reports/balance-sheet/heads/sequence', { items }),
 };
 
 /* ------------------------------------------------------------- village */

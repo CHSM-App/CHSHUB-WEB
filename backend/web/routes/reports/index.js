@@ -270,24 +270,60 @@ router.get(
 );
 
 /**
+ * The tenant id sp_balancesheet is keyed by, read the way BalanceSheet.aspx
+ * read it.
+ *
+ * Every other page in the legacy app passed Session["society_id"]; the balance
+ * sheet alone passed Session["village_id"] (BalanceSheet.aspx.cs:81, 91, 206,
+ * 222, 237). For a society login that session value is empty, so the rows it
+ * wrote carry village_id = '' and it reads them back by the same empty string.
+ *
+ * That is why the ASPX renders a sheet the API could not find: sending the real
+ * society id matches nothing. Matching the legacy key keeps the two pages
+ * showing the same rows.
+ *
+ * It is a bug in the legacy page — an empty key is shared by every society, so
+ * those rows are effectively global. Once the rows are assigned to a society,
+ * this falls back to the society id on its own and the helper can go away.
+ */
+const balanceTenant = (req) => ({
+  type: sql.NVarChar(10),
+  value: req.user?.villageId ?? '',
+});
+
+/**
  * GET /reports/balance-sheet — society balance sheet.
- * sp_balancesheet is keyed by village_id, but the table stores whichever tenant
- * id was written; pass the society id through the same parameter.
+ *
+ * Reads by the legacy tenant key, then falls back to the society id so a sheet
+ * written under a proper id is still found.
  */
 router.get(
   '/balance-sheet',
   asyncHandler(async (req, res) => {
-    const [heads, subPoints] = await Promise.all([
-      query('sp_balancesheet', {
-        operation: 'get_main_points',
-        village_id: { type: sql.NVarChar(10), value: req.societyId },
-      }),
-      query('sp_balancesheet', {
-        operation: 'get_sub_point',
-        village_id: { type: sql.NVarChar(10), value: req.societyId },
-      }),
-    ]);
-    return ok(res, { heads, subPoints });
+    const fetch = (tenant) =>
+      Promise.all([
+        query('sp_balancesheet', {
+          operation: 'get_main_points',
+          village_id: tenant,
+        }),
+        query('sp_balancesheet', {
+          operation: 'get_sub_point',
+          village_id: tenant,
+        }),
+      ]);
+
+    let [heads, subPoints] = await fetch(balanceTenant(req));
+
+    // Nothing under the legacy key — try the society id, which is what a sheet
+    // created through this API is stored under.
+    if (heads.length === 0) {
+      [heads, subPoints] = await fetch({ type: sql.NVarChar(10), value: req.societyId });
+    }
+
+    // get_sub_point is not filtered by head, so it returns the tenant's every
+    // sub-point; keep only those belonging to a head that was actually read.
+    const headIds = new Set(heads.map((h) => Number(h.bal_head_id)));
+    return ok(res, { heads, subPoints: subPoints.filter((s) => headIds.has(Number(s.bal_head_id))) });
   }),
 );
 
@@ -462,7 +498,9 @@ router.post(
       status_id: { type: sql.Int, value: int(req.body?.statusId, 'statusId', { required: false, default: 1 }) },
       Seq_order: { type: sql.Int, value: int(req.body?.seqOrder, 'seqOrder', { required: false, default: 0 }) },
       comp_id: { type: sql.Int, value: int(req.body?.compId, 'compId', { required: false, default: 0 }) },
-      village_id: { type: sql.NVarChar(10), value: req.societyId },
+      // Written under the same key it is read by, so an edit does not move the
+      // head out of the sheet it was edited from.
+      village_id: balanceTenant(req),
     });
     return ok(res, { bal_head_id: created?.bal_head_id ?? null }, 201);
   }),
@@ -479,19 +517,104 @@ router.post(
       bal_sub_desc: { type: sql.NVarChar(50), value: str(req.body?.description, 'description', { max: 50 }) },
       amount: { type: sql.Decimal(18, 2), value: num(req.body?.amount, 'amount', { min: 0, required: false, default: 0 }) },
       status_id: { type: sql.Int, value: int(req.body?.statusId, 'statusId', { required: false, default: 1 }) },
-      village_id: { type: sql.NVarChar(10), value: req.societyId },
+      village_id: balanceTenant(req),
     });
     return ok(res, { saved: true }, 201);
   }),
 );
+
+/**
+ * POST /reports/balance-sheet/heads/sequence — reorder the heads.
+ *
+ * BalanceSheet.aspx let the two columns be dragged and saved the whole
+ * arrangement in one go (btnSaveSequence_Click looped the dragged list through
+ * the SP's Update_Seq_order branch). get_main_points already returns the heads
+ * ordered by Seq_order, so this is what makes that ordering settable.
+ */
+router.post(
+  '/balance-sheet/heads/sequence',
+  asyncHandler(async (req, res) => {
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    if (items.length === 0) throw ApiError.badRequest('items is required');
+
+    // Validated up front so a bad entry cannot leave the order half-applied.
+    const ordered = items.map((item, i) => ({
+      headId: int(item?.headId, `items[${i}].headId`, { min: 1 }),
+      sequence: int(item?.sequence, `items[${i}].sequence`, { min: 1 }),
+    }));
+
+    for (const { headId, sequence } of ordered) {
+      await exec('sp_balancesheet', {
+        operation: 'Update_Seq_order',
+        bal_head_id: { type: sql.Int, value: headId },
+        Seq_order: { type: sql.Int, value: sequence },
+        village_id: balanceTenant(req),
+      });
+    }
+    return ok(res, { saved: true, count: ordered.length });
+  }),
+);
+
+/**
+ * The heads the caller's sheet is built from, by id. Used to check ownership
+ * before a delete — the SP's Delete branches take only an id, so without this
+ * any society could remove another's rows by guessing one.
+ */
+const readOwnHeadIds = async (req) => {
+  const tenant = balanceTenant(req);
+  let heads = await query('sp_balancesheet', { operation: 'get_main_points', village_id: tenant });
+  if (heads.length === 0) {
+    heads = await query('sp_balancesheet', {
+      operation: 'get_main_points',
+      village_id: { type: sql.NVarChar(10), value: req.societyId },
+    });
+  }
+  return new Set(heads.map((h) => Number(h.bal_head_id)));
+};
 
 /** DELETE /reports/balance-sheet/sub-points/:id */
 router.delete(
   '/balance-sheet/sub-points/:id',
   asyncHandler(async (req, res) => {
     const id = int(req.params.id, 'id', { min: 1 });
+
+    // The sub-point has to hang off one of this sheet's heads.
+    const subs = await query('sp_balancesheet', { operation: 'Select', bal_sub_id: { type: sql.Int, value: id } });
+    const sub = subs[0];
+    if (!sub) throw ApiError.badRequest('That sub-point does not exist');
+
+    const ownHeads = await readOwnHeadIds(req);
+    if (!ownHeads.has(Number(sub.bal_head_id))) {
+      throw ApiError.badRequest('That sub-point does not belong to this society');
+    }
+
     await exec('sp_balancesheet', { operation: 'Delete', bal_sub_id: { type: sql.Int, value: id } });
     return ok(res, { deleted: true, bal_sub_id: id });
+  }),
+);
+
+/**
+ * DELETE /reports/balance-sheet/heads/:id — remove a whole head.
+ *
+ * BalanceSheet.aspx could add and edit heads but never remove one, so the SP
+ * had no branch for it; FIX_balancesheet_delete_and_ids.sql adds DeleteHeader,
+ * which hides the head and its sub-points together. Applying that script is
+ * what makes this route work.
+ */
+router.delete(
+  '/balance-sheet/heads/:id',
+  asyncHandler(async (req, res) => {
+    const id = int(req.params.id, 'id', { min: 1 });
+
+    const ownHeads = await readOwnHeadIds(req);
+    if (!ownHeads.has(id)) throw ApiError.badRequest('That head does not belong to this society');
+
+    await exec('sp_balancesheet', {
+      operation: 'DeleteHeader',
+      bal_head_id: { type: sql.Int, value: id },
+      village_id: balanceTenant(req),
+    });
+    return ok(res, { deleted: true, bal_head_id: id });
   }),
 );
 

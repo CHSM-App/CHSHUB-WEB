@@ -691,9 +691,96 @@ export function AuditPage() {
   );
 }
 
+// BalanceSheet.aspx split the heads by comp_id: 2 down the Liabilities column,
+// 1 down the Assets column. The ids are what the SP stores, so they stay.
+const LIABILITY = 2;
+const ASSET = 1;
+
+const COLUMNS = [
+  { compId: LIABILITY, title: 'Liabilities', type: 'liability' },
+  { compId: ASSET, title: 'Assets', type: 'asset' },
+];
+
+/**
+ * One head as the legacy page drew it: a title bar carrying the head's own
+ * amount and an edit pencil, the sub-points indented beneath it, and a Total
+ * row closing the block.
+ *
+ * The total is the head's own amount plus its sub-points — the sum
+ * rptBalance_ItemDataBound computed into lblTotal, not the head amount alone.
+ */
+function HeadBlock({ head, index, onEdit, onDelete, onDragStart, onDrop }) {
+  const total = Number(head.amount || 0) + head.subs.reduce((s, x) => s + Number(x.amount || 0), 0);
+
+  return (
+    <div
+      // Dropping onto a head moves the dragged one into its place — the
+      // rearrangement jquery-ui's connected sortables performed.
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={() => onDrop(index)}
+      className="border-b-2 border-[#012970] bg-[#f0f4f8] last:border-b-0"
+    >
+      <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-5 py-3">
+        <h3 className="flex flex-1 items-center gap-2.5 text-[15px] font-semibold text-[#012970]">
+          {/* Only the handle starts a drag, so the title text stays
+              selectable — as with the legacy .drag-handle. */}
+          <span
+            draggable
+            onDragStart={() => onDragStart(index)}
+            aria-hidden="true"
+            title="Drag to reorder"
+            className="cursor-grab select-none rounded bg-[#f0f4f8] px-2 py-0.5 text-lg leading-none active:cursor-grabbing print:hidden"
+          >
+            ⇅
+          </span>
+          {head.bal_header_desc}
+          <button
+            type="button"
+            title="Edit"
+            onClick={() => onEdit(head)}
+            className="text-[13px] transition hover:scale-110 print:hidden"
+          >
+            ✏️
+          </button>
+          {/* Removing a head takes its sub-points with it, so the count is
+              spelled out in the confirmation rather than left to be guessed. */}
+          <button
+            type="button"
+            title="Delete this head"
+            onClick={() => onDelete(head)}
+            className="text-[13px] transition hover:scale-110 print:hidden"
+          >
+            🗑️
+          </button>
+        </h3>
+        <span className="text-[15px] font-semibold text-[#012970]">{money(head.amount)}</span>
+      </div>
+
+      <div className="bg-white">
+        {head.subs.map((s) => (
+          <div
+            key={s.bal_sub_id}
+            className="flex items-center justify-between border-b border-slate-100 px-5 py-2.5 last:border-b-0"
+          >
+            <span className="flex-1 pl-[30px] text-sm text-slate-700">{s.bal_sub_desc}</span>
+            <span className="min-w-20 text-right text-sm font-medium text-slate-600">{money(s.amount)}</span>
+          </div>
+        ))}
+        <div className="flex items-center justify-between border-t-2 border-[#012970] bg-slate-50 px-5 py-3 font-bold text-[#012970]">
+          <span className="text-[15px]">Total:</span>
+          <span className="text-base">{money(total)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /**
  * Balance sheet — replaces BalanceSheet.aspx.
- * Heads with editable sub-points, totals, and printing.
+ *
+ * The legacy layout: Liabilities and Assets side by side, each head a block of
+ * sub-points closed by a Total, draggable within and between the columns, and
+ * edited through a single modal that saves the head and its sub-points at once.
  */
 export function BalanceSheetEditorPage() {
   const [heads, setHeads] = useState([]);
@@ -702,14 +789,19 @@ export function BalanceSheetEditorPage() {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [headForm, setHeadForm] = useState(null);
-  const [subForm, setSubForm] = useState(null);
   const [confirming, setConfirming] = useState(null);
+
+  // Head order while dragging, as [{ id, compId }]. Null until the first drop,
+  // so the sheet follows the server's Seq_order until it is actually reordered
+  // — and Save Sequence stays hidden, as btnSaveSequence did.
+  const [dragOrder, setDragOrder] = useState(null);
+  const dragFrom = useRef(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await api.get('/reports/balance-sheet');
+      const data = await reports.balanceSheet();
       setHeads(data.heads ?? []);
       setSubPoints(data.subPoints ?? []);
     } catch (err) {
@@ -723,30 +815,101 @@ export function BalanceSheetEditorPage() {
     load();
   }, [load]);
 
-  const grouped = useMemo(
-    () =>
-      heads.map((h) => ({
-        ...h,
-        subs: subPoints.filter((s) => Number(s.bal_head_id) === Number(h.bal_head_id)),
-      })),
-    [heads, subPoints],
+  const grouped = useMemo(() => {
+    const withSubs = heads.map((h) => ({
+      ...h,
+      subs: subPoints.filter((s) => Number(s.bal_head_id) === Number(h.bal_head_id)),
+    }));
+
+    // An unsaved drag reorders the sheet in place — including across the two
+    // columns, which the connected sortables allowed. The server's order and
+    // comp_id stand until Save sequence is pressed.
+    if (!dragOrder) return withSubs;
+    const byId = new Map(withSubs.map((h) => [Number(h.bal_head_id), h]));
+    return dragOrder
+      .map(({ id, compId }) => {
+        const head = byId.get(id);
+        return head ? { ...head, comp_id: compId } : null;
+      })
+      .filter(Boolean);
+  }, [heads, subPoints, dragOrder]);
+
+  /** The heads of one column, in display order. */
+  const columnHeads = useCallback(
+    (compId) => grouped.filter((h) => Number(h.comp_id) === compId),
+    [grouped],
   );
 
-  const grandTotal = heads.reduce((s, h) => s + Number(h.amount || 0), 0);
+  /** A head's position in the flat list, which is what the drag indexes. */
+  const flatIndex = (head) => grouped.findIndex((h) => Number(h.bal_head_id) === Number(head.bal_head_id));
 
-  const saveHead = async (event) => {
-    event.preventDefault();
+  /**
+   * Move the dragged head to where it was dropped. `compId` is the column it
+   * landed in, so dragging across columns turns a liability into an asset —
+   * what connectWith did on the legacy page.
+   */
+  const dropOn = (toIndex, compId) => {
+    const from = dragFrom.current;
+    dragFrom.current = null;
+    if (from == null) return;
+
+    const next = grouped.map((h) => ({ id: Number(h.bal_head_id), compId: Number(h.comp_id) }));
+    const [moved] = next.splice(from, 1);
+    if (!moved) return;
+    // Re-read the target after the splice: removing an earlier item shifts
+    // everything after it down one.
+    const target = from < toIndex ? toIndex - 1 : toIndex;
+    next.splice(target, 0, { ...moved, compId });
+    setDragOrder(next);
+  };
+
+  /** Dropping on the empty area below a column appends to that column. */
+  const dropAtEnd = (compId) => {
+    const from = dragFrom.current;
+    dragFrom.current = null;
+    if (from == null) return;
+
+    const next = grouped.map((h) => ({ id: Number(h.bal_head_id), compId: Number(h.comp_id) }));
+    const [moved] = next.splice(from, 1);
+    if (!moved) return;
+    next.push({ ...moved, compId });
+    setDragOrder(next);
+  };
+
+  /**
+   * Save the arrangement. A head that changed columns needs its comp_id
+   * written too, which the sequence branch does not touch — so those go
+   * through the head save first.
+   */
+  const saveSequence = async () => {
     setBusy(true);
     setError(null);
     try {
-      await api.post('/reports/balance-sheet/heads', {
-        headId: headForm.headId || 0,
-        description: headForm.description,
-        amount: Number(headForm.amount || 0),
-        seqOrder: Number(headForm.seqOrder || 0),
-        statusId: 1,
-      });
-      setHeadForm(null);
+      const byId = new Map(heads.map((h) => [Number(h.bal_head_id), h]));
+      for (const { id, compId } of dragOrder) {
+        const original = byId.get(id);
+        if (!original || Number(original.comp_id) === compId) continue;
+        await reports.saveBalanceHead({
+          headId: id,
+          description: original.bal_header_desc,
+          amount: Number(original.amount || 0),
+          seqOrder: Number(original.Seq_order || 0),
+          compId,
+          statusId: 1,
+        });
+      }
+
+      // Numbered per column, since each column is ordered independently.
+      const counters = new Map();
+      await reports.balanceHeadSequence(
+        dragOrder.map(({ id, compId }) => {
+          const n = (counters.get(compId) ?? 0) + 1;
+          counters.set(compId, n);
+          return { headId: id, sequence: n };
+        }),
+      );
+
+      setDragOrder(null);
       await load();
     } catch (err) {
       setError(err);
@@ -755,19 +918,108 @@ export function BalanceSheetEditorPage() {
     }
   };
 
-  const saveSub = async (event) => {
+  const grandTotal = (compId) =>
+    columnHeads(compId).reduce(
+      (sum, h) => sum + Number(h.amount || 0) + h.subs.reduce((s, x) => s + Number(x.amount || 0), 0),
+      0,
+    );
+
+  const liabilityTotal = grandTotal(LIABILITY);
+  const assetTotal = grandTotal(ASSET);
+
+  // The legacy modal edited a head together with all of its sub-points — one
+  // Save wrote the header, then every sub-point under it (btnSave_Click).
+  const openEditor = (head) =>
+    setHeadForm({
+      headId: head?.bal_head_id ?? 0,
+      description: head?.bal_header_desc ?? '',
+      amount: head?.amount ?? '',
+      compId: Number(head?.comp_id) === ASSET ? ASSET : LIABILITY,
+      seqOrder: head?.Seq_order ?? 0,
+      subpoints: (head?.subs ?? []).map((s) => ({
+        key: `s${s.bal_sub_id}`,
+        subId: s.bal_sub_id,
+        description: s.bal_sub_desc ?? '',
+        amount: s.amount ?? '',
+      })),
+    });
+
+  /**
+   * Removing a head removes its sub-points with it, so the count goes in the
+   * message — a head with ten rows under it should not vanish on a click that
+   * looked like it only dropped a title.
+   */
+  const confirmDeleteHead = (head) =>
+    setConfirming({
+      title: 'Delete entry',
+      message:
+        head.subs.length > 0
+          ? `Remove "${head.bal_header_desc}" and its ${head.subs.length} sub-point(s)?`
+          : `Remove "${head.bal_header_desc}"?`,
+      run: async () => {
+        await reports.removeBalanceHead(head.bal_head_id);
+        // A pending drag order still names the deleted head. Drop it from the
+        // arrangement rather than letting Save sequence post a dead id.
+        setDragOrder((prev) => {
+          if (!prev) return prev;
+          const next = prev.filter((x) => x.id !== Number(head.bal_head_id));
+          return next.length > 0 ? next : null;
+        });
+      },
+    });
+
+  const setSubpoint = (key, field, value) =>
+    setHeadForm((p) => ({
+      ...p,
+      subpoints: p.subpoints.map((s) => (s.key === key ? { ...s, [field]: value } : s)),
+    }));
+
+  const addSubpoint = () =>
+    setHeadForm((p) => ({
+      ...p,
+      // A client-side row has no id yet; the save posts subId 0 for it, which
+      // is what the legacy "+ Add Subpoint" template did.
+      subpoints: [
+        ...p.subpoints,
+        { key: `new${p.subpoints.length}${Date.now()}`, subId: 0, description: '', amount: '' },
+      ],
+    }));
+
+  const removeSubpoint = (key) =>
+    setHeadForm((p) => ({ ...p, subpoints: p.subpoints.filter((s) => s.key !== key) }));
+
+  const saveHead = async (event) => {
     event.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      await api.post('/reports/balance-sheet/sub-points', {
-        subId: subForm.subId || 0,
-        headId: Number(subForm.headId),
-        description: subForm.description,
-        amount: Number(subForm.amount || 0),
+      const saved = await reports.saveBalanceHead({
+        headId: headForm.headId || 0,
+        description: headForm.description,
+        amount: Number(headForm.amount || 0),
+        compId: headForm.compId,
+        seqOrder: Number(headForm.seqOrder || 0),
         statusId: 1,
       });
-      setSubForm(null);
+      // On insert the SP hands back the new id; the sub-points below need it to
+      // attach to the head that was just created.
+      const headId = headForm.headId || saved?.bal_head_id;
+
+      if (headId) {
+        for (const s of headForm.subpoints) {
+          // Blank rows are skipped, as in the legacy save loop.
+          if (!s.description.trim()) continue;
+          await reports.saveBalanceSubPoint({
+            subId: s.subId || 0,
+            headId: Number(headId),
+            description: s.description,
+            amount: Number(s.amount || 0),
+            statusId: 1,
+          });
+        }
+      }
+
+      setHeadForm(null);
       await load();
     } catch (err) {
       setError(err);
@@ -780,121 +1032,123 @@ export function BalanceSheetEditorPage() {
 
   return (
     <section>
-      <PageHeader title="Balance sheet" subtitle={`${heads.length} head(s) · total ${money(grandTotal)}`}>
+      <PageHeader
+        title="Balance sheet — Liabilities & Assets"
+        subtitle={`${heads.length} head(s) · ${subPoints.length} sub-point(s)`}
+      >
         <button type="button" className="btn-secondary" onClick={() => window.print()}>
           Print
         </button>
         <button
           type="button"
           className="btn-primary"
-          onClick={() => setHeadForm({ headId: 0, description: '', amount: '', seqOrder: heads.length + 1 })}
+          onClick={() =>
+            setHeadForm({
+              headId: 0,
+              description: '',
+              amount: '',
+              compId: LIABILITY,
+              seqOrder: heads.length + 1,
+              subpoints: [{ key: 'new0', subId: 0, description: '', amount: '' }],
+            })
+          }
         >
-          Add head
+          + Add new entry
         </button>
       </PageHeader>
 
       <div className="mb-4 grid gap-3 sm:grid-cols-3">
-        <StatCard label="Heads" value={heads.length} />
-        <StatCard label="Sub-points" value={subPoints.length} />
-        <StatCard label="Total" value={money(grandTotal)} />
+        <StatCard label="Liabilities" value={money(liabilityTotal)} />
+        <StatCard label="Assets" value={money(assetTotal)} />
+        {/* A balance sheet is meant to balance; the gap is the useful figure. */}
+        <StatCard
+          label="Difference"
+          value={money(liabilityTotal - assetTotal)}
+          tone={Math.abs(liabilityTotal - assetTotal) < 0.005 ? 'positive' : 'warning'}
+          hint={Math.abs(liabilityTotal - assetTotal) < 0.005 ? 'Balanced' : 'Liabilities and assets differ'}
+        />
       </div>
 
       <ErrorNotice error={error} onRetry={load} />
 
       {grouped.length === 0 ? (
-        <EmptyState title="No balance-sheet heads configured" hint="Add a head to begin." />
+        <EmptyState title="No balance-sheet heads configured" hint="Add an entry to begin." />
       ) : (
-        <div className="space-y-4">
-          {grouped.map((head) => (
-            <div key={head.bal_head_id} className="card overflow-hidden">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-3">
-                <div>
-                  <h2 className="text-sm font-semibold text-slate-800">{head.bal_header_desc}</h2>
-                  <p className="text-xs text-slate-500">{money(head.amount)}</p>
-                </div>
-                <div className="print:hidden">
-                  <button
-                    type="button"
-                    className="btn-secondary mr-2 text-xs"
-                    onClick={() =>
-                      setHeadForm({
-                        headId: head.bal_head_id,
-                        description: head.bal_header_desc,
-                        amount: head.amount ?? '',
-                        seqOrder: head.Seq_order ?? 0,
-                      })
-                    }
+        <>
+          {/* The two-column sheet, stacking on narrow screens as the legacy
+              @media (max-width: 991px) rule did. */}
+          <div className="grid gap-5 lg:grid-cols-2">
+            {COLUMNS.map((column) => {
+              const items = columnHeads(column.compId);
+              return (
+                <div
+                  key={column.compId}
+                  className="overflow-hidden rounded-lg border-2 border-[#012970] print:break-inside-avoid"
+                >
+                  <div className="bg-gradient-to-r from-[#012970] to-[#024298] px-5 py-3.5 text-center text-lg font-bold text-white">
+                    {column.title}
+                  </div>
+                  <div
+                    // Empty space below the last head is a valid drop target,
+                    // so a head can be moved into a column that has none.
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => dropAtEnd(column.compId)}
+                    className="min-h-24"
                   >
-                    Edit head
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary text-xs"
-                    onClick={() =>
-                      setSubForm({ subId: 0, headId: head.bal_head_id, description: '', amount: '' })
-                    }
-                  >
-                    Add sub-point
-                  </button>
+                    {items.length === 0 ? (
+                      <p className="px-5 py-6 text-center text-sm text-slate-500">
+                        No {column.title.toLowerCase()} recorded.
+                      </p>
+                    ) : (
+                      items.map((head) => (
+                        <HeadBlock
+                          key={head.bal_head_id}
+                          head={head}
+                          index={flatIndex(head)}
+                          onEdit={openEditor}
+                          onDelete={confirmDeleteHead}
+                          onDragStart={(i) => {
+                            dragFrom.current = i;
+                          }}
+                          onDrop={(i) => dropOn(i, column.compId)}
+                        />
+                      ))
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between bg-[#012970] px-5 py-3 font-bold text-white">
+                    <span>Grand total</span>
+                    <span>{money(grandTotal(column.compId))}</span>
+                  </div>
                 </div>
-              </div>
+              );
+            })}
+          </div>
 
-              {head.subs.length === 0 ? (
-                <p className="px-4 py-4 text-sm text-slate-500">No sub-points under this head.</p>
-              ) : (
-                <table className="min-w-full">
-                  <tbody>
-                    {head.subs.map((s) => (
-                      <tr key={s.bal_sub_id} className="border-t border-slate-100">
-                        <td className="table-cell pl-8">{s.bal_sub_desc}</td>
-                        <td className="table-cell text-right">{money(s.amount)}</td>
-                        <td className="table-cell whitespace-nowrap text-right print:hidden">
-                          <button
-                            type="button"
-                            className="btn-secondary mr-2"
-                            onClick={() =>
-                              setSubForm({
-                                subId: s.bal_sub_id,
-                                headId: s.bal_head_id,
-                                description: s.bal_sub_desc ?? '',
-                                amount: s.amount ?? '',
-                              })
-                            }
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-danger"
-                            onClick={() =>
-                              setConfirming({
-                                title: 'Delete sub-point',
-                                message: `Remove "${s.bal_sub_desc}"?`,
-                                run: () => api.delete(`/reports/balance-sheet/sub-points/${s.bal_sub_id}`),
-                              })
-                            }
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
+          {/* Hidden until a drag actually changes the order, exactly as
+              btnSaveSequence was (display:none until the sortable fired). */}
+          {dragOrder ? (
+            <div className="mt-4 flex items-center justify-end gap-3 print:hidden">
+              <p className="text-sm text-slate-500">Order changed.</p>
+              <button type="button" className="btn-secondary" onClick={() => setDragOrder(null)} disabled={busy}>
+                Reset
+              </button>
+              <button type="button" className="btn-primary" onClick={saveSequence} disabled={busy}>
+                {busy ? 'Saving…' : 'Save sequence'}
+              </button>
             </div>
-          ))}
-        </div>
+          ) : null}
+        </>
       )}
 
       <Modal
         open={Boolean(headForm)}
-        title={headForm?.headId ? 'Edit head' : 'Add head'}
+        title={headForm?.headId ? 'Edit balance sheet entry' : 'Add balance sheet entry'}
+        maxWidth="max-w-3xl"
         onClose={() => setHeadForm(null)}
         footer={
           <>
             <button type="button" className="btn-secondary" onClick={() => setHeadForm(null)} disabled={busy}>
-              Cancel
+              Close
             </button>
             <button type="submit" form="head-form" className="btn-primary" disabled={busy}>
               {busy ? 'Saving…' : 'Save'}
@@ -903,99 +1157,111 @@ export function BalanceSheetEditorPage() {
         }
       >
         {headForm ? (
-          <form id="head-form" onSubmit={saveHead} className="grid gap-4 sm:grid-cols-2" noValidate>
-            <TextField
-              label="Head description"
-              name="description"
-              required
-              className="sm:col-span-2"
-              value={headForm.description}
-              onChange={(e) => {
-                const { value } = e.target;
-                setHeadForm((p) => ({ ...p, description: value }));
-              }}
-            />
-            <TextField
-              label="Amount"
-              name="amount"
-              type="number"
-              step="0.01"
-              value={headForm.amount}
-              onChange={(e) => {
-                const { value } = e.target;
-                setHeadForm((p) => ({ ...p, amount: value }));
-              }}
-            />
-            <TextField
-              label="Display order"
-              name="seqOrder"
-              type="number"
-              value={headForm.seqOrder}
-              onChange={(e) => {
-                const { value } = e.target;
-                setHeadForm((p) => ({ ...p, seqOrder: value }));
-              }}
-            />
-            <div className="sm:col-span-2">
-              <ErrorNotice error={error} />
+          <form id="head-form" onSubmit={saveHead} noValidate>
+            {/* The legacy .type-selector: two cards, the chosen one filled. */}
+            <div className="mb-5 flex gap-5">
+              {COLUMNS.map((column) => {
+                const selected = headForm.compId === column.compId;
+                return (
+                  <button
+                    key={column.compId}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => setHeadForm((p) => ({ ...p, compId: column.compId }))}
+                    className={`flex-1 rounded-lg border-2 p-4 text-center text-sm font-medium transition ${
+                      selected
+                        ? 'border-[#012970] bg-[#012970] text-white'
+                        : 'border-slate-200 text-slate-700 hover:border-[#012970] hover:bg-[#f0f4f8]'
+                    }`}
+                  >
+                    {column.title.replace(/s$/, '')}
+                  </button>
+                );
+              })}
             </div>
-          </form>
-        ) : null}
-      </Modal>
 
-      <Modal
-        open={Boolean(subForm)}
-        title={subForm?.subId ? 'Edit sub-point' : 'Add sub-point'}
-        onClose={() => setSubForm(null)}
-        footer={
-          <>
-            <button type="button" className="btn-secondary" onClick={() => setSubForm(null)} disabled={busy}>
-              Cancel
-            </button>
-            <button type="submit" form="sub-form" className="btn-primary" disabled={busy}>
-              {busy ? 'Saving…' : 'Save'}
-            </button>
-          </>
-        }
-      >
-        {subForm ? (
-          <form id="sub-form" onSubmit={saveSub} className="grid gap-4 sm:grid-cols-2" noValidate>
-            <SelectField
-              label="Under head"
-              name="headId"
-              required
-              className="sm:col-span-2"
-              options={heads}
-              valueKey="bal_head_id"
-              labelKey="bal_header_desc"
-              value={subForm.headId}
-              onChange={(e) => {
-                const { value } = e.target;
-                setSubForm((p) => ({ ...p, headId: value }));
-              }}
-            />
-            <TextField
-              label="Description"
-              name="description"
-              required
-              value={subForm.description}
-              onChange={(e) => {
-                const { value } = e.target;
-                setSubForm((p) => ({ ...p, description: value }));
-              }}
-            />
-            <TextField
-              label="Amount"
-              name="amount"
-              type="number"
-              step="0.01"
-              value={subForm.amount}
-              onChange={(e) => {
-                const { value } = e.target;
-                setSubForm((p) => ({ ...p, amount: value }));
-              }}
-            />
-            <div className="sm:col-span-2">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <TextField
+                label="Header title"
+                name="description"
+                required
+                className="sm:col-span-2"
+                value={headForm.description}
+                onChange={(e) => {
+                  const { value } = e.target;
+                  setHeadForm((p) => ({ ...p, description: value }));
+                }}
+              />
+              <TextField
+                label="Header amount"
+                name="amount"
+                type="number"
+                step="0.01"
+                value={headForm.amount}
+                onChange={(e) => {
+                  const { value } = e.target;
+                  setHeadForm((p) => ({ ...p, amount: value }));
+                }}
+              />
+            </div>
+
+            {/* The legacy modal's sub-point cards: each a numbered description
+                and amount pair with its own Delete, plus "+ Add Subpoint". */}
+            <div className="mt-4 space-y-3">
+              {headForm.subpoints.map((s, i) => (
+                <div key={s.key} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <div className="mb-2 flex items-center justify-between">
+                    <strong className="text-sm text-slate-700">{i + 1})</strong>
+                    <button
+                      type="button"
+                      className="btn-danger text-xs"
+                      onClick={() => {
+                        // A saved row has to be deleted on the server; the
+                        // legacy save loop only ever wrote rows, so dropping
+                        // one from the list alone would not remove it.
+                        if (s.subId) {
+                          setConfirming({
+                            title: 'Delete sub-point',
+                            message: `Remove "${s.description || 'this sub-point'}"?`,
+                            run: () => reports.removeBalanceSubPoint(s.subId),
+                            after: () => removeSubpoint(s.key),
+                          });
+                          return;
+                        }
+                        removeSubpoint(s.key);
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <TextField
+                      label="Description"
+                      name={`sub-desc-${s.key}`}
+                      className="sm:col-span-2"
+                      value={s.description}
+                      onChange={(e) => setSubpoint(s.key, 'description', e.target.value)}
+                    />
+                    <TextField
+                      label="Amount"
+                      name={`sub-amount-${s.key}`}
+                      type="number"
+                      step="0.01"
+                      value={s.amount}
+                      onChange={(e) => setSubpoint(s.key, 'amount', e.target.value)}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-3 text-right">
+              <button type="button" className="btn-secondary" onClick={addSubpoint}>
+                + Add subpoint
+              </button>
+            </div>
+
+            <div className="mt-3">
               <ErrorNotice error={error} />
             </div>
           </form>
@@ -1012,7 +1278,10 @@ export function BalanceSheetEditorPage() {
           setBusy(true);
           try {
             await confirming.run();
-            await load();
+            // Deleting from inside the open modal drops the row from the form;
+            // the reload behind it would otherwise not reach the form's copy.
+            if (confirming.after) confirming.after();
+            else await load();
           } catch (err) {
             setError(err);
           } finally {

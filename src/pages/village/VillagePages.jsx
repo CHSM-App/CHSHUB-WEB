@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { village } from '@/api/modules';
 import { api } from '@/api/client';
+import { useOptionalUser } from '@/auth/AuthContext.jsx';
 import DataGrid from '@/components/DataGrid.jsx';
 import { ConfirmDialog, EmptyState, ErrorNotice, Modal, Spinner } from '@/components/ui.jsx';
 import {
@@ -29,13 +30,64 @@ const CHARGE_TYPES = [
  * The owner record is separate from the house record, so this edits
  * house_owner while the houses page edits `house`.
  */
+/*
+ * The house columns v_resident.aspx let you edit in the grid itself: its
+ * GridView carried an EditItemTemplate for each of these and nothing else, so
+ * the owner's own details were read-only there and are edited in the dialog.
+ *
+ * `key` is the column in the grid row; `field` is what PUT /village/houses/:id
+ * expects (see houseParams in routes/village/index.js).
+ */
+/*
+ * Column labels say "Rs." rather than "₹": jsPDF's built-in Helvetica has no
+ * rupee glyph, so a ₹ in a header comes out of the PDF export as a blank or a
+ * stray quote. The figures inside the cells are plain numbers, so only the
+ * headers were affected.
+ */
+const HOUSE_EDIT_FIELDS = [
+  { key: 'area', field: 'area', label: 'House SqFt', step: '0.01' },
+  { key: 'gharpatti_charges', field: 'propertyTax', label: 'SqFt Charges (Rs.)', step: '0.01' },
+  { key: 'no_of_tab', field: 'tapCount', label: 'No. of Taps', step: '1' },
+  { key: 'water_charges', field: 'waterCharges', label: 'Tap Charges (Rs.)', step: '0.01' },
+  { key: 'waste_charges', field: 'wasteCharges', label: 'Waste Collection (Rs.)', step: '0.01' },
+];
+
+/** The legacy grid's "Total Amount" column — the three charges added up. */
+const rowTotal = (row) =>
+  Number(row?.gharpatti_charges || 0) +
+  Number(row?.water_charges || 0) +
+  Number(row?.waste_charges || 0);
+
 export function VillageResidentsPage() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  /*
+   * Two error slots, because they belong to two different places on screen.
+   *
+   * `error` is the page's own — the list failed to load — and shows above the
+   * grid with a Try again button. `formError` belongs to the dialog and shows
+   * inside it. Sharing one slot put "Owner Name, Phone, House No. are required"
+   * on the page behind the dialog, next to a Try again button that would have
+   * reloaded the list rather than resubmitted the form.
+   */
   const [error, setError] = useState(null);
+  const [formError, setFormError] = useState(null);
+  /*
+   * Which fields Submit found empty, as { fieldName: message }. Shown against
+   * the box itself rather than as one combined sentence — "Owner Name, Phone,
+   * House No. are required" makes you match three names back to three boxes,
+   * and does not say which of them you already filled.
+   */
+  const [fieldErrors, setFieldErrors] = useState({});
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState(null);
   const [confirming, setConfirming] = useState(null);
+  /*
+   * Inline editing, as the legacy GridView did it: Edit swaps one row's charge
+   * cells for inputs, Update saves that row, Cancel drops the changes.
+   * `editing` holds the house_id being edited and the values typed so far.
+   */
+  const [editing, setEditing] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -55,24 +107,135 @@ export function VillageResidentsPage() {
 
   const save = async (event) => {
     event.preventDefault();
-    if (!form.name.trim()) {
-      setError(new Error('Owner name is required'));
+
+    /*
+     * Checked on Submit rather than as you type, which is when the legacy page
+     * checked. Owner Name, Phone and House No. are the three the record cannot
+     * be filed without: the grid lists residents by name and house, and the
+     * phone is how the panchayat reaches them.
+     *
+     * House No. is only asked for when adding — an existing resident's house is
+     * already set, and the dialog does not offer to move them to another one.
+     */
+    const missing = {};
+    if (!form.name.trim()) missing.name = 'Owner name is required';
+    if (!String(form.mobile ?? '').trim()) missing.mobile = 'Phone is required';
+    if (!form.__id && !String(form.houseNo ?? '').trim()) {
+      missing.houseNo = 'House no. is required';
+    }
+
+    if (Object.keys(missing).length) {
+      setFieldErrors(missing);
+      setFormError(null);
+      // The dialog scrolls, so the first field at fault is brought into view —
+      // pressing Submit from the bottom would otherwise mark a box above it.
+      const first = event.currentTarget?.elements?.[Object.keys(missing)[0]];
+      first?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+      first?.focus?.({ preventScroll: true });
       return;
     }
+
+    setBusy(true);
+    setFieldErrors({});
+    setFormError(null);
+    try {
+      if (form.__id) {
+        // Editing an existing resident's own details. The house and its charges
+        // are edited in the grid, as they were in the legacy GridView.
+        await village.updateOwner(form.__id, {
+          name: form.name,
+          houseId: Number(form.houseId),
+          address: form.address,
+          mobile: form.mobile,
+          altMobile: form.altMobile,
+          idProofPath: form.idProofPath,
+        });
+      } else {
+        /*
+         * Adding creates the house first and then hangs the owner off it —
+         * btnSubmitHouse_Click did exactly this:
+         *
+         *     int houseID = bL_House.InsertHouse(house);
+         *     house.House_Id = houseID;
+         *     bL_House.InsertOwner(house);
+         *
+         * so one dialog collects both, and asking for a house id that has to
+         * exist already (as this form used to) had no counterpart in the
+         * legacy page.
+         */
+        const { house_id: houseId } = await village.createHouse({
+          houseNo: Number(form.houseNo || 0),
+          houseType: Number(form.houseType) || 1,
+          area: Number(form.area || 0),
+          propertyTax: Number(form.propertyTax || 0),
+          tapCount: Number(form.tapCount || 0),
+          waterCharges: Number(form.waterCharges || 0),
+          wasteCharges: Number(form.wasteCharges || 0),
+        });
+
+        if (!houseId) throw new Error('The house was saved but no id came back');
+
+        await village.createOwner({
+          name: form.name,
+          houseId: Number(houseId),
+          address: form.address,
+          mobile: form.mobile,
+          altMobile: form.altMobile,
+          idProofPath: form.idProofPath,
+        });
+      }
+      setForm(null);
+      await load();
+    } catch (err) {
+      // A save that fails leaves the dialog open with what was typed, so the
+      // message belongs in it rather than on the page behind.
+      setFormError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** Open a row for editing, seeded with what it currently holds. */
+  const startEdit = (row) => {
+    setError(null);
+    setEditing({
+      houseId: row.house_id,
+      /*
+       * house_no rides along unchanged: sp_house's Update branch writes
+       * `house_no = @house_no`, so omitting it would blank the column. Its
+       * UPDATE deliberately leaves house_type alone, and the grid returns that
+       * column as the type's *name* ("Kaccha house") rather than its id, so it
+       * is not sent at all — the API defaults it and the SP ignores it.
+       */
+      houseNo: row.house_no ?? 0,
+      houseTypeId: row.house_type_id ?? null,
+      ...Object.fromEntries(HOUSE_EDIT_FIELDS.map((f) => [f.field, row[f.key] ?? 0])),
+    });
+  };
+
+  /**
+   * GridViewBills_RowUpdating — save the one row being edited.
+   *
+   * The legacy handler read exactly these five boxes off the row and left every
+   * other column alone.
+   */
+  const saveRow = async () => {
     setBusy(true);
     setError(null);
     try {
-      const body = {
-        name: form.name,
-        houseId: Number(form.houseId),
-        address: form.address,
-        mobile: form.mobile,
-        altMobile: form.altMobile,
-        idProofPath: form.idProofPath,
-      };
-      if (form.__id) await village.updateOwner(form.__id, body);
-      else await village.createOwner(body);
-      setForm(null);
+      await village.updateHouse(editing.houseId, {
+        houseNo: Number(editing.houseNo),
+        /*
+         * The API requires houseType because sp_house's INSERT branch writes
+         * it; its UPDATE branch does not touch the column, so the value only
+         * has to satisfy validation here. The row's real id is sent when the
+         * grid supplies it (see SQL/FIX_sp_house_grid_type_id.sql) and 1 stands
+         * in until that script has been run.
+         */
+        houseType: Number(editing.houseTypeId) || 1,
+        ...Object.fromEntries(HOUSE_EDIT_FIELDS.map((f) => [f.field, Number(editing[f.field] || 0)])),
+      });
+      setEditing(null);
       await load();
     } catch (err) {
       setError(err);
@@ -81,21 +244,67 @@ export function VillageResidentsPage() {
     }
   };
 
+  /** The charge columns: plain text normally, an input while the row is open. */
+  const editableColumn = ({ key, field, label, step }) => ({
+    key,
+    label,
+    align: 'right',
+    render: (value, row) =>
+      editing?.houseId === row.house_id ? (
+        <input
+          className="field-input w-24 text-right"
+          type="number"
+          min="0"
+          step={step}
+          aria-label={label}
+          value={editing[field] ?? ''}
+          onChange={(e) => {
+            const v = e.target.value;
+            setEditing((p) => ({ ...p, [field]: v }));
+          }}
+        />
+      ) : (
+        money(value)
+      ),
+  });
+
   return (
     <section>
-      <PageHeader title="Village residents" subtitle={`${rows.length} resident(s)`}>
+      {/* "Village Resident Details", as the legacy page headed itself. */}
+      <PageHeader title="Village Resident Details" subtitle={`${rows.length} resident(s)`}>
         <button
           type="button"
           className="btn-primary"
-          onClick={() =>
-            setForm({ name: '', houseId: '', address: '', mobile: '', altMobile: '', idProofPath: '' })
-          }
+          onClick={() => {
+            // Cleared here rather than in an effect: an effect keyed on the
+            // dialog would also fire on the render that setFormError causes,
+            // wiping the message the moment Submit produced it.
+            setFormError(null);
+            setFieldErrors({});
+            // The fields addHouseModal opened with, in its own order.
+            setForm({
+              name: '',
+              address: '',
+              mobile: '',
+              houseNo: '',
+              area: '',
+              propertyTax: '',
+              tapCount: '',
+              waterCharges: '',
+              wasteCharges: '',
+              houseType: '',
+              altMobile: '',
+              idProofPath: '',
+            });
+          }}
         >
-          Add resident
+          Add
         </button>
       </PageHeader>
 
-      <div className="mb-4 grid gap-3 sm:grid-cols-3">
+      {/* Screen only: on paper these three boxes repeat figures the table
+          already carries and push the records down the page. */}
+      <div className="mb-4 grid gap-3 sm:grid-cols-3 print:hidden">
         <StatCard label="Residents" value={rows.length} />
         <StatCard
           label="Property tax due"
@@ -111,93 +320,151 @@ export function VillageResidentsPage() {
 
       <div className="card overflow-hidden">
         <DataGrid
+          /* Column order follows v_resident.aspx's GridView: owner, address,
+             phone and house no. read-only, then the five editable charge
+             columns, then the total. */
           columns={[
-            { key: 'name', label: 'Owner' },
-            { key: 'house_no', label: 'House no.' },
-            { key: 'house_type', label: 'Type' },
+            { key: 'name', label: 'Owner Name' },
             { key: 'address', label: 'Address' },
-            { key: 'pre_mob', label: 'Contact' },
-            { key: 'area', label: 'Area', align: 'right' },
-            { key: 'gharpatti_charges', label: 'Property tax', align: 'right', render: money },
+            { key: 'pre_mob', label: 'Phone' },
+            { key: 'house_no', label: 'House No.' },
+            ...HOUSE_EDIT_FIELDS.map(editableColumn),
+            {
+              key: '__total',
+              label: 'Total Amount (Rs.)',
+              align: 'right',
+              render: (_v, row) => (
+                <span className="font-semibold">{money(rowTotal(row))}</span>
+              ),
+              // The exports read row[key], and this column is computed rather
+              // than stored — without this the CSV and PDF print it blank.
+              exportValue: (row) => money(rowTotal(row)),
+            },
           ]}
           rows={rows}
           idKey="house_id"
           loading={loading}
+          /* v_resident.aspx carried a "Search here" box above its grid. */
+          searchable
+          searchPlaceholder="Search here"
           exportName="village-residents"
+          exportTitle="Village Resident Details"
           emptyTitle="No residents recorded"
-          actions={(row) => (
-            <>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() =>
-                  setForm({
-                    __id: row.village_owner_id,
-                    name: row.name ?? '',
-                    houseId: row.house_id ?? '',
-                    address: row.address ?? '',
-                    mobile: row.pre_mob ?? '',
-                    altMobile: '',
-                    idProofPath: '',
-                  })
-                }
-              >
-                Edit
-              </button>
-              <button
-                type="button"
-                className="btn-danger"
-                onClick={() =>
-                  setConfirming({
-                    title: 'Delete resident',
-                    message: `Delete ${row.name}?`,
-                    run: () => village.removeOwner(row.village_owner_id),
-                  })
-                }
-              >
-                Delete
-              </button>
-            </>
-          )}
+          /*
+            The legacy Actions column swapped Edit for an Update / Cancel pair
+            while its row was open (CommandName="Edit" / "Update" / "Cancel"),
+            and that is what these do. "Details" opens the owner's own fields,
+            which the legacy grid did not edit inline either.
+          */
+          actions={(row) =>
+            editing?.houseId === row.house_id ? (
+              <>
+                <button type="button" className="btn-primary" onClick={saveRow} disabled={busy}>
+                  {busy ? 'Saving…' : 'Update'}
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setEditing(null)}
+                  disabled={busy}
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => startEdit(row)}
+                  disabled={Boolean(editing)}
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => {
+                    setFormError(null);
+                    setFieldErrors({});
+                    setForm({
+                      __id: row.village_owner_id,
+                      name: row.name ?? '',
+                      houseId: row.house_id ?? '',
+                      address: row.address ?? '',
+                      mobile: row.pre_mob ?? '',
+                      altMobile: '',
+                      idProofPath: '',
+                    });
+                  }}
+                >
+                  Details
+                </button>
+                <button
+                  type="button"
+                  className="btn-danger"
+                  onClick={() =>
+                    setConfirming({
+                      title: 'Delete resident',
+                      message: `Delete ${row.name}?`,
+                      run: () => village.removeOwner(row.village_owner_id),
+                    })
+                  }
+                >
+                  Delete
+                </button>
+              </>
+            )
+          }
         />
       </div>
 
       <Modal
         open={Boolean(form)}
-        title={form?.__id ? 'Edit resident' : 'Add resident'}
+        title={form?.__id ? 'Resident Details' : 'Add House Details'}
         onClose={() => setForm(null)}
         footer={
           <>
+            {/* addHouseModal's footer was Submit then Close. */}
             <button type="button" className="btn-secondary" onClick={() => setForm(null)} disabled={busy}>
-              Cancel
+              Close
             </button>
             <button type="submit" form="vres-form" className="btn-primary" disabled={busy}>
-              {busy ? 'Saving…' : 'Save'}
+              {busy ? 'Saving…' : form?.__id ? 'Save' : 'Submit'}
             </button>
           </>
         }
       >
         {form ? (
           <form id="vres-form" onSubmit={save} className="grid gap-4 sm:grid-cols-2" noValidate>
-            {[
-              ['name', 'Owner name', true, 'text'],
-              ['houseId', 'House ID', true, 'number'],
-              ['mobile', 'Mobile number', false, 'text'],
-              ['altMobile', 'Alternate mobile', false, 'text'],
-            ].map(([key, label, required, type]) => (
-              <TextField
-                key={key}
-                label={label}
-                name={key}
-                type={type}
-                required={required}
-                value={form[key]}
-                onChange={(e) => {
-                  const { value } = e.target;
-                  setForm((p) => ({ ...p, [key]: value }));
-                }}
-              />
-            ))}
+            {/*
+              addHouseModal's own order: Owner Name, Address, Phone, then House
+              No. beside House SqFt, then the three charge boxes, then Waste
+              Collection.
+            */}
+
+            {/* A failed save reports at the top; the required-field messages
+                sit against their own boxes below. */}
+            {formError ? (
+              <div className="sm:col-span-2">
+                <ErrorNotice error={formError} />
+              </div>
+            ) : null}
+
+            <TextField
+              label="Owner Name"
+              name="name"
+              required
+              className="sm:col-span-2"
+              error={fieldErrors.name}
+              value={form.name}
+              onChange={(e) => {
+                const { value } = e.target;
+                setForm((p) => ({ ...p, name: value }));
+                // The complaint goes as soon as it is answered.
+                setFieldErrors((p) => ({ ...p, name: undefined }));
+              }}
+            />
             <TextField
               label="Address"
               name="address"
@@ -208,6 +475,60 @@ export function VillageResidentsPage() {
                 setForm((p) => ({ ...p, address: value }));
               }}
             />
+            <TextField
+              label="Phone"
+              name="mobile"
+              required
+              error={fieldErrors.mobile}
+              value={form.mobile}
+              onChange={(e) => {
+                const { value } = e.target;
+                setForm((p) => ({ ...p, mobile: value }));
+                setFieldErrors((p) => ({ ...p, mobile: undefined }));
+              }}
+            />
+            <TextField
+              label="Alternate phone"
+              name="altMobile"
+              value={form.altMobile}
+              onChange={(e) => {
+                const { value } = e.target;
+                setForm((p) => ({ ...p, altMobile: value }));
+              }}
+            />
+
+            {/*
+              The house and its charges are only collected when adding: the
+              legacy modal created both records at once, and an existing
+              resident's charges are edited in the grid instead.
+            */}
+            {!form.__id
+              ? [
+                  ['houseNo', 'House No.', true],
+                  ['area', 'House SqFt', false],
+                  ['propertyTax', 'SqFt Charges (₹)', false],
+                  ['tapCount', 'No. of Taps', false],
+                  ['waterCharges', 'Tap Charges (₹)', false],
+                  ['wasteCharges', 'Waste Collection (₹)', false],
+                ].map(([key, label, required]) => (
+                  <TextField
+                    key={key}
+                    label={label}
+                    name={key}
+                    type="number"
+                    min="0"
+                    required={required}
+                    error={fieldErrors[key]}
+                    value={form[key]}
+                    onChange={(e) => {
+                      const { value } = e.target;
+                      setForm((p) => ({ ...p, [key]: value }));
+                      setFieldErrors((p) => ({ ...p, [key]: undefined }));
+                    }}
+                  />
+                ))
+              : null}
+
             <FileUploadField
               label="ID proof"
               category="owner-documents"
@@ -215,9 +536,6 @@ export function VillageResidentsPage() {
               currentPath={form.idProofPath}
               onUploaded={(f) => f && setForm((p) => ({ ...p, idProofPath: f.path }))}
             />
-            <div className="sm:col-span-2">
-              <ErrorNotice error={error} />
-            </div>
           </form>
         ) : null}
       </Modal>
@@ -257,6 +575,163 @@ const PAY_METHODS = [
 
 const EMPTY_PAYMENT = { payMode: 1, transactionRef: '', chequeNo: '', chequeDate: '', remark: '' };
 
+/** Village_payment_type's codes, for the pay dialog's heading. */
+const CHARGE_TYPE_NAMES = { 1: 'Property Tax', 2: 'Water Charges', 3: 'Waste Charges' };
+
+/**
+ * A paid receipt, as a document rather than a list of labelled values.
+ *
+ * The legacy modal (#receiptModal) printed Receipt No, Date, Owner Name, House
+ * Number, Payment Method, Transaction Reference, Cheque No, Cheque Date and the
+ * amount, and closed with "Thank you for your payment!". Those are all kept —
+ * what changes is that this reads like something you would hand over: the
+ * village's name at the top, the amount as the one figure that leads, and a
+ * PAID stamp.
+ *
+ * This is the screen view. Print Receipt and Download PDF both go through
+ * buildReceiptPdf() instead, so the printed and downloaded documents are the
+ * same file rather than two layouts kept in step by hand.
+ */
+function TaxReceipt({ receipt: r, villageName }) {
+  const rows = [
+    ['Owner Name', r.name],
+    ['House Number', r.house_no],
+    ['Address', r.address],
+    ['Contact', r.pre_mob],
+    ['Bill Type', r.payment_type_name],
+    ['Payment Method', r.pay_mode],
+    /* Transation_ref is on house_tax_receipt but Grid_paid_charges does not
+       select it, so it only appears when the row came from the single-receipt
+       endpoint. Blank rows are dropped rather than printed as a dash. */
+    ['Transaction Reference', r.Transation_ref],
+    ['Cheque No.', r.chqno],
+    ['Cheque Date', r.chqdate ? day(r.chqdate) : ''],
+  ].filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '');
+
+  return (
+    <div className="print-receipt">
+      {/* Header — who issued it, and its number and date. */}
+      <div
+        className="relative overflow-hidden rounded-xl px-6 py-5 text-white"
+        style={{ background: 'linear-gradient(120deg, #1e3a8a 0%, #2563eb 60%, #4f7df3 100%)' }}
+      >
+        <div
+          className="pointer-events-none absolute inset-0"
+          aria-hidden="true"
+          style={{
+            backgroundImage:
+              'radial-gradient(420px circle at 6% 0%, rgba(147,197,253,0.35), transparent 62%)',
+          }}
+        />
+        <div className="relative flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p
+              className="text-[11px] font-semibold uppercase tracking-[0.14em]"
+              style={{ color: 'rgba(255,255,255,0.75)' }}
+            >
+              Gram Panchayat
+            </p>
+            <p className="mt-0.5 text-xl font-bold">{villageName || 'Village'}</p>
+            <p className="mt-1 text-xs" style={{ color: 'rgba(255,255,255,0.7)' }}>
+              Tax Payment Receipt
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.7)' }}>
+              Receipt No.
+            </p>
+            <p className="text-lg font-bold">{r.receipt_no || '—'}</p>
+            <p className="mt-1 text-xs" style={{ color: 'rgba(255,255,255,0.7)' }}>
+              {day(r.pay_date)}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* The amount, which is what the receipt is for. */}
+      <div
+        className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl px-6 py-4"
+        style={{ background: '#f0fdf4', border: '1px solid #bbf7d0' }}
+      >
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: '#15803d' }}>
+            Amount Paid
+          </p>
+          <p className="mt-0.5 text-3xl font-bold" style={{ color: '#166534' }}>
+            ₹{money(r.Amount_paid)}
+          </p>
+        </div>
+        {/* The stamp a paper receipt would carry. */}
+        <span
+          className="rounded-lg px-4 py-2 text-sm font-bold uppercase tracking-widest"
+          style={{ color: '#16a34a', border: '2px solid #16a34a', transform: 'rotate(-4deg)' }}
+        >
+          Paid
+        </span>
+      </div>
+
+      {/* Details, one per line, so the eye runs down a single column. */}
+      <dl className="mt-4 divide-y" style={{ borderColor: 'var(--line)' }}>
+        {rows.map(([label, value]) => (
+          <div key={label} className="flex justify-between gap-6 py-2.5">
+            <dt className="text-sm" style={{ color: '#718096' }}>
+              {label}
+            </dt>
+            <dd className="text-right text-sm font-semibold" style={{ color: 'var(--ink)' }}>
+              {value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+
+      <p className="mt-5 text-center text-sm font-medium" style={{ color: '#718096' }}>
+        Thank you for your payment!
+      </p>
+      <p className="mt-1 text-center text-[11px]" style={{ color: '#a0aec0' }}>
+        This is a computer-generated receipt and needs no signature.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * One pending amount in the grid, as a link that opens the pay dialog for that
+ * house and that charge — the legacy grid's ViewWater / ViewProperty /
+ * ViewWaste commands.
+ *
+ * `type` is the payment_type id: 1 Property Tax, 2 Water Charges, 3 Waste
+ * Charges, matching Village_payment_type.
+ */
+function PendingAmount({ value, row, type, onPay }) {
+  const amount = Number(value || 0);
+  // The legacy link printed ₹{0:N2}; a zero is not a link, since there is
+  // nothing to pay.
+  if (!amount) return <span className="text-slate-400">₹{money(0)}</span>;
+
+  return (
+    <button
+      type="button"
+      className="font-semibold underline-offset-2 hover:underline"
+      style={{ color: 'var(--accent-strong)' }}
+      disabled={!PAYMENTS_ENABLED}
+      title={
+        PAYMENTS_ENABLED
+          ? 'Pay this charge'
+          : 'Payments are disabled until the flow has been run against a test database (VITE_ENABLE_VILLAGE_PAYMENTS)'
+      }
+      onClick={() => onPay(row, type)}
+    >
+      ₹{money(amount)}
+    </button>
+  );
+}
+
+/** The "Total Pending" column on v_tax_payment.aspx — the three dues added up. */
+const pendingTotal = (r) =>
+  Number(r?.pending_property_tax || 0) +
+  Number(r?.pending_water_charges || 0) +
+  Number(r?.pending_waste_charges || 0);
+
 /**
  * Taking money is guarded the same way bill generation and receipt entry are:
  * the API is built and validated, but the button stays disabled until the flow
@@ -271,18 +746,87 @@ const PAYMENTS_ENABLED = import.meta.env.VITE_ENABLE_VILLAGE_PAYMENTS === 'true'
  */
 export function VillagePaymentsPage() {
   const [tab, setTab] = useState('pending');
-  const [chargeType, setChargeType] = useState('1');
+  /*
+   * Houses ticked in the pending grid's Select column, for the Send SMS
+   * reminder below it. Paying does not use these — that is done by clicking an
+   * amount, as gvPending's LinkButtons did.
+   */
+  const user = useOptionalUser();
+  const villageName = user?.village_name || '';
+  const [smsSelected, setSmsSelected] = useState([]);
+  const [smsPreview, setSmsPreview] = useState(false);
   const [pending, setPending] = useState([]);
   const [receipts, setReceipts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [viewing, setViewing] = useState(null);
+  const [receiptPdfBusy, setReceiptPdfBusy] = useState(false);
 
   // Pay modal: which house, its unpaid bills, and which are ticked.
   const [paying, setPaying] = useState(null); // { house, bills, selected:Set }
   const [payForm, setPayForm] = useState({ ...EMPTY_PAYMENT });
   const [payBusy, setPayBusy] = useState(false);
   const [payError, setPayError] = useState(null);
+
+  /**
+   * The open receipt as a PDF, laid out like the one on screen.
+   *
+   * tableToPdf draws a title, a subtitle, a tinted criteria box and a table —
+   * which maps onto a receipt: the village in the heading, the amount and
+   * receipt number in the box that leads, and the details as rows. Reusing it
+   * keeps this file free of a second PDF implementation.
+   */
+  const buildReceiptPdf = async ({ print = false } = {}) => {
+    if (!viewing) return;
+    setReceiptPdfBusy(true);
+    try {
+      const { tableToPdf } = await import('@/lib/pdf');
+
+      const rows = [
+        ['Owner Name', viewing.name],
+        ['House Number', viewing.house_no],
+        ['Address', viewing.address],
+        ['Contact', viewing.pre_mob],
+        ['Bill Type', viewing.payment_type_name],
+        ['Payment Method', viewing.pay_mode],
+        ['Transaction Reference', viewing.Transation_ref],
+        ['Cheque No.', viewing.chqno],
+        ['Cheque Date', viewing.chqdate ? day(viewing.chqdate) : ''],
+      ]
+        .filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '')
+        .map(([field, value]) => ({ field, value: String(value) }));
+
+      await tableToPdf({
+        columns: [
+          { key: 'field', label: 'Detail' },
+          { key: 'value', label: 'Value' },
+        ],
+        rows,
+        title: 'Tax Payment Receipt',
+        subtitle: villageName,
+        /*
+         * The box under the title, which is what the green panel is on screen.
+         * "Rs." rather than ₹ throughout: jsPDF's built-in Helvetica has no
+         * rupee glyph and prints it as a blank or a stray quote.
+         */
+        filters: [
+          { label: 'Receipt No.', value: viewing.receipt_no ?? '' },
+          { label: 'Receipt Date', value: day(viewing.pay_date) },
+          { label: 'Amount Paid', value: `Rs. ${money(viewing.Amount_paid)}` },
+          { label: 'Status', value: 'PAID' },
+        ],
+        filename: `receipt-${viewing.receipt_no || viewing.house_receipt_id}`,
+        orientation: 'portrait',
+        // The green the on-screen receipt uses for a settled payment.
+        accent: [22, 163, 74],
+        print,
+      });
+    } catch (err) {
+      window.alert(`Could not create the PDF: ${err.message}`);
+    } finally {
+      setReceiptPdfBusy(false);
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -293,7 +837,19 @@ export function VillagePaymentsPage() {
         village.houseTaxReceipts().catch(() => ({ items: [] })),
       ]);
       setPending(p.items ?? []);
-      setReceipts(r.items ?? []);
+      /*
+       * Newest payment first. Grid_paid_charges returns rows in whatever order
+       * the join produces, so the most recent receipt could land anywhere in
+       * the list — and a payments log is read from the latest backwards.
+       * house_receipt_id breaks ties within a day, since it rises with entry.
+       */
+      setReceipts(
+        [...(r.items ?? [])].sort(
+          (a, b) =>
+            new Date(b.pay_date ?? 0) - new Date(a.pay_date ?? 0) ||
+            Number(b.house_receipt_id ?? 0) - Number(a.house_receipt_id ?? 0),
+        ),
+      );
     } catch (err) {
       setError(err);
     } finally {
@@ -305,24 +861,29 @@ export function VillagePaymentsPage() {
     load();
   }, [load]);
 
-  /** Open the pay modal for a house, loading its unpaid bills of this type. */
-  const openPay = async (house) => {
+  /**
+   * Open the pay dialog for one house and one charge type — the legacy
+   * PopulateModal(house_id, taxType).
+   */
+  const openPay = async (house, type) => {
     setPayError(null);
     setPayForm({ ...EMPTY_PAYMENT });
-    setPaying({ house, bills: [], selected: new Set(), loading: true });
+    setPaying({ house, type, bills: [], selected: new Set(), loading: true });
     try {
-      const d = await village.houseTaxBills(house.house_id, Number(chargeType));
+      const d = await village.houseTaxBills(house.house_id, Number(type));
       const bills = (d.items ?? []).filter((b) => Number(b.payment_status) !== 1);
       setPaying({
         house,
+        type,
         bills,
-        // Legacy pre-ticked nothing; "Pay All" is the select-all box below.
-        selected: new Set(),
+        // Every unpaid bill starts ticked, so the dialog opens showing the
+        // whole amount the grid cell just reported. Untick to pay part of it.
+        selected: new Set(bills.map((b) => Number(b.house_receipt_id))),
         loading: false,
       });
     } catch (err) {
       setPayError(err);
-      setPaying({ house, bills: [], selected: new Set(), loading: false });
+      setPaying({ house, type, bills: [], selected: new Set(), loading: false });
     }
   };
 
@@ -351,6 +912,18 @@ export function VillagePaymentsPage() {
 
   const submitPayment = async (e) => {
     e.preventDefault();
+
+    // The boxes the legacy modal starred, for the method that is showing.
+    const mode = Number(payForm.payMode);
+    if (mode === 4 && !payForm.transactionRef.trim()) {
+      setPayError(new Error('Transaction Reference is required for a UPI payment'));
+      return;
+    }
+    if (mode === 2 && (!payForm.chequeNo.trim() || !payForm.chequeDate)) {
+      setPayError(new Error('Cheque No. and Cheque Date are required for a cheque payment'));
+      return;
+    }
+
     setPayBusy(true);
     setPayError(null);
     try {
@@ -383,13 +956,15 @@ export function VillagePaymentsPage() {
 
   return (
     <section>
-      <PageHeader title="Village payments" subtitle="Pending charges and collected receipts">
+      {/* "Tax Payments", as the legacy page headed itself. */}
+      <PageHeader title="Tax Payments" subtitle="Pending charges and collected receipts">
         <button type="button" className="btn-secondary" onClick={() => window.print()}>
           Print
         </button>
       </PageHeader>
 
-      <div className="mb-4 grid gap-3 sm:grid-cols-4">
+      {/* Screen only, as on the residents page. */}
+      <div className="mb-4 grid gap-3 sm:grid-cols-4 print:hidden">
         <StatCard label="Property tax due" value={money(totals.property)} tone="negative" />
         <StatCard label="Water charges due" value={money(totals.water)} tone="negative" />
         <StatCard label="Waste charges due" value={money(totals.waste)} tone="negative" />
@@ -398,8 +973,9 @@ export function VillagePaymentsPage() {
 
       <Tabs
         tabs={[
-          { id: 'pending', label: 'Pending charges', count: pending.length },
-          { id: 'receipts', label: 'Receipts', count: receipts.length },
+          /* The legacy page's own two tabs. */
+          { id: 'pending', label: 'Pending Bills', count: pending.length },
+          { id: 'receipts', label: 'Paid Bills', count: receipts.length },
         ]}
         active={tab}
         onChange={setTab}
@@ -412,66 +988,142 @@ export function VillagePaymentsPage() {
         <div className="card overflow-hidden">
           <DataGrid
             columns={[
-              { key: 'owner_name', label: 'Owner' },
-              { key: 'house_no', label: 'House' },
-              { key: 'pre_mob', label: 'Contact' },
-              { key: 'pending_property_tax', label: 'Property tax', align: 'right', render: money },
-              { key: 'pending_water_charges', label: 'Water', align: 'right', render: money },
-              { key: 'pending_waste_charges', label: 'Waste', align: 'right', render: money },
+              /* gvPending's own columns: Name, House No, Water Tax, Property
+                 Tax, Waste Tax. */
+              { key: 'owner_name', label: 'Name' },
+              { key: 'house_no', label: 'House No' },
+              /*
+                Each amount is its own button, which is how the legacy grid
+                worked: the Water, Property and Waste cells carried
+                CommandName="ViewWater" / "ViewProperty" / "ViewWaste" with the
+                house_id, and clicking one opened the modal listing that house's
+                unpaid bills of that type. A single charge-type selector for the
+                whole page made you set it before clicking a figure, which
+                nothing on screen told you to do.
+
+                A zero is not a button — there is nothing to pay.
+              */
               {
-                key: 'house_id',
-                label: 'Total due',
+                key: 'pending_water_charges',
+                label: 'Water Tax',
                 align: 'right',
-                render: (_v, r) =>
-                  money(
-                    Number(r.pending_property_tax || 0) +
-                      Number(r.pending_water_charges || 0) +
-                      Number(r.pending_waste_charges || 0),
-                  ),
+                render: (v, r) => <PendingAmount value={v} row={r} type={2} onPay={openPay} />,
+                exportValue: (r) => money(r.pending_water_charges),
+              },
+              {
+                key: 'pending_property_tax',
+                label: 'Property Tax',
+                align: 'right',
+                render: (v, r) => <PendingAmount value={v} row={r} type={1} onPay={openPay} />,
+                exportValue: (r) => money(r.pending_property_tax),
+              },
+              {
+                key: 'pending_waste_charges',
+                label: 'Waste Tax',
+                align: 'right',
+                render: (v, r) => <PendingAmount value={v} row={r} type={3} onPay={openPay} />,
+                exportValue: (r) => money(r.pending_waste_charges),
+              },
+              {
+                /*
+                 * "Total Pending" is in v_tax_payment.aspx's markup but
+                 * commented out, alongside the Pay All button it sat beside.
+                 * It is kept because the three amounts beside it are the whole
+                 * point of the row and their sum is what anyone reads first;
+                 * the key is its own rather than house_id, which made the
+                 * exports print the id where the total belongs.
+                 */
+                key: '__pending_total',
+                label: 'Total Pending',
+                align: 'right',
+                render: (_v, r) => <span className="font-semibold">₹{money(pendingTotal(r))}</span>,
+                exportValue: (r) => money(pendingTotal(r)),
               },
             ]}
             rows={pending}
             idKey="house_id"
             loading={loading}
+            searchable
+            searchPlaceholder="Search here"
             exportName="village-pending-charges"
+            exportTitle="Pending Charges"
             emptyTitle="No pending charges"
-            actions={(row) => (
-              <button
-                type="button"
-                className="btn-primary"
-                disabled={!PAYMENTS_ENABLED}
-                title={
-                  PAYMENTS_ENABLED
-                    ? undefined
-                    : 'Payments are disabled until the flow has been run against a test database (VITE_ENABLE_VILLAGE_PAYMENTS)'
-                }
-                onClick={() => openPay(row)}
-              >
-                Pay
-              </button>
-            )}
+            /*
+              No per-row action button: gvPending has no Action column. Paying
+              is done by clicking one of the three amounts, and the Select
+              checkbox below picks houses for the Send SMS reminder.
+            */
+            selectable
+            selectionAtEnd
+            selectedIds={smsSelected}
+            onSelectionChange={setSmsSelected}
           />
+
+          {/*
+            btnSendSMS, under the grid. validateSelection() refused an empty
+            selection, so the button stays disabled until something is ticked.
+
+            btnSendSMS_Click gathered the ticked rows — owner, mobile and the
+            three amounts — and then stopped at a "Process the data here..."
+            comment: nothing was ever sent, and there is no SMS endpoint behind
+            it. Rather than pretend, this reports what it would send and leaves
+            the sending to be built.
+          */}
+          <div className="flex items-center justify-between gap-3 border-t px-4 py-3 print:hidden"
+            style={{ borderColor: 'var(--line)' }}
+          >
+            <span className="text-sm" style={{ color: '#718096' }}>
+              {smsSelected.length
+                ? `${smsSelected.length} house(s) selected`
+                : 'Select houses to remind'}
+            </span>
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={!smsSelected.length}
+              onClick={() => setSmsPreview(true)}
+            >
+              Send SMS
+            </button>
+          </div>
         </div>
       ) : (
         <div className="card overflow-hidden">
           <DataGrid
             columns={[
-              { key: 'receipt_no', label: 'Receipt' },
-              { key: 'name', label: 'Owner' },
-              { key: 'house_no', label: 'House' },
-              { key: 'payment_type_name', label: 'Charge type' },
-              { key: 'pay_date', label: 'Date', render: day },
-              { key: 'pay_mode', label: 'Mode' },
-              { key: 'Amount_paid', label: 'Amount', align: 'right', render: money },
+              /*
+               * gvPaid's own columns and order: Owner Name, House Number, Bill
+               * Type, Total Tax, Payment Date, Payment Method. The receipt
+               * number is not among them — it is on the receipt itself, which
+               * the Action button opens.
+               */
+              { key: 'name', label: 'Owner Name' },
+              { key: 'house_no', label: 'House Number' },
+              { key: 'payment_type_name', label: 'Bill Type' },
+              {
+                key: 'Amount_paid',
+                label: 'Total Tax',
+                align: 'right',
+                render: (v) => `₹${money(v)}`,
+                exportValue: (r) => money(r.Amount_paid),
+              },
+              { key: 'pay_date', label: 'Payment Date', render: day, exportValue: (r) => day(r.pay_date) },
+              // Grid_paid_charges resolves pay_mode to its name ("Cash",
+              // "UPI"), so this column needs no lookup of its own.
+              { key: 'pay_mode', label: 'Payment Method' },
             ]}
             rows={receipts}
             idKey="house_receipt_id"
             loading={loading}
+            searchable
+            searchPlaceholder="Search here"
             exportName="village-receipts"
+            exportTitle="Tax Payment Receipts"
             emptyTitle="No receipts recorded"
+            /* gvPaid's Action column held a single "Receipt" button. */
             actions={(row) => (
               <button type="button" className="btn-secondary" onClick={() => setViewing(row)}>
-                View
+                Receipt
               </button>
             )}
           />
@@ -482,45 +1134,88 @@ export function VillagePaymentsPage() {
         open={Boolean(viewing)}
         title={`Receipt ${viewing?.receipt_no ?? ''}`}
         onClose={() => setViewing(null)}
+        /* The legacy footer was Close then Print Receipt; the PDF is added
+           because a receipt is usually wanted as a file to send on. */
         footer={
           <>
-            <button type="button" className="btn-secondary" onClick={() => window.print()}>
-              Print
-            </button>
             <button type="button" className="btn-secondary" onClick={() => setViewing(null)}>
               Close
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={receiptPdfBusy}
+              onClick={() => buildReceiptPdf()}
+            >
+              {receiptPdfBusy ? 'Preparing…' : 'Download PDF'}
+            </button>
+            {/* Prints the same document the download produces, rather than the
+                dialog's own screen layout. */}
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={receiptPdfBusy}
+              onClick={() => buildReceiptPdf({ print: true })}
+            >
+              Print Receipt
             </button>
           </>
         }
       >
-        {viewing ? (
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
-            {[
-              ['Receipt number', viewing.receipt_no],
-              ['Owner', viewing.name],
-              ['House number', viewing.house_no],
-              ['Address', viewing.address],
-              ['Contact', viewing.pre_mob],
-              ['Charge type', viewing.payment_type_name],
-              ['Payment date', day(viewing.pay_date)],
-              ['Payment mode', viewing.pay_mode],
-              ['Cheque number', viewing.chqno],
-              ['Cheque date', day(viewing.chqdate)],
-              ['Amount paid', money(viewing.Amount_paid)],
-            ].map(([label, value]) => (
-              <div key={label}>
-                <dt className="text-xs uppercase tracking-wide text-slate-500">{label}</dt>
-                <dd className="mt-0.5 text-slate-800">{value || '—'}</dd>
-              </div>
-            ))}
-          </dl>
-        ) : null}
+        {viewing ? <TaxReceipt receipt={viewing} villageName={villageName} /> : null}
+      </Modal>
+
+      {/*
+        What Send SMS would go out with. btnSendSMS_Click built exactly this
+        list — owner, mobile and the three pending amounts — and then did
+        nothing with it, so this shows the list rather than claiming to have
+        sent anything there is no endpoint for.
+      */}
+      <Modal
+        open={smsPreview}
+        title="Send SMS reminder"
+        onClose={() => setSmsPreview(false)}
+        footer={
+          <button type="button" className="btn-secondary" onClick={() => setSmsPreview(false)}>
+            Close
+          </button>
+        }
+      >
+        <p className="mb-3 text-sm" style={{ color: '#718096' }}>
+          Reminders are not sent yet — no SMS gateway is wired up. These are the
+          houses and numbers a reminder would go to.
+        </p>
+        <div className="overflow-hidden rounded border" style={{ borderColor: 'var(--line)' }}>
+          <table className="min-w-full">
+            <thead>
+              <tr>
+                <th className="table-head">Name</th>
+                <th className="table-head">Contact</th>
+                <th className="table-head text-right">Total Pending</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pending
+                .filter((r) => smsSelected.includes(r.house_id))
+                .map((r) => (
+                  <tr key={r.house_id}>
+                    <td className="table-cell">{r.owner_name}</td>
+                    <td className="table-cell">{r.pre_mob || '—'}</td>
+                    <td className="table-cell text-right">₹{money(pendingTotal(r))}</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
       </Modal>
 
       {/* Pay modal — v_tax_payment.aspx's #taxModal. */}
       <Modal
         open={Boolean(paying)}
-        title={`Pay charges — ${paying?.house?.owner_name ?? ''} (house ${paying?.house?.house_no ?? ''})`}
+        /* lblModalTitle carried the owner and which charge is being settled. */
+        title={`${CHARGE_TYPE_NAMES[paying?.type] ?? 'Charges'} — ${
+          paying?.house?.owner_name ?? ''
+        } (house ${paying?.house?.house_no ?? ''})`}
         onClose={() => setPaying(null)}
         footer={
           <>
@@ -588,10 +1283,19 @@ export function VillagePaymentsPage() {
               </div>
             )}
 
-            <p className="text-sm" style={{ color: '#012970' }}>
-              Selected: <strong>{paying.selected.size}</strong> bill(s) ·{' '}
-              <strong>{money(selectedTotal)}</strong>
-            </p>
+            {/* .pay-total-section — the running total of what is ticked. */}
+            <div
+              className="flex items-center justify-between rounded-lg px-4 py-3"
+              style={{ background: '#f7f9fd', border: '1px solid var(--line)' }}
+            >
+              <span className="text-sm font-semibold" style={{ color: '#4a5568' }}>
+                Total Amount:
+              </span>
+              <span className="text-xl font-bold" style={{ color: 'var(--ink)' }}>
+                ₹{money(selectedTotal)}
+              </span>
+            </div>
+
             <p className="text-xs" style={{ color: '#6b7280' }}>
               Each selected bill is settled in full — the stored procedure does not
               support part payment.
@@ -599,45 +1303,71 @@ export function VillagePaymentsPage() {
 
             <div className="grid gap-3 sm:grid-cols-2">
               <SelectField
-                label="Payment method"
+                label="Payment Method"
                 name="payMode"
                 required
                 placeholder=""
                 options={PAY_METHODS}
                 value={String(payForm.payMode)}
-                onChange={(e) => setPayForm((p) => ({ ...p, payMode: Number(e.target.value) }))}
+                onChange={(e) =>
+                  setPayForm((p) => ({
+                    ...p,
+                    payMode: Number(e.target.value),
+                    // Switching method drops what the previous one asked for, so
+                    // a cheque number cannot be posted with a UPI payment.
+                    transactionRef: '',
+                    chequeNo: '',
+                    chequeDate: '',
+                  }))
+                }
               />
-              {Number(payForm.payMode) !== 1 ? (
+
+              {/*
+                toggleTransactionRef() in v_tax_payment.aspx: Cash asks for
+                nothing, UPI (4) shows Transaction Reference alone, and Cheque
+                (2) shows Cheque No. and Cheque Date alone. Reference was
+                previously shown for cheques too, which the legacy never did.
+              */}
+              {Number(payForm.payMode) === 4 ? (
                 <TextField
-                  label="Transaction reference"
+                  label="Transaction Reference"
                   name="transactionRef"
                   required
+                  maxLength={50}
+                  placeholder="Enter transaction/reference number"
                   value={payForm.transactionRef}
                   onChange={(e) => setPayForm((p) => ({ ...p, transactionRef: e.target.value }))}
                 />
               ) : null}
+
               {Number(payForm.payMode) === 2 ? (
                 <>
                   <TextField
-                    label="Cheque number"
+                    label="Cheque No."
                     name="chequeNo"
                     required
+                    maxLength={50}
+                    placeholder="Enter Cheque number"
                     value={payForm.chequeNo}
                     onChange={(e) => setPayForm((p) => ({ ...p, chequeNo: e.target.value }))}
                   />
                   <TextField
-                    label="Cheque date"
+                    label="Cheque Date"
                     name="chequeDate"
                     type="date"
+                    required
                     value={payForm.chequeDate}
                     onChange={(e) => setPayForm((p) => ({ ...p, chequeDate: e.target.value }))}
                   />
                 </>
               ) : null}
+
               <TextField
                 label="Remarks"
                 name="remark"
                 className="sm:col-span-2"
+                maxLength={500}
+                placeholder="Add any additional notes (optional)"
                 value={payForm.remark}
                 onChange={(e) => setPayForm((p) => ({ ...p, remark: e.target.value }))}
               />
@@ -734,7 +1464,10 @@ export function VillageTaxPage({ kind = 'house' }) {
           rows={rows}
           idKey={isWater ? 'water_tax_id' : 'house_tax_id'}
           loading={loading}
+          searchable
+          searchPlaceholder="Search here"
           exportName={isWater ? 'water-tax' : 'house-tax'}
+          exportTitle={isWater ? 'Water Tax' : 'Property Tax'}
           emptyTitle={`No ${isWater ? 'water tax' : 'house tax'} records`}
           emptyHint="Generated bills will appear here once generation is available."
         />

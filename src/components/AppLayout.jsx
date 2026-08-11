@@ -139,7 +139,8 @@ const NAV = [
         icon: 'file',
         heading: 'Village Management',
         items: [
-          { to: '/dashboard', label: 'Dashboard' },
+          // Dashboard is not repeated here: the rail already carries it above
+          // the first heading, for both kinds of account.
           { to: '/village/residents', label: 'Village Residents' },
           { to: '/village/payments', label: 'Tax Payments' },
           { to: '/community/notices', label: 'Announcements' },
@@ -230,8 +231,19 @@ export default function AppLayout() {
   // The Profile dialog, opened from the header dropdown as Site.Master did.
   const [profileOpen, setProfileOpen] = useState(false);
 
-  // Hide the Village section for society-only accounts.
-  const sections = NAV.filter((g) => !g.villageOnly || Boolean(villageId));
+  /*
+   * The two menus are mutually exclusive, as they were in the legacy shell:
+   *
+   *   society.Visible = Session["user_type"] == "Society";
+   *   village.Visible = Session["user_type"] == "Village";      (Site.Master.cs:40)
+   *
+   * A village account has no buildings, wings, flats or maintenance billing, so
+   * showing it the society menu offers a screenful of links that lead to empty
+   * or society-scoped pages — several of which the API refuses outright,
+   * because their routes sit behind requireSociety.
+   */
+  const isVillage = Boolean(villageId);
+  const sections = NAV.filter((g) => Boolean(g.villageOnly) === isVillage);
 
   // Open whichever group owns the current route, so a deep link or a reload
   // lands with the right menu expanded rather than everything collapsed.
@@ -483,18 +495,23 @@ export default function AppLayout() {
           style={{ padding: '8px' }}
         >
           {/*
-            The rail scrolls independently of the page: its height is whatever
-            the viewport has left below the topbar, so a long menu gets its own
-            scrollbar instead of pushing the page down. overscroll-contain stops
-            a scroll that reaches the end of the menu from continuing into the
-            page behind it.
+            The rail is a fixed-height card, as `ul#accordionSidebar` was
+            (width 260px, height 85vh in site_master_style.css). Sizing it to
+            its contents instead leaves a stub of a card under a short menu —
+            a village account has one group, and the rail collapsed to about a
+            third of the page beside it.
+
+            It scrolls independently of the page, so a long menu gets its own
+            scrollbar rather than pushing the page down; overscroll-contain
+            stops a scroll that reaches the end of the menu from continuing
+            into the page behind it.
           */}
           <nav
             ref={navRef}
             onScroll={(e) => {
               navScroll.current = e.currentTarget.scrollTop;
             }}
-            className="app-sidebar overscroll-contain rounded-2xl bg-white lg:w-[260px] lg:max-h-[calc(100vh-100px)] lg:overflow-y-auto"
+            className="app-sidebar overscroll-contain rounded-2xl bg-white lg:h-[calc(100vh-100px)] lg:w-[260px] lg:overflow-y-auto"
             style={{
               padding: '14px',
               border: '1px solid var(--shell-line)',

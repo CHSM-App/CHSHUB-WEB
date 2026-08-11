@@ -114,6 +114,10 @@ export async function tableToPdf({
   columns,
   rows,
   title,
+  // Whose records these are — the society or village name, printed under the
+  // report title. Every legacy printed report led with the organisation's name,
+  // and a sheet that says only "Village Resident Details" does not say whose.
+  subtitle,
   filename = 'export',
   // Run criteria shown in the box under the title.
   filters = [],
@@ -128,6 +132,8 @@ export async function tableToPdf({
   // Accent colour as [r, g, b] — #667eea by default, matching the indigo the
   // ownerwise report uses on screen.
   accent = [102, 126, 234],
+  // Send the document to the printer rather than saving it as a file.
+  print = false,
 }) {
   const JsPDF = await loadJsPdf();
   const pdf = new JsPDF({ orientation, unit: 'pt', format: 'a4' });
@@ -151,7 +157,7 @@ export async function tableToPdf({
 
   let y = margin;
 
-  /* ---- title, centred, with the accent rule under it ---- */
+  /* ---- title, then whose records these are, then the accent rule ---- */
   if (title) {
     pdf.setFont(undefined, 'bold');
     pdf.setFontSize(17);
@@ -159,6 +165,31 @@ export async function tableToPdf({
     pdf.text(String(title), pageW / 2, y + 6, { align: 'center' });
     pdf.setFont(undefined, 'normal');
     y += 18;
+
+    if (subtitle) {
+      pdf.setFontSize(11);
+      pdf.setTextColor(90);
+      pdf.text(String(subtitle), pageW / 2, y + 6, { align: 'center' });
+      pdf.setTextColor(51);
+      y += 14;
+    }
+
+    // Printed on: a sheet with no date cannot be filed against anything.
+    pdf.setFontSize(8.5);
+    pdf.setTextColor(130);
+    pdf.text(
+      `Printed ${new Date().toLocaleDateString(undefined, {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      })}`,
+      pageW - margin,
+      y + 4,
+      { align: 'right' },
+    );
+    pdf.setTextColor(51);
+    y += 8;
+
     pdf.setDrawColor(...INDIGO);
     pdf.setLineWidth(1.5);
     pdf.line(margin, y, pageW - margin, y);
@@ -348,6 +379,29 @@ export async function tableToPdf({
       pageH - margin + 8,
     );
     pdf.text(`Page ${i} of ${pages}`, pageW - margin, pageH - margin + 8, { align: 'right' });
+  }
+
+  /*
+   * `print` sends the same document to the printer instead of saving it, so a
+   * Print button and a Download button produce identical output. Printing the
+   * page's own DOM instead would mean maintaining a second, screen-derived
+   * layout that has to be kept looking like this one — which is how printed
+   * receipts ended up clipped down the right-hand edge.
+   *
+   * The iframe stays in the document: removing it revokes the blob and cancels
+   * the job before the dialog can finish.
+   */
+  if (print) {
+    const frame = document.createElement('iframe');
+    frame.setAttribute('aria-hidden', 'true');
+    frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+    frame.src = pdf.output('bloburl');
+    frame.onload = () => {
+      frame.contentWindow?.focus();
+      frame.contentWindow?.print();
+    };
+    document.body.appendChild(frame);
+    return;
   }
 
   pdf.save(`${filename}-${stamp()}.pdf`);

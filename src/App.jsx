@@ -42,6 +42,9 @@ import {
   SocietyProfilePage,
   ChangePasswordPage,
 } from './pages/auth/OnboardingPages.jsx';
+import SocietySetupPage from './pages/auth/SocietySetupPage.jsx';
+import VillageSetupPage from './pages/auth/VillageSetupPage.jsx';
+import VillageAnnouncementsPage from './pages/village/VillageAnnouncementsPage.jsx';
 import {
   PaidAmountsPage,
   AgmReportPage,
@@ -60,12 +63,44 @@ function RequireAuth({ children }) {
   return children;
 }
 
+
+/** Notices for a society, Announcements for a village. */
+function NoticesRoute() {
+  const { villageId } = useAuth();
+  return villageId ? <VillageAnnouncementsPage /> : <S.NoticesPage />;
+}
+
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+
+      {/*
+        new_society.aspx / new_village.aspx — where a new account went straight
+        after registering, chosen by the Society/Village option on the
+        registration form. Both need a session (they save against the signed-in
+        tenant), but sit outside AppLayout: the legacy pages had no sidebar or
+        topbar either, and a tenant that has not been named yet has nothing for
+        that menu to point at.
+      */}
+      <Route
+        path="/setup/society"
+        element={
+          <RequireAuth>
+            <SocietySetupPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/setup/village"
+        element={
+          <RequireAuth>
+            <VillageSetupPage />
+          </RequireAuth>
+        }
+      />
 
       <Route
         element={
@@ -117,7 +152,13 @@ export default function App() {
         <Route path="/accounts/vendor-payments" element={<R.VendorPaymentsPage />} />
 
         {/* Community */}
-        <Route path="/community/notices" element={<S.NoticesPage />} />
+        {/*
+          One route, two pages. A society sees notice_search.aspx's notices; a
+          village sees v_announcement.aspx's three-tab Announcements, which its
+          sidebar links here. Both read notice_master, scoped to the signed-in
+          tenant — see requireTenant in routes/community.
+        */}
+        <Route path="/community/notices" element={<NoticesRoute />} />
         <Route path="/community/events" element={<S.EventsPage />} />
         <Route path="/community/meetings" element={<S.MeetingsPage />} />
         <Route path="/community/facilities" element={<MP.FacilitiesMasterPage />} />

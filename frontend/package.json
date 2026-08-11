@@ -11,10 +11,12 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "apexcharts": "^6.8.0",
     "axios": "^1.7.9",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
     "react": "^19.2.0",
+    "react-apexcharts": "^2.1.1",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.18.0",
     "xlsx": "^0.18.5"

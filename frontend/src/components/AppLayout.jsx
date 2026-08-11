@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthContext.jsx';
 import ProfileDialog from '@/pages/auth/ProfileDialog.jsx';
@@ -246,6 +246,32 @@ export default function AppLayout() {
 
   const expanded = openGroup ?? activeGroup;
 
+  // The sidebar scrolls on its own, so clicking a menu item must not throw the
+  // user back to the top of the menu: navigating re-renders the nav and the
+  // accordion changes its content height, both of which reset scrollTop.
+  // Record the position as the user scrolls, then put it back before paint.
+  const navRef = useRef(null);
+  const navScroll = useRef(0);
+
+  useLayoutEffect(() => {
+    const el = navRef.current;
+    if (el) el.scrollTop = navScroll.current;
+  });
+
+  // Keep the item you just clicked in view. If the route's group was collapsed,
+  // expanding it can push the active link below the fold.
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    const active = el.querySelector('.sidebar-item.active, .collapse-inner a.active');
+    if (!active) return;
+    const top = active.offsetTop;
+    const bottom = top + active.offsetHeight;
+    if (top < el.scrollTop || bottom > el.scrollTop + el.clientHeight) {
+      active.scrollIntoView({ block: 'nearest' });
+    }
+  }, [location.pathname, expanded]);
+
   const handleLogout = async () => {
     // Site.Master guarded this with a confirm; keep it so a stray click on the
     // menu does not end the session.
@@ -256,7 +282,7 @@ export default function AppLayout() {
   };
 
   return (
-    <div className="min-h-screen">
+    <div className="flex min-h-screen flex-col">
       {/*
         Sticky white topbar with the CHS HUB mark on the left and the signed-in
         user on the right — the arrangement Site.Master used.
@@ -264,9 +290,19 @@ export default function AppLayout() {
       {/* app-topbar marks this as shell rather than page content, so printing
           drops it — a report should start at its own title, not the CHS HUB
           mark and account icons. */}
+      {/* Frosted rather than solid white: the page tint shows through faintly as
+          content scrolls under it, which is what tells the eye the bar is a
+          layer above the page instead of part of it. */}
       <header
-        className="app-topbar sticky top-0 z-50 flex items-center justify-between bg-white"
-        style={{ padding: '12px 24px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+        className="app-topbar sticky top-0 z-50 flex items-center justify-between"
+        style={{
+          padding: '12px 24px',
+          background: 'rgba(255,255,255,0.85)',
+          backdropFilter: 'saturate(180%) blur(12px)',
+          WebkitBackdropFilter: 'saturate(180%) blur(12px)',
+          borderBottom: '1px solid var(--shell-line)',
+          boxShadow: '0 1px 2px rgba(1,41,112,0.04), 0 8px 24px -12px rgba(1,41,112,0.18)',
+        }}
       >
         <div className="flex items-center gap-4">
           <button
@@ -289,7 +325,10 @@ export default function AppLayout() {
             style={{
               background: 'linear-gradient(135deg, #c94040 0%, #e85555 100%)',
               borderRadius: '12px',
-              boxShadow: '0 2px 8px rgba(201, 64, 64, 0.3)',
+              // Two shadows plus an inset highlight: the mark reads as a solid
+              // object catching light rather than a flat red rectangle.
+              boxShadow:
+                '0 2px 8px rgba(201,64,64,0.3), 0 8px 20px -8px rgba(201,64,64,0.5), inset 0 1px 0 rgba(255,255,255,0.28)',
             }}
           >
             <span
@@ -307,16 +346,21 @@ export default function AppLayout() {
             </span>
           </Link>
 
-          {/* .society-name-pill — white rounded pill (Site.Master). */}
+          {/* .society-name-pill — white rounded pill (Site.Master), given a
+              faint blue wash and a building glyph so it reads as "which society
+              am I in" rather than as an unlabelled piece of text. */}
           <div
-            className="society-name-pill min-w-0"
+            className="society-name-pill flex min-w-0 items-center gap-2"
             style={{
-              background: 'white',
+              background: 'linear-gradient(135deg, #ffffff 0%, #f3f7ff 100%)',
               borderRadius: '20px',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.06)',
-              border: '1px solid #0000ff1f',
+              boxShadow: '0 1px 2px rgba(1,41,112,0.05), 0 6px 16px -8px rgba(1,41,112,0.25)',
+              border: '1px solid rgba(29,78,216,0.14)',
             }}
           >
+            <span className="shrink-0" style={{ color: '#1d4ed8' }} aria-hidden="true">
+              <Icon name="building" />
+            </span>
             <p className="society-name-text truncate font-semibold" style={{ color: '#012970' }}>
               {user?.society_name || user?.village_name || 'Society Management'}
             </p>
@@ -332,15 +376,22 @@ export default function AppLayout() {
           <div className="relative">
           <button
             type="button"
-            className="flex items-center gap-2 rounded-full py-1 pl-1 pr-4"
-            style={{ border: '1px solid #0000ff1f', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
+            className="flex items-center gap-2 rounded-full py-1 pl-1 pr-4 transition-shadow hover:shadow-md"
+            style={{
+              border: '1px solid rgba(29,78,216,0.14)',
+              background: 'linear-gradient(135deg, #ffffff 0%, #f3f7ff 100%)',
+              boxShadow: '0 1px 2px rgba(1,41,112,0.05), 0 6px 16px -8px rgba(1,41,112,0.25)',
+            }}
             aria-expanded={menuOpen}
             aria-haspopup="menu"
             onClick={() => setMenuOpen((v) => !v)}
           >
             <span
               className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white"
-              style={{ background: 'linear-gradient(135deg, #1d4ed8, #2563eb)' }}
+              style={{
+                background: 'linear-gradient(135deg, #1d4ed8, #2563eb)',
+                boxShadow: '0 2px 6px rgba(29,78,216,0.4), inset 0 1px 0 rgba(255,255,255,0.25)',
+              }}
               aria-hidden="true"
             >
               {(user?.name || '?').trim().charAt(0).toUpperCase()}
@@ -356,8 +407,15 @@ export default function AppLayout() {
               <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} aria-hidden="true" />
               <div
                 role="menu"
-                className="absolute right-0 z-50 mt-2 bg-white py-1"
-                style={{ width: 200, borderRadius: 12, boxShadow: '0 0.5rem 1rem rgba(0,0,0,.15)' }}
+                className="absolute right-0 z-50 mt-2 overflow-hidden bg-white py-1"
+                style={{
+                  width: 200,
+                  borderRadius: 14,
+                  border: '1px solid #eef2f9',
+                  // Matched to the alerts dropdown in HeaderIcons, so the two
+                  // panels hanging off the same row read as one component.
+                  boxShadow: '0 12px 32px rgba(1,41,112,0.18)',
+                }}
               >
                 {/* Each item carries the icon its Site.Master counterpart had:
                     fa-user, fa-cogs and fa-sign-out-alt, muted to match. */}
@@ -408,18 +466,42 @@ export default function AppLayout() {
         </div>
       </header>
 
-      <div className="lg:flex lg:items-start lg:gap-2">
+      <div className="flex-1 lg:flex lg:items-start lg:gap-2">
         {/*
           Legacy sidebar: a white rounded card floating on the page background,
           not a full-height rail — ul#accordionSidebar in site_master_style.css.
         */}
+        {/*
+          `sticky` has to sit on the <aside>, not on the <nav> inside it: a
+          sticky box can never travel outside its parent's box, and the <aside>
+          is only as tall as its own content, so a sticky <nav> would scroll
+          away with it. The <aside> is a child of the page, which is what
+          scrolls, so pinning it here is what actually holds the rail in place.
+        */}
         <aside
-          className={`${navOpen ? 'block' : 'hidden'} lg:block lg:shrink-0`}
+          className={`${navOpen ? 'block' : 'hidden'} lg:block lg:shrink-0 lg:sticky lg:top-[84px]`}
           style={{ padding: '8px' }}
         >
+          {/*
+            The rail scrolls independently of the page: its height is whatever
+            the viewport has left below the topbar, so a long menu gets its own
+            scrollbar instead of pushing the page down. overscroll-contain stops
+            a scroll that reaches the end of the menu from continuing into the
+            page behind it.
+          */}
           <nav
-            className="overflow-y-auto rounded-xl bg-white lg:w-[260px] lg:h-[85vh] lg:sticky lg:top-[84px]"
-            style={{ padding: '16px', boxShadow: 'rgba(0, 0, 0, 0.15) 1.95px 1.95px 4px' }}
+            ref={navRef}
+            onScroll={(e) => {
+              navScroll.current = e.currentTarget.scrollTop;
+            }}
+            className="app-sidebar overscroll-contain rounded-2xl bg-white lg:w-[260px] lg:max-h-[calc(100vh-100px)] lg:overflow-y-auto"
+            style={{
+              padding: '14px',
+              border: '1px solid var(--shell-line)',
+              // Replaces the legacy offset drop shadow, which read as a sticker
+              // pasted on the page. A centred ambient shadow lifts the card.
+              boxShadow: 'var(--shell-shadow)',
+            }}
           >
             {/* Dashboard sits above the first heading, as in Site.Master. */}
             <NavLink to="/dashboard" className={linkClass} onClick={() => setNavOpen(false)}>
@@ -429,7 +511,15 @@ export default function AppLayout() {
 
             {sections.map((section, si) => (
               <div key={section.section ?? `village-${si}`}>
-                <hr className="my-3 border-t" style={{ borderColor: '#e5e7eb' }} />
+                {/* Fades out at both ends rather than butting into the card
+                    padding as a hard grey line. */}
+                <hr
+                  className="my-3 border-0"
+                  style={{
+                    height: 1,
+                    background: 'linear-gradient(90deg, transparent, #dfe6f2 20%, #dfe6f2 80%, transparent)',
+                  }}
+                />
                 {section.section ? <p className="sidebar-heading">{section.section}</p> : null}
 
                 {section.groups.map((group) => {
@@ -443,20 +533,33 @@ export default function AppLayout() {
                         onClick={() => setOpenGroup(isOpen ? '' : group.label)}
                       >
                         <Icon name={group.icon} />
-                        <span className="ml-3 flex-1 text-left">{group.label}</span>
-                        <span
-                          className="text-xs transition-transform"
+                        <span className="ml-3 flex-1 text-left capitalize">{group.label}</span>
+                        {/* Drawn chevron rather than the ▾ glyph, whose weight
+                            and baseline vary by platform font. */}
+                        <svg
+                          viewBox="0 0 24 24"
+                          width="14"
+                          height="14"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.4"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="shrink-0 opacity-60 transition-transform duration-200"
                           style={{ transform: isOpen ? 'rotate(180deg)' : 'none' }}
                           aria-hidden="true"
                         >
-                          ▾
-                        </span>
+                          <path d="m6 9 6 6 6-6" />
+                        </svg>
                       </button>
 
                       {isOpen ? (
                         <div className="collapse-inner">
                           {group.heading ? (
-                            <h6 className="mb-1 mt-2 text-xs font-semibold" style={{ color: '#6b7280' }}>
+                            <h6
+                              className="mb-1 mt-1 px-2.5 text-[10px] font-bold uppercase tracking-wide"
+                              style={{ color: '#9aa3b2' }}
+                            >
                               {group.heading}
                             </h6>
                           ) : null}
@@ -484,6 +587,23 @@ export default function AppLayout() {
           <Outlet />
         </main>
       </div>
+
+      {/*
+        Copyright line carried over from Site.Master's .ft-sticky-footer. It
+        sits outside the sidebar/content row on purpose — inside it, the footer
+        would sit beside the sidebar and shorten the sticky rail's travel.
+        The shell is a min-h-screen flex column and the row above grows, so on
+        a short page this rests at the bottom of the viewport rather than
+        floating up under the content.
+
+        app-topbar's sibling in spirit: this is shell, not page content, so it
+        is dropped from print the same way the topbar is.
+      */}
+      <footer className="mt-auto shrink-0 px-6 py-8 text-center print:hidden">
+        <span className="text-xs" style={{ color: '#858796' }}>
+          Copyright © chsHub.co.in
+        </span>
+      </footer>
 
       <ProfileDialog open={profileOpen} onClose={() => setProfileOpen(false)} />
     </div>

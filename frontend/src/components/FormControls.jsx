@@ -289,27 +289,42 @@ export function PageHeader({ title, subtitle, children }) {
   return (
     <header className="mb-4 flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h1 className="text-lg font-semibold text-slate-800">{title}</h1>
-        {subtitle ? <p className="text-sm text-slate-500">{subtitle}</p> : null}
+        <h1 className="text-xl font-bold tracking-tight" style={{ color: 'var(--ink)' }}>
+          {title}
+        </h1>
+        {subtitle ? <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p> : null}
       </div>
       {children ? <div className="flex flex-wrap items-center gap-2 print:hidden">{children}</div> : null}
     </header>
   );
 }
 
-/** Stat tile used on dashboards and summary strips. */
+/**
+ * Stat tile used on dashboards and summary strips.
+ *
+ * The tone drives a coloured top rule as well as the figure: a strip of three
+ * plain white boxes gave the eye nothing to read, and the accent lets a summary
+ * row be scanned at a glance without turning the tiles into full colour blocks.
+ */
 export function StatCard({ label, value, hint, tone = 'default' }) {
   const tones = {
-    default: 'text-slate-800',
-    positive: 'text-green-700',
-    negative: 'text-red-700',
-    warning: 'text-amber-700',
+    default: { text: 'text-slate-800', rule: 'linear-gradient(90deg, #6f8ff5, #4e73df)' },
+    positive: { text: 'text-green-700', rule: 'linear-gradient(90deg, #34e0a1, #1cc88a)' },
+    negative: { text: 'text-red-700', rule: 'linear-gradient(90deg, #ff6b6b, #e74a3b)' },
+    warning: { text: 'text-amber-700', rule: 'linear-gradient(90deg, #f8d476, #f6c23e)' },
   };
+  const t = tones[tone] ?? tones.default;
+  // The accent is inset inside the card's border rather than laid over it: the
+  // card keeps its own 1px edge and radius, and `overflow-hidden` clips the
+  // strip's square corners to the rounded top.
   return (
-    <div className="card p-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold ${tones[tone]}`}>{value}</p>
-      {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
+    <div className="card relative overflow-hidden">
+      <span className="absolute inset-x-0 top-0 h-1" style={{ background: t.rule }} aria-hidden="true" />
+      <div className="p-4 pt-[calc(1rem+2px)]">
+        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+        <p className={`mt-1 text-2xl font-semibold ${t.text}`}>{value}</p>
+        {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
+      </div>
     </div>
   );
 }

@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import * as M from '@/api/modules';
 import { EmptyState, ErrorNotice, Spinner } from '@/components/ui.jsx';
+import ExportToolbar from '@/components/ExportToolbar.jsx';
 
 const money = (v) =>
   v == null || v === '' ? '—' : Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -10,8 +11,21 @@ const day = (v) => (v ? new Date(v).toLocaleDateString() : '—');
  * A read-only table driven by a loader function. Covers the legacy report and
  * listing pages that have no create/edit path.
  */
-function DataTable({ title, subtitle, load, columns, emptyHint, extract = (d) => d.items ?? [] }) {
-  const [rows, setRows] = useState([]);
+function DataTable({
+  title,
+  subtitle,
+  load,
+  columns,
+  emptyHint,
+  extract = (d) => d.items ?? [],
+  // Screens whose legacy page carried a search box. Narrows the loaded rows in
+  // the browser, as those pages' own filterTable() did — these endpoints take
+  // no search parameter.
+  filterRow,
+}) {
+  const [allRows, setAllRows] = useState([]);
+  const [search, setSearch] = useState('');
+  const deferred = useDeferredValue(search);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -20,7 +34,7 @@ function DataTable({ title, subtitle, load, columns, emptyHint, extract = (d) =>
     setLoading(true);
     load()
       .then((data) => {
-        if (!cancelled) setRows(extract(data) ?? []);
+        if (!cancelled) setAllRows(extract(data) ?? []);
       })
       .catch((err) => {
         if (!cancelled) setError(err);
@@ -35,11 +49,35 @@ function DataTable({ title, subtitle, load, columns, emptyHint, extract = (d) =>
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const rows = useMemo(() => {
+    const term = deferred.trim().toLowerCase();
+    if (!filterRow || !term) return allRows;
+    return allRows.filter((r) => filterRow(r, term));
+  }, [allRows, deferred, filterRow]);
+
   return (
     <section>
-      <header className="mb-4">
-        <h1 className="text-lg font-semibold text-slate-800">{title}</h1>
-        <p className="text-sm text-slate-500">{subtitle ?? `${rows.length} record(s)`}</p>
+      <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        {/* On paper the title heads the sheet, so it centres over the table;
+            on screen it stays left, beside the search box. */}
+        <div className="print:w-full print:text-center">
+          <h1 className="text-lg font-semibold text-slate-800">{title}</h1>
+          <p className="text-sm text-slate-500 print:hidden">
+            {subtitle ??
+              (rows.length === allRows.length
+                ? `${allRows.length} record(s)`
+                : `${rows.length} of ${allRows.length} record(s)`)}
+          </p>
+        </div>
+        {filterRow ? (
+          <input
+            className="field-input w-56 print:hidden"
+            placeholder="Search…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label={`Search ${title}`}
+          />
+        ) : null}
       </header>
 
       <ErrorNotice error={error} />
@@ -50,7 +88,17 @@ function DataTable({ title, subtitle, load, columns, emptyHint, extract = (d) =>
         ) : rows.length === 0 ? (
           <EmptyState title={`No ${title.toLowerCase()} found`} hint={emptyHint} />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+            {/* Export to Excel / Download PDF / Print, as the grids elsewhere
+                carry. Outside the scroll box so it stays put on a narrow
+                screen. */}
+            <ExportToolbar
+              columns={columns}
+              rows={rows}
+              exportName={title.toLowerCase().replace(/\s+/g, '-')}
+              exportTitle={title}
+            />
+            <div className="overflow-x-auto">
             <table className="min-w-full">
               <thead>
                 <tr>
@@ -69,14 +117,18 @@ function DataTable({ title, subtitle, load, columns, emptyHint, extract = (d) =>
                         key={c.key}
                         className={ci === 0 ? 'table-cell font-medium text-slate-800' : 'table-cell'}
                       >
-                        {c.format ? c.format(row[c.key], row) : (row[c.key] ?? '—')}
+                        {/* `i` is passed for the legacy grids' serial-number
+                            column, which numbered rows off the grid position
+                            rather than any field on the row. */}
+                        {c.format ? c.format(row[c.key], row, i) : (row[c.key] ?? '—')}
                       </td>
                     ))}
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+            </div>
+          </>
         )}
       </div>
     </section>
@@ -328,18 +380,15 @@ export const VillageRatesPage = () => (
   />
 );
 
-export const VillageBalanceSheetPage = () => (
-  <DataTable
-    title="Balance sheet"
-    load={M.village.balanceSheet}
-    extract={(d) => d.heads ?? []}
-    columns={[
-      { key: 'bal_header_desc', label: 'Head' },
-      { key: 'amount', label: 'Amount', format: money },
-      { key: 'Seq_order', label: 'Order' },
-    ]}
-  />
-);
+/*
+ * The village balance sheet has been removed. It listed accounting heads and
+ * their amounts — of no use to a panchayat clerk, who needs to know what was
+ * billed, what came in, and who owes. /village/reports answers those from the
+ * bills themselves.
+ *
+ * The society balance sheet is unaffected; it is a different page against
+ * different data.
+ */
 
 export const VillageHouseTaxReceiptsPage = () => (
   <DataTable
@@ -374,17 +423,42 @@ export const VillagePaymentsPage = () => (
   />
 );
 
+/*
+ * v_history_table.aspx — the house$ARC audit rows behind sp_house's
+ * 'house_history'. Its grid's own columns and their headings, in its order:
+ * a serial number, then house, who changed it, when, and the figures as they
+ * stood after the change.
+ *
+ * One correction to the legacy markup, which its own SELECT contradicts: Waste
+ * Charges bound Eval("water_charges"), a copy-paste that printed the water
+ * figure twice. The SP also selects action_type, which that grid did not show
+ * and neither does this.
+ */
 export const VillageHistoryPage = () => (
   <DataTable
-    title="House change history"
+    title="History"
     load={M.village.houseHistory}
+    // The legacy page's own search box, which hid grid rows in the browser —
+    // sp_house's 'house_history' takes no search parameter.
+    filterRow={(r, term) =>
+      [r.house_no, r.updated_by, r.modification_date ? day(r.modification_date) : '']
+        .join(' ')
+        .toLowerCase()
+        .includes(term)
+    }
     columns={[
-      { key: 'house_no', label: 'House' },
-      { key: 'updated_by', label: 'Updated by' },
-      { key: 'action_type', label: 'Action' },
-      { key: 'modification_date', label: 'When', format: day },
-      { key: 'gharpatti_charges', label: 'Property tax', format: money },
-      { key: 'water_charges', label: 'Water', format: money },
+      // No backing field — the number is the row's position, so the exports
+      // need it spelled out as well as the cell.
+      { key: 'no', label: 'No', format: (_v, _r, i) => i + 1, exportValue: (_r, i) => i + 1 },
+      { key: 'house_no', label: 'House No' },
+      { key: 'updated_by', label: 'Updated By' },
+      { key: 'modification_date', label: 'Modification Date', format: day },
+      { key: 'area', label: 'Area' },
+      { key: 'gharpatti_charges', label: 'Property Tax', format: money },
+      { key: 'no_of_tab', label: 'No. of Taps' },
+      { key: 'water_charges', label: 'Water Charges', format: money },
+      { key: 'waste_charges', label: 'Waste Charges', format: money },
     ]}
+    emptyHint="Edits to house records appear here."
   />
 );

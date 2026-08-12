@@ -224,7 +224,7 @@ export default function AccountSettingsPage() {
 }
 
 /** One titled group of settings — the legacy page's .box-header + .box-body. */
-function SettingsCard({ icon, title, subtitle, children }) {
+export function SettingsCard({ icon, title, subtitle, children }) {
   return (
     <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
       <div className="mb-3 flex items-start gap-3 border-b border-slate-100 pb-3">
@@ -252,7 +252,7 @@ function SettingsCard({ icon, title, subtitle, children }) {
  * is the same two states with less work to read and to flip, and it keeps the
  * ON/OFF wording visible so the mapping stays obvious.
  */
-function ToggleRow({ label, checked, onChange }) {
+export function ToggleRow({ label, checked, onChange }) {
   return (
     <label className="flex cursor-pointer items-center justify-between gap-4 border-b border-slate-100 py-2.5 last:border-b-0">
       <span className="text-sm text-slate-700">{label}</span>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import GenericCrudPage from './GenericCrudPage.jsx';
 import ExcelImport from './settings/ExcelImport.jsx';
+import { StoredFileModal } from './masters/MasterPages.jsx';
 import { Modal } from '@/components/ui.jsx';
 import * as M from '@/api/modules';
 
@@ -924,7 +925,9 @@ export const VillageHousesPage = () => (
   />
 );
 
-export const VillageStaffPage = () => (
+export const VillageStaffPage = () => {
+  const [viewingFile, setViewingFile] = useState(null);
+  return (
   <GenericCrudPage
     title="Village staff"
     resource={{
@@ -934,33 +937,83 @@ export const VillageStaffPage = () => (
       remove: M.village.removeStaff,
     }}
     idKey="staff_id"
-    searchable={false}
+    // sp_Village_staff's Grid_Show takes no search parameter, so — as in
+    // v_staff_management.aspx's filterTable(), which hid grid rows in the
+    // browser — the term narrows the loaded rows here rather than going to
+    // the server. It matches against the displayed cells.
+    filterRow={(r, term) =>
+      [r.staff_name, r.role, r.contact_no, r.email, r.address]
+        .join(' ')
+        .toLowerCase()
+        .includes(term)
+    }
     columns={[
       { key: 'staff_name', label: 'Name' },
       { key: 'role', label: 'Role' },
       { key: 'contact_no', label: 'Contact' },
       { key: 'email', label: 'Email' },
+      { key: 'address', label: 'Address' },
       { key: 'joined_date', label: 'Joined', format: day },
       { key: 'salary', label: 'Salary', format: money },
+      {
+        // v_staff_management.aspx's per-row view button, which opened id_path
+        // in a modal. GenericCrudPage has no extra-actions slot, so it rides
+        // in as a column.
+        key: 'id_path',
+        label: 'ID proof',
+        // Nothing but a button, so on paper the column was a ruled empty
+        // strip. The PDF keeps it — exportValue below prints Yes/No.
+        printHidden: true,
+        format: (v, row) =>
+          v ? (
+            <button
+              type="button"
+              className="btn-secondary px-2 text-xs print:hidden"
+              title={`View ID proof for ${row.staff_name}`}
+              onClick={() => setViewingFile({ path: v, name: row.staff_name, label: 'ID proof' })}
+            >
+              View
+            </button>
+          ) : (
+            '—'
+          ),
+        // The CSV and PDF read exportValue (or the raw cell) rather than
+        // `format`, so without this the exports carried the stored file path.
+        // A sheet says whether the document is on file, not where it lives.
+        exportValue: (row) => (row.id_path ? 'Yes' : 'No'),
+      },
     ]}
+    // Field order and the required marks follow v_staff_management.aspx's
+    // modal: one field per row, Role directly under Name, and everything it
+    // marked with a red asterisk — all but Email — required here too. The
+    // required ones run first, each below the last, with the optional pair at
+    // the end; span 2 keeps them stacked rather than pairing up across the
+    // two-column grid.
     fields={[
-      { name: 'name', label: 'Name', required: true },
-      { name: 'contactNo', label: 'Contact number' },
-      { name: 'email', label: 'Email', type: 'email' },
-      { name: 'address', label: 'Address' },
-      { name: 'joinedDate', label: 'Joined date', type: 'date' },
-      { name: 'salary', label: 'Salary', type: 'number' },
-      { name: 'roleId', label: 'Role', type: 'select', lookup: 'roles', optionValue: 'role_id', optionLabel: 'role' },
+      { name: 'name', label: 'Name', required: true, span: 2 },
+      { name: 'roleId', label: 'Role', type: 'select', lookup: 'roles', optionValue: 'role_id', optionLabel: 'role', required: true, span: 2 },
+      // MaxLength="10" plus the digits-only onkeypress the legacy field
+      // carried, and what Village_staff.contact_no holds.
+      { name: 'contactNo', label: 'Contact number', required: true, span: 2, digits: true, maxLength: 10 },
+      { name: 'address', label: 'Address', required: true, span: 2 },
+      { name: 'salary', label: 'Salary', type: 'number', required: true, span: 2 },
+      { name: 'joinedDate', label: 'Joined date', type: 'date', required: true, span: 2 },
+      { name: 'email', label: 'Email', type: 'email', span: 2 },
+      { name: 'idPath', label: 'ID proof', type: 'file', category: 'staff', span: 2 },
     ]}
     lookups={{ roles: M.village.staffRoles }}
     toForm={(r) => ({
       name: r.staff_name ?? '',
-      contactNo: r.contact_no ?? '',
-      email: r.email ?? '',
-      address: r.address ?? '',
-      joinedDate: r.joined_date ? String(r.joined_date).slice(0, 10) : '',
-      salary: r.salary ?? '',
       roleId: r.role_id ?? '',
+      contactNo: r.contact_no ?? '',
+      address: r.address ?? '',
+      salary: r.salary ?? '',
+      joinedDate: r.joined_date ? String(r.joined_date).slice(0, 10) : '',
+      email: r.email ?? '',
+      idPath: r.id_path ?? '',
     })}
-  />
-);
+  >
+    <StoredFileModal file={viewingFile} onClose={() => setViewingFile(null)} />
+  </GenericCrudPage>
+  );
+};

@@ -12,9 +12,13 @@ import RichTextField from '@/components/RichTextField.jsx';
  * soft delete — across dozens of masters. Rather than clone that markup, each
  * screen is described declaratively:
  *
- *   columns : [{ key, label, format? }]   format is (value, row, index)
+ *   columns : [{ key, label, format?, exportValue?, printHidden? }]
+ *             format is (value, row, index); printHidden drops the column from
+ *             the printed sheet, for one whose cell is only a control.
  *   fields  : [{ name, label, type?, required?, options?, hint?, span?, showIf?,
- *               placeholder? }]
+ *               placeholder?, maxLength?, digits? }]
+ *             maxLength stops the input at the column's width; digits admits
+ *             0-9 only, as the legacy onkeypress filters did.
  *   toForm  : (row) => form values          (defaults to identity-by-field-name)
  *   idKey   : primary-key column
  *
@@ -65,6 +69,8 @@ export default function GenericCrudPage({
   const [lookups, setLookups] = useState({});
   const [editing, setEditing] = useState(null);
   const [confirming, setConfirming] = useState(null);
+  // name -> message, for the fields the last submit found empty.
+  const [fieldErrors, setFieldErrors] = useState({});
 
   // Dropdown data, loaded once. Each entry is name -> () => Promise<rows>.
   useEffect(() => {
@@ -92,24 +98,66 @@ export default function GenericCrudPage({
   const rowToForm = (row) =>
     toForm ? toForm(row) : Object.fromEntries(fields.map((f) => [f.name, row[f.name] ?? '']));
 
-  const openCreate = () => setEditing({ id: null, form: { ...blank } });
-  const openEdit = (row) => setEditing({ id: row[idKey], form: rowToForm(row) });
+  const openCreate = () => {
+    setFieldErrors({});
+    setEditing({ id: null, form: { ...blank } });
+  };
+  const openEdit = (row) => {
+    setFieldErrors({});
+    setEditing({ id: row[idKey], form: rowToForm(row) });
+  };
 
   const closeForm = () => {
     setEditing(null);
+    setFieldErrors({});
     setError(null);
   };
 
-  const setField = (key) => (e) => {
+  const setField = (key, field) => (e) => {
     const { value, type, checked } = e.target;
+    let next = type === 'checkbox' ? checked : value;
+    /*
+     * A `digits` field takes 0-9 only, trimmed to maxLength. The legacy pages
+     * did this with an onkeypress that swallowed other characters; doing it on
+     * the value catches a paste as well, which that filter never saw.
+     */
+    if (field?.digits && type !== 'checkbox') {
+      next = String(next).replace(/\D/g, '');
+      if (field.maxLength) next = next.slice(0, field.maxLength);
+    }
     setEditing((prev) => ({
       ...prev,
-      form: { ...prev.form, [key]: type === 'checkbox' ? checked : value },
+      form: { ...prev.form, [key]: next },
     }));
+    // Clear the field's complaint as soon as it is being answered, rather than
+    // leaving it up until the next submit.
+    setFieldErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
   };
 
   const onSubmit = async (event) => {
     event.preventDefault();
+    /*
+     * The form carries `noValidate`, so the browser never enforces the
+     * `required` inputs — a red asterisk was the only sign a field was
+     * mandatory, and submitting with one blank saved it empty. Check them
+     * here and name the offending field, the way the legacy pages' own
+     * "Please Enter Name" feedback did.
+     *
+     * Only fields actually on screen count: a `showIf` field that is hidden
+     * is not rendered, so its value cannot be supplied.
+     */
+    const missing = {};
+    for (const f of fields) {
+      if (!f.required) continue;
+      if (f.showIf && !f.showIf(editing.form)) continue;
+      const v = editing.form[f.name];
+      if (v === null || v === undefined || String(v).trim() === '') {
+        missing[f.name] = `${f.label} is required`;
+      }
+    }
+    setFieldErrors(missing);
+    if (Object.keys(missing).length) return;
+
     const body = toBody ? toBody(editing.form) : editing.form;
     try {
       if (editing.id) await update(editing.id, body);
@@ -140,17 +188,23 @@ export default function GenericCrudPage({
   return (
     <section>
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
+        {/* On paper the title is the sheet's own heading, so it centres over
+            the table; on screen it stays left, beside the controls. */}
+        <div className="print:w-full print:text-center">
           <h1 className="text-lg font-semibold text-slate-800">{title}</h1>
-          <p className="text-sm text-slate-500">
+          {/* A screen affordance — how much the search narrowed the list. The
+              printed sheet carries the records themselves. */}
+          <p className="text-sm text-slate-500 print:hidden">
             {subtitle ??
               (rows.length === items.length
                 ? `${items.length} record(s)`
                 : `${rows.length} of ${items.length} record(s)`)}
           </p>
         </div>
-        <div className="flex gap-2">
-          {searchable ? (
+        {/* Controls, not content: the printed sheet keeps the heading and the
+            table but not the box used to narrow them. */}
+        <div className="flex gap-2 print:hidden">
+          {searchable || filterRow ? (
             <input
               className="field-input w-56"
               placeholder="Search…"
@@ -193,12 +247,17 @@ export default function GenericCrudPage({
               <thead>
                 <tr>
                   {columns.map((c) => (
-                    <th key={c.key} className="table-head">
+                    <th
+                      key={c.key}
+                      className={`table-head${c.printHidden ? ' print:hidden' : ''}`}
+                    >
                       {c.label}
                     </th>
                   ))}
+                  {/* The Edit/Delete column: its buttons are already dropped in
+                      print, which left an empty column ruled to the page edge. */}
                   {(canEdit && fields.length) || canDelete ? (
-                    <th className="table-head sr-only">Actions</th>
+                    <th className="table-head sr-only print:hidden">Actions</th>
                   ) : null}
                 </tr>
               </thead>
@@ -208,13 +267,15 @@ export default function GenericCrudPage({
                     {columns.map((c, ci) => (
                       <td
                         key={c.key}
-                        className={ci === 0 ? 'table-cell font-medium text-slate-800' : 'table-cell'}
+                        className={`${ci === 0 ? 'table-cell font-medium text-slate-800' : 'table-cell'}${
+                          c.printHidden ? ' print:hidden' : ''
+                        }`}
                       >
                         {renderCell(c, row, i)}
                       </td>
                     ))}
                     {(canEdit && fields.length) || canDelete ? (
-                      <td className="table-cell whitespace-nowrap text-right">
+                      <td className="table-cell whitespace-nowrap text-right print:hidden">
                         {/* gap-2 rather than a margin on the first button, so the
                             spacing matches DataGrid's action column. */}
                         <div className="flex items-center justify-end gap-2">
@@ -317,7 +378,7 @@ export default function GenericCrudPage({
               }
               return (
                 <div key={f.name} className={span}>
-                  <Field label={f.label} required={f.required} hint={f.hint}>
+                  <Field label={f.label} required={f.required} hint={f.hint} error={fieldErrors[f.name]}>
                     {f.type === 'select' ? (
                       <select
                         className="field-input"
@@ -347,8 +408,17 @@ export default function GenericCrudPage({
                         step={f.type === 'number' ? f.step ?? 'any' : undefined}
                         placeholder={f.placeholder}
                         value={editing.form[f.name] ?? ''}
-                        onChange={setField(f.name)}
+                        onChange={setField(f.name, f)}
                         required={f.required}
+                        // The legacy pages' MaxLength — the field stops taking
+                        // characters at the limit rather than letting the user
+                        // type past it and refusing the whole save afterwards.
+                        maxLength={f.maxLength}
+                        // `digits` fields carried an onkeypress that admitted
+                        // 0-9 only. A number input would bring a spinner and
+                        // accept "e"/"-", so it stays a text input with a
+                        // numeric keypad on mobile.
+                        inputMode={f.digits ? 'numeric' : undefined}
                       />
                     )}
                   </Field>

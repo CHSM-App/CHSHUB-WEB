@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { community } from '@/api/modules';
+import { useAuth } from '@/auth/AuthContext.jsx';
 
 /**
  * The three header icons Site.Master rendered to the left of the profile menu:
  * a Polls link, a Notifications bell with its alerts dropdown, and a Messages
  * link with an unread count.
+ *
+ * A village account sees the bell alone. Polls and Messages both reach for
+ * flats and app accounts, which a village has neither of, so they would sit
+ * empty however long anyone waited — see the notes at each.
  *
  * Counts refresh on an interval, as the legacy page's asp:Timer did.
  */
@@ -13,6 +18,13 @@ const POLL_INTERVAL_MS = 60000;
 
 export default function HeaderIcons() {
   const navigate = useNavigate();
+  const { villageId } = useAuth();
+  /*
+   * Polls are a society feature: they run against flats and their owners, and
+   * a village has neither. The link offered a village account a page it could
+   * only find empty, so it is not shown to one.
+   */
+  const isVillage = Boolean(villageId);
   const [alerts, setAlerts] = useState([]);
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
@@ -21,13 +33,16 @@ export default function HeaderIcons() {
   const refresh = useCallback(async () => {
     // Each count is independent: one failing endpoint should not blank the
     // other badge, so they settle separately rather than in one try/catch.
+    // The message count is not asked for on a village account, which has no
+    // envelope to put it on — it would be a request a minute for a number
+    // nothing displays.
     const [notif, msg] = await Promise.allSettled([
       community.notifications(),
-      community.messagesCount(),
+      isVillage ? Promise.resolve({ unread: 0 }) : community.messagesCount(),
     ]);
     if (notif.status === 'fulfilled') setAlerts(notif.value.items ?? []);
     if (msg.status === 'fulfilled') setUnread(Number(msg.value.unread) || 0);
-  }, []);
+  }, [isVillage]);
 
   useEffect(() => {
     refresh();
@@ -52,10 +67,13 @@ export default function HeaderIcons() {
   return (
     <div className="flex items-center gap-1.5 sm:gap-2">
       {/* Polls drops away on the narrowest screens, where the society-name pill
-          and the profile button already compete for the row. */}
-      <span className="hidden sm:inline-flex">
-        <IconLink to="/community/polls" label="Polls" icon={<PollIcon />} />
-      </span>
+          and the profile button already compete for the row — and entirely for
+          a village, which has no polls to link to. */}
+      {isVillage ? null : (
+        <span className="hidden sm:inline-flex">
+          <IconLink to="/community/polls" label="Polls" icon={<PollIcon />} />
+        </span>
+      )}
 
       <div className="relative">
         <IconButton
@@ -133,7 +151,20 @@ export default function HeaderIcons() {
         ) : null}
       </div>
 
-      <IconLink to="/community/messages" label="Messages" icon={<MailIcon />} count={unread} />
+      {/*
+        Messages are between the office and residents' phones: owner_Messages
+        is keyed by flat_id, and its recipients are owner_master rows — the app
+        accounts. A village's residents live in house_owner and have no app, so
+        a message could never reach one and the envelope would sit empty for
+        good. Restore this when a village app exists, against houses rather
+        than flats.
+
+        Notifications stay: sp_dashboard's Notification branch is scoped by
+        tenant, so a village account gets its own once there are any.
+      */}
+      {isVillage ? null : (
+        <IconLink to="/community/messages" label="Messages" icon={<MailIcon />} count={unread} />
+      )}
     </div>
   );
 }

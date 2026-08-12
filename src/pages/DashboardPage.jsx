@@ -996,21 +996,37 @@ function VillageDashboard() {
       icon: <path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1ZM16 9a4 4 0 0 1 0 6" />,
     },
     {
+      /*
+       * Tax Payments, not /village/house-tax: that page reads dbo.house_tax,
+       * which nothing writes, so it is empty whatever has been billed. Bills
+       * live in house_tax_receipt, which is what Tax Payments lists — and it
+       * is where a tile called "Taxes" is trying to get to.
+       */
       label: 'Taxes',
-      hint: 'Property and water tax bills',
-      to: '/village/house-tax',
+      hint: 'Bills raised, and payments against them',
+      to: '/village/payments',
       icon: <path d="M6 3h9l4 4v14H6V3ZM15 3v4h4M9 12h6M9 16h6" />,
     },
     {
+      /*
+       * Schemes have a screen of their own now. This pointed at Announcements,
+       * where a scheme could only be a notice — with nowhere to record who
+       * qualifies, what they get, or when applications close.
+       */
       label: 'Add Government Scheme',
-      hint: 'Announce a scheme as a notice',
-      to: '/community/notices',
+      hint: 'Schemes, who can apply, and by when',
+      to: '/village/schemes',
       icon: <path d="M5 4h14v16H5V4ZM9 9h6M9 13h6M9 17h3" />,
     },
     {
+      /*
+       * Reports, not the balance sheet: a list of accounting heads answers
+       * none of the questions this tile suggests. The balance sheet is still
+       * reachable from the sidebar for anyone who wants it.
+       */
       label: 'Analytics & Reports',
-      hint: 'Balance sheet and history',
-      to: '/village/balance-sheet',
+      hint: 'Collection, defaulters and house ledgers',
+      to: '/village/reports',
       icon: <path d="M4 19h16M7 16V9m5 7V5m5 11v-4" />,
     },
   ];
@@ -1046,13 +1062,20 @@ function VillageDashboard() {
       />
 
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        {/*
+          All three open Tax Payments, where the bills behind these figures are
+          listed and settled. Property and water used to open /village/house-tax
+          and /village/water-tax, which read dbo.house_tax and dbo.water_tax —
+          tables nothing writes, so both pages are empty whatever has been
+          billed. The cards themselves now count house_tax_receipt.
+        */}
         <VillageStatCard
           title="Property Tax (Yearly)"
           paid={data.propertyTax?.paid}
           total={data.propertyTax?.total}
           paidCount={data.propertyTax?.paidCount}
           pendingCount={data.propertyTax?.pendingCount}
-          to="/village/house-tax"
+          to="/village/payments"
           tone={VILLAGE_TONES.home}
           icon={<path d="M4 20V9l8-5 8 5v11M9 20v-6h6v6" />}
         />
@@ -1062,20 +1085,21 @@ function VillageDashboard() {
           total={data.waterTax?.total}
           paidCount={data.waterTax?.paidCount}
           pendingCount={data.waterTax?.pendingCount}
-          to="/village/water-tax"
+          to="/village/payments"
           tone={VILLAGE_TONES.water}
           icon={<path d="M12 3s6 6.6 6 10.5A6 6 0 0 1 6 13.5C6 9.6 12 3 12 3Z" />}
         />
+        {/* Waste is billed like the other two now, so it carries the same
+            paid / pending footer instead of "no collection record". */}
         <VillageStatCard
           title="Waste Tax (Monthly)"
           paid={data.wasteTax?.paid}
           total={data.wasteTax?.total}
+          paidCount={data.wasteTax?.paidCount}
+          pendingCount={data.wasteTax?.pendingCount}
           to="/village/payments"
           tone={VILLAGE_TONES.waste}
           icon={<path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13M10 11v5M14 11v5" />}
-          // wasteTax.paid is null: waste_charges is a per-house charge on
-          // dbo.house with no billing table, so nothing records collection.
-          note="Charged per house — no collection record"
         />
         <VillagePopulationCard residents={data.residents} houses={data.houses} />
       </div>
@@ -1374,6 +1398,16 @@ export default function DashboardPage() {
 
   useEffect(() => {
     let cancelled = false;
+    /*
+     * A village account renders VillageDashboard alone, which loads itself from
+     * GET /village/dashboard. These are the society panels' sources — bills,
+     * buildings, wings, flats, PDC — none of which a village has rows for, and
+     * several of which the API refuses outright for a village tenant. Firing
+     * them anyway spent five requests per visit to fill panels that never
+     * render, and a refusal surfaced as an error banner over a working page.
+     */
+    if (villageId) return undefined;
+
     const safe = (p, fallback) => p.catch(() => fallback);
 
     Promise.all([
@@ -1394,7 +1428,7 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [villageId]);
 
   /*
    * Maintenance Tracker data — the port of loadExpenseChart(). The checkbox
@@ -1402,6 +1436,8 @@ export default function DashboardPage() {
    * changing it has to refetch rather than slice the rows already held.
    */
   useEffect(() => {
+    // Society-only, as above: the tracker lives on the Overview tab.
+    if (villageId) return undefined;
     let cancelled = false;
     const type = showRegular && showAddOn ? 2 : showRegular ? 1 : showAddOn ? 0 : 3;
 
@@ -1413,11 +1449,12 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [showRegular, showAddOn]);
+  }, [showRegular, showAddOn, villageId]);
 
   // Refetch the donut when the period changes. Skipped on the initial 'year'
   // selection, which the dashboard payload already covers.
   useEffect(() => {
+    if (villageId) return undefined;
     if (period === 'year' && incomeSplit === null) return undefined;
     let cancelled = false;
     const to = (INCOME_PERIODS.find((p) => p.id === period) ?? INCOME_PERIODS[2]).to();
@@ -1433,9 +1470,14 @@ export default function DashboardPage() {
     // incomeSplit is deliberately not a dependency: including it would refetch
     // in response to its own result.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period]);
+  }, [period, villageId]);
 
-  if (!data && !masters && !error) return <DashboardSkeleton />;
+  /*
+   * The skeleton waits on the society payload, which a village account never
+   * fetches — so gating on it alone left a village staring at placeholder bars
+   * for good. VillageDashboard renders its own loading state.
+   */
+  if (!villageId && !data && !masters && !error) return <DashboardSkeleton />;
 
   // Until a period is picked, the donut uses the figures the dashboard call
   // already returned; after that it follows the selection.

@@ -395,8 +395,10 @@ export default function ContactsPage() {
  * over HTTP at all, so the modal explains that instead of failing silently.
  */
 function ContactFileModal({ contact, onClose }) {
-  const target = contact ? openableUrl(contact.id_path) : null;
   const reason = contact ? unopenableReason(contact.id_path) : null;
+  // Not fetched when there is a reason against it — a legacy path resolves to
+  // a URL nothing serves, which showed a 404 page inside the viewer.
+  const target = contact && !reason ? openableUrl(contact.id_path) : null;
 
   const [src, setSrc] = useState(null);
   const [loading, setLoading] = useState(false);

@@ -14,7 +14,14 @@
  * returns null for it so callers can say why nothing can be shown.
  */
 
+/*
+ * Must stay in step with CATEGORIES in backend/web/routes/uploads.js. A
+ * category missing here is not recognised as an API upload, so the path falls
+ * through to the legacy branch below and is requested from the site root —
+ * where nothing serves it, giving a 404 on a file that uploaded fine.
+ */
 const UPLOAD_CATEGORIES = [
+  'profile-photos',
   'owner-photos',
   'owner-documents',
   'agreements',
@@ -69,12 +76,30 @@ export function needsAuth(url) {
  * The caller owns the returned URL and must revoke it — see `revokeBlobUrl`.
  */
 export async function fetchProtectedUrl(url, client) {
-  const response = await client.get(url, { responseType: 'blob' });
+  /*
+   * `url` is absolute-from-root (/api/web/uploads/file/...) but the client it
+   * is handed carries baseURL '/api/web', which axios prepends — asking for
+   * /api/web/api/web/uploads/file/..., a path the dev server answers with its
+   * own HTML 404 rather than the API's JSON. Strip the prefix the client
+   * already supplies.
+   */
+  const base = String(client?.defaults?.baseURL ?? '').replace(/\/$/, '');
+  const path = base && url.startsWith(`${base}/`) ? url.slice(base.length) : url;
+  const response = await client.get(path, { responseType: 'blob' });
   return URL.createObjectURL(response.data);
 }
 
 export function revokeBlobUrl(url) {
   if (url && url.startsWith('blob:')) URL.revokeObjectURL(url);
+}
+
+/** A path written by the old ASP.NET site, served from its own web root. */
+function isLegacyWebPath(value) {
+  const s = String(value ?? '').trim();
+  if (!s || isLocalDiskPath(s) || /^https?:\/\//i.test(s)) return false;
+  const [head, ...rest] = s.replace(/^\//, '').split('/');
+  // An API upload is exactly "<category>/<filename>".
+  return !(rest.length === 1 && UPLOAD_CATEGORIES.includes(head));
 }
 
 /** Why a stored value cannot be opened, for showing to the user. */
@@ -83,6 +108,14 @@ export function unopenableReason(value) {
   if (!s) return 'No file uploaded.';
   if (isLocalDiskPath(s)) {
     return 'This file was stored as a path on the old server rather than uploaded, so it cannot be opened from here. Re-upload it to attach a copy.';
+  }
+  /*
+   * Only /api is proxied and nothing serves the old site's /Documents tree, so
+   * these resolve to a URL that 404s. Saying so beats a broken viewer — the
+   * file is on the old server, and re-uploading is what fixes it.
+   */
+  if (isLegacyWebPath(s)) {
+    return 'This file lives on the old site and is not served here, so it cannot be opened. Re-upload it to attach a copy.';
   }
   return null;
 }

@@ -233,6 +233,16 @@ function Icon({ name }) {
 // .sidebar-item / .collapse-inner a are defined in index.css, lifted from the
 // legacy site_master_style.css so the nav matches the WebForms app.
 const linkClass = ({ isActive }) => `sidebar-item${isActive ? ' active' : ''}`;
+/*
+ * Menu links carry `end`, so a link is active only on its own page.
+ *
+ * NavLink matches by path prefix by default, which lights up a parent route
+ * whenever a child is open. The menu has one such pair — PDC Reminder
+ * (/billing/pdc) sits above PDC Clearing (/billing/pdc/clearing) — and opening
+ * Clearing marked both rows current, each with the rail dot .collapse-inner
+ * a.active draws. Nothing in this menu is a section landing page that should
+ * stay lit while a child is open, so exact matching is right for all of it.
+ */
 const subLinkClass = ({ isActive }) => (isActive ? 'active' : undefined);
 
 export default function AppLayout() {
@@ -606,6 +616,7 @@ export default function AppLayout() {
                             <NavLink
                               key={`${group.label}-${item.to}`}
                               to={item.to}
+                              end
                               className={subLinkClass}
                               onClick={() => setNavOpen(false)}
                             >

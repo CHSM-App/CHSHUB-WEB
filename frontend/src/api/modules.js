@@ -145,6 +145,8 @@ export const village = {
   removeOwner: (id) => api.delete(`/village/owners/${id}`),
   houseTax: () => api.get('/village/house-tax'),
   houseTaxReceipts: () => api.get('/village/house-tax/receipts'),
+  /** One payment and every bill it settled. */
+  houseTaxReceipt: (id) => api.get(`/village/house-tax/receipts/${id}`),
   houseTaxPending: () => api.get('/village/house-tax/pending'),
   // Unpaid bills for one house: type 1 property, 2 water, 3 waste.
   houseTaxBills: (houseId, type) =>
@@ -158,5 +160,28 @@ export const village = {
   createStaff: (body) => api.post('/village/staff', body),
   updateStaff: (id, body) => api.put(`/village/staff/${id}`, body),
   removeStaff: (id) => api.delete(`/village/staff/${id}`),
-  balanceSheet: () => api.get('/village/balance-sheet'),
+  /** Billing settings — village_setting, one row per village. */
+  settings: () => api.get('/village/settings'),
+  saveSettings: (body) => api.put('/village/settings', body),
+  /** Which charges apply to which house — house_charge. */
+  houseCharges: () => api.get('/village/house-charges'),
+  saveHouseCharge: (body) => api.put('/village/house-charges', body),
+  /** Billing reports — what was billed, who owes, and what came in. */
+  reportCollection: (params) => api.get('/village/reports/collection', p(params)),
+  reportDefaulters: (params) => api.get('/village/reports/defaulters', p(params)),
+  reportMonthly: (params) => api.get('/village/reports/monthly', p(params)),
+  reportLedger: (houseId) => api.get(`/village/reports/ledger/${houseId}`),
+  /** Government schemes the village runs. */
+  schemes: () => api.get('/village/schemes'),
+  createScheme: (body) => api.post('/village/schemes', body),
+  updateScheme: (id, body) => api.put(`/village/schemes/${id}`, body),
+  removeScheme: (id) => api.delete(`/village/schemes/${id}`),
+  /** What a period's bills would come to, and raising them. */
+  billRunPreview: (params) => api.get('/village/bill-run/preview', p(params)),
+  runBills: (body) => api.post('/village/bill-run', body),
+  /** The charges a village levies, and adding one of its own. */
+  chargeTypes: () => api.get('/village/charge-types'),
+  createChargeType: (body) => api.post('/village/charge-types', body),
+  updateChargeType: (id, body) => api.put(`/village/charge-types/${id}`, body),
+  removeChargeType: (id) => api.delete(`/village/charge-types/${id}`),
 };

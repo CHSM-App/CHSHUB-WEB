@@ -73,6 +73,15 @@ async function queryOne(procName, params) {
 }
 
 /**
+ * Every recordset, for the procs that return more than one — a list and the
+ * totals over it, say, where `query` would silently drop the second.
+ */
+async function queryMulti(procName, params) {
+  const result = await execProc(procName, params);
+  return result.recordsets || [];
+}
+
+/**
  * Run a proc for its side effect. Returns the first row when the proc emits one
  * (many of these SPs `SELECT @new AS id` after inserting), otherwise null.
  */
@@ -92,4 +101,4 @@ async function getPool() {
   return pool;
 }
 
-module.exports = { sql, pool, getPool, execProc, query, queryOne, exec };
+module.exports = { sql, pool, getPool, execProc, query, queryOne, queryMulti, exec };

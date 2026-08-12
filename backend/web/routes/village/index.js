@@ -6,16 +6,30 @@
 // Village users are scoped by village_id rather than society_id.
 const express = require('express');
 
-const { query, exec, sql } = require('../../lib/db');
+const { query, queryMulti, exec, sql } = require('../../lib/db');
 const { ApiError, ok, asyncHandler } = require('../../lib/http');
-const { str, optionalStr, int, num, date, oneOf } = require('../../lib/validate');
+const { str, optionalStr, int, num, bool, date, oneOf } = require('../../lib/validate');
 const { requireVillage } = require('../../middleware/authenticate');
 
 const router = express.Router();
 router.use(requireVillage);
 
-const VIL = (v) => ({ type: sql.NVarChar(10), value: v });
-const VIL50 = (v) => ({ type: sql.NVarChar(50), value: v });
+/*
+ * village_id is nvarchar(50) on every table that stores it — house, house$ARC,
+ * Village_staff, village_master and the rest — so the argument is declared at
+ * that width too.
+ *
+ * VIL used to be NVarChar(10). The driver truncates to the declared width
+ * before the value ever reaches SQL Server, so an id over ten characters was
+ * cut short and then matched nothing: the page came back empty with no error.
+ * sp_house and sp_Village_staff both take nvarchar(50) and were being handed
+ * the narrow form.
+ *
+ * VIL50 stays as an alias rather than being renamed at 20-odd call sites; both
+ * now describe the same thing.
+ */
+const VIL = (v) => ({ type: sql.NVarChar(50), value: v });
+const VIL50 = VIL;
 
 /* ------------------------------------------------------------------ houses */
 
@@ -237,7 +251,17 @@ router.get(
       house_receipt_id: { type: sql.Int, value: id },
     });
     if (!rows[0]) throw ApiError.notFound('Receipt not found');
-    return ok(res, { receipt: rows[0] });
+    /*
+     * One payment can settle several bills — June and July together, say — and
+     * they now share a receipt number, so the proc returns a row per bill.
+     * `receipt` stays as the first for callers that only want the header;
+     * `bills` and `total` are what the printed copy itemises.
+     */
+    return ok(res, {
+      receipt: rows[0],
+      bills: rows,
+      total: rows.reduce((sum, r) => sum + Number(r.Amount_paid || 0), 0),
+    });
   }),
 );
 
@@ -320,7 +344,17 @@ router.get(
       operation: 'Grid_Show',
       village_id: VIL(req.villageId),
     });
-    return ok(res, { items: rows, count: rows.length });
+    // Grid_Show joins village_staff_role for the role *name* but does not
+    // select role_id, so an edit form has nothing to preselect its Role
+    // dropdown with — and saving would silently blank the staff member's
+    // role. Resolve the id from the same lookup the dropdown is built from.
+    const roles = await query('sp_Village_staff', { operation: 'get_staff_role' });
+    const idByRole = new Map(roles.map((r) => [String(r.role ?? '').trim().toLowerCase(), r.role_id]));
+    const items = rows.map((r) => ({
+      ...r,
+      role_id: r.role_id ?? idByRole.get(String(r.role ?? '').trim().toLowerCase()) ?? null,
+    }));
+    return ok(res, { items, count: items.length });
   }),
 );
 
@@ -379,6 +413,406 @@ router.delete(
     const id = int(req.params.id, 'id', { min: 1 });
     await exec('sp_Village_staff', { operation: 'Delete', staff_id: { type: sql.Int, value: id } });
     return ok(res, { deleted: true, staff_id: id });
+  }),
+);
+
+/* ---------------------------------------------------------------- reports */
+
+/*
+ * The four questions Analytics & Reports is for: what was billed against what
+ * came in, who owes, what was collected each month, and one house's history.
+ *
+ * All four read house_tax_receipt through sp_village_report, so they cannot
+ * disagree about what "collected" means.
+ */
+function reportRange(req) {
+  return {
+    village_id: VIL(req.villageId),
+    from: { type: sql.Date, value: date(req.query?.from, 'from', { required: false }) },
+    to: { type: sql.Date, value: date(req.query?.to, 'to', { required: false }) },
+  };
+}
+
+router.get(
+  '/reports/collection',
+  asyncHandler(async (req, res) => {
+    const rows = await query('sp_village_report', {
+      operation: 'Collection',
+      ...reportRange(req),
+    });
+    return ok(res, { items: rows, count: rows.length });
+  }),
+);
+
+router.get(
+  '/reports/defaulters',
+  asyncHandler(async (req, res) => {
+    const rows = await query('sp_village_report', {
+      operation: 'Defaulters',
+      ...reportRange(req),
+    });
+    return ok(res, { items: rows, count: rows.length });
+  }),
+);
+
+router.get(
+  '/reports/monthly',
+  asyncHandler(async (req, res) => {
+    const rows = await query('sp_village_report', {
+      operation: 'Monthly',
+      ...reportRange(req),
+    });
+    return ok(res, { items: rows, count: rows.length });
+  }),
+);
+
+router.get(
+  '/reports/ledger/:houseId',
+  asyncHandler(async (req, res) => {
+    const houseId = int(req.params.houseId, 'houseId', { min: 1 });
+    // Two recordsets: the entries, then the totals they add up to — so the
+    // screen shows a total it did not have to re-derive.
+    const [items = [], totals = []] = await queryMulti('sp_village_report', {
+      operation: 'Ledger',
+      village_id: VIL(req.villageId),
+      house_id: { type: sql.Int, value: houseId },
+    });
+    return ok(res, {
+      items,
+      count: items.length,
+      totals: totals[0] ?? { billed: 0, paid: 0, outstanding: 0 },
+    });
+  }),
+);
+
+/* ---------------------------------------------------------------- schemes */
+
+/*
+ * Government schemes the village runs. Previously these were posted as
+ * announcements, which cannot hold what a scheme is actually asked about:
+ * who qualifies, what they get, when applications close, and the GR behind it.
+ */
+router.get(
+  '/schemes',
+  asyncHandler(async (req, res) => {
+    const rows = await query('sp_village_scheme', {
+      operation: 'Grid_Show',
+      village_id: VIL(req.villageId),
+    });
+    return ok(res, { items: rows, count: rows.length });
+  }),
+);
+
+function schemeParams(body) {
+  return {
+    name: { type: sql.NVarChar(200), value: str(body?.name, 'name', { max: 200 }) },
+    description: {
+      type: sql.NVarChar(sql.MAX),
+      value: optionalStr(body?.description, 'description'),
+    },
+    eligibility: {
+      type: sql.NVarChar(sql.MAX),
+      value: optionalStr(body?.eligibility, 'eligibility'),
+    },
+    /*
+     * A scheme may be a payment, a benefit in kind, or both — a subsidy with a
+     * cash component. Neither field is required and neither implies the other.
+     */
+    benefit_amount: {
+      type: sql.Decimal(18, 2),
+      value: num(body?.benefitAmount, 'benefitAmount', { min: 0, required: false, default: null }),
+    },
+    benefit_details: {
+      type: sql.NVarChar(500),
+      value: optionalStr(body?.benefitDetails, 'benefitDetails', { max: 500 }),
+    },
+    gr_number: { type: sql.NVarChar(100), value: optionalStr(body?.grNumber, 'grNumber', { max: 100 }) },
+    gr_date: { type: sql.Date, value: date(body?.grDate, 'grDate', { required: false }) },
+    apply_from: { type: sql.Date, value: date(body?.applyFrom, 'applyFrom', { required: false }) },
+    apply_until: { type: sql.Date, value: date(body?.applyUntil, 'applyUntil', { required: false }) },
+  };
+}
+
+router.post(
+  '/schemes',
+  asyncHandler(async (req, res) => {
+    const rows = await query('sp_village_scheme', {
+      operation: 'Update',
+      village_id: VIL(req.villageId),
+      scheme_id: { type: sql.Int, value: 0 },
+      ...schemeParams(req.body),
+    });
+    return ok(res, { created: true, scheme_id: rows[0]?.scheme_id ?? null }, 201);
+  }),
+);
+
+router.put(
+  '/schemes/:id',
+  asyncHandler(async (req, res) => {
+    const id = int(req.params.id, 'id', { min: 1 });
+    await query('sp_village_scheme', {
+      operation: 'Update',
+      village_id: VIL(req.villageId),
+      scheme_id: { type: sql.Int, value: id },
+      ...schemeParams(req.body),
+    });
+    return ok(res, { scheme_id: id });
+  }),
+);
+
+router.delete(
+  '/schemes/:id',
+  asyncHandler(async (req, res) => {
+    const id = int(req.params.id, 'id', { min: 1 });
+    // Deactivated, not deleted: residents ask about schemes that have closed.
+    await exec('sp_village_scheme', {
+      operation: 'Delete',
+      village_id: VIL(req.villageId),
+      scheme_id: { type: sql.Int, value: id },
+    });
+    return ok(res, { removed: true, scheme_id: id });
+  }),
+);
+
+/* -------------------------------------------------------------- bill runs */
+
+/*
+ * Raising a period's bills.
+ *
+ * Preview and generate run the same SELECT inside sp_village_bill_run, so what
+ * the screen shows is exactly what would be written. A bill is what a
+ * household is told it owes and cannot be quietly withdrawn, so nothing is
+ * raised without someone seeing the list first.
+ *
+ * Re-running is safe: a charge already billed for the period is skipped, so a
+ * second run raises only what is missing.
+ */
+function billRunParams(req) {
+  const q = { ...req.query, ...req.body };
+  const now = new Date();
+  return {
+    village_id: VIL(req.villageId),
+    bill_year: {
+      type: sql.SmallInt,
+      value: int(q.year, 'year', { min: 2000, max: 2100, required: false, default: now.getFullYear() }),
+    },
+    bill_month: {
+      type: sql.TinyInt,
+      value: int(q.month, 'month', { min: 1, max: 12, required: false, default: now.getMonth() + 1 }),
+    },
+  };
+}
+
+router.get(
+  '/bill-run/preview',
+  asyncHandler(async (req, res) => {
+    const result = await queryMulti('sp_village_bill_run', {
+      operation: 'Preview',
+      ...billRunParams(req),
+    });
+    /*
+     * One bill per household, and the charges making it up. The screen lists
+     * the bills; the lines are what a printed copy itemises.
+     */
+    const [bills = [], lines = [], totals = []] = result;
+    return ok(res, {
+      items: bills,
+      lines,
+      count: bills.length,
+      lineCount: totals[0]?.lines ?? lines.length,
+      total: totals[0]?.total ?? 0,
+    });
+  }),
+);
+
+router.post(
+  '/bill-run',
+  asyncHandler(async (req, res) => {
+    const rows = await query('sp_village_bill_run', {
+      operation: 'Generate',
+      ...billRunParams(req),
+      audt_user: { type: sql.Int, value: req.user.userId },
+    });
+    return ok(
+      res,
+      { bills: rows[0]?.bills ?? 0, lines: rows[0]?.lines ?? 0, total: rows[0]?.total ?? 0 },
+      201,
+    );
+  }),
+);
+
+/* ------------------------------------------------------------ charge types */
+
+/*
+ * The charges a village levies. Three come with the database — property tax,
+ * water and waste — and a village can add its own: a street-light tax, a
+ * market fee. Before this there was no way to add one short of an INSERT run
+ * by hand.
+ *
+ * The three built-ins can be renamed but not removed, and their frequency and
+ * basis are fixed: bills have already been raised under them, and changing
+ * either would reinterpret history.
+ */
+router.get(
+  '/charge-types',
+  asyncHandler(async (_req, res) => {
+    const rows = await query('sp_village_charge_type', { operation: 'Grid_Show' });
+    return ok(res, { items: rows, count: rows.length });
+  }),
+);
+
+function chargeTypeParams(body) {
+  return {
+    name: { type: sql.NVarChar(50), value: str(body?.name, 'name', { max: 50 }) },
+    frequency: { type: sql.Char(1), value: oneOf(body?.frequency, 'frequency', ['Y', 'M']) },
+    basis: { type: sql.VarChar(4), value: oneOf(body?.basis, 'basis', ['AREA', 'TAP', 'FLAT']) },
+  };
+}
+
+router.post(
+  '/charge-types',
+  asyncHandler(async (req, res) => {
+    // payment_type 0 means "assign the next one" — the column has no IDENTITY,
+    // because the legacy rows carry hand-picked values.
+    const rows = await query('sp_village_charge_type', {
+      operation: 'Update',
+      payment_type: { type: sql.Int, value: 0 },
+      ...chargeTypeParams(req.body),
+    });
+    return ok(res, { created: true, payment_type: rows[0]?.payment_type ?? null }, 201);
+  }),
+);
+
+router.put(
+  '/charge-types/:id',
+  asyncHandler(async (req, res) => {
+    const id = int(req.params.id, 'id', { min: 1 });
+    await query('sp_village_charge_type', {
+      operation: 'Update',
+      payment_type: { type: sql.Int, value: id },
+      ...chargeTypeParams(req.body),
+    });
+    return ok(res, { payment_type: id });
+  }),
+);
+
+router.delete(
+  '/charge-types/:id',
+  asyncHandler(async (req, res) => {
+    const id = int(req.params.id, 'id', { min: 1 });
+    // Deactivated, not deleted: bills already raised refer to the charge.
+    await exec('sp_village_charge_type', {
+      operation: 'Delete',
+      payment_type: { type: sql.Int, value: id },
+    });
+    return ok(res, { deactivated: true, payment_type: id });
+  }),
+);
+
+/* ----------------------------------------------------------- house charges */
+
+/*
+ * Which charges apply to which house — the house_charge table.
+ *
+ * The three columns on dbo.house said every house owed every charge, so a
+ * house with no tap connection was still billed for water. A row here means
+ * the charge applies; no row means it does not, and nothing is raised.
+ *
+ * Grid_Show returns every house crossed with every charge type, so a row comes
+ * back for combinations that do not apply too, carrying applies = false.
+ */
+router.get(
+  '/house-charges',
+  asyncHandler(async (req, res) => {
+    const rows = await query('sp_house_charge', {
+      operation: 'Grid_Show',
+      village_id: VIL(req.villageId),
+    });
+    return ok(res, { items: rows, count: rows.length });
+  }),
+);
+
+router.put(
+  '/house-charges',
+  asyncHandler(async (req, res) => {
+    const body = req.body ?? {};
+    const applies = bool(body.applies, 'applies', { default: false });
+    await exec('sp_house_charge', {
+      operation: 'Update',
+      village_id: VIL(req.villageId),
+      house_id: { type: sql.Int, value: int(body.houseId, 'houseId', { min: 1 }) },
+      payment_type: { type: sql.Int, value: int(body.paymentType, 'paymentType', { min: 1 }) },
+      /*
+       * Amount is only meaningful when the charge applies. Sending it as NULL
+       * on the way out leaves the stored figure alone, so switching a charge
+       * off and back on does not silently blank what the house was charged.
+       */
+      amount: {
+        type: sql.Decimal(18, 2),
+        value: applies ? num(body.amount, 'amount', { min: 0, required: false, default: null }) : null,
+      },
+      applies: { type: sql.Bit, value: applies },
+    });
+    return ok(res, { saved: true });
+  }),
+);
+
+/* ---------------------------------------------------------------- settings */
+
+/*
+ * Billing settings, one row per village — see village_setting in
+ * SQL/ADD_village_billing_v2.sql. The SP creates the row from its defaults on
+ * first read, so a village that has never opened this page still gets a
+ * complete answer rather than an empty one.
+ */
+router.get(
+  '/settings',
+  asyncHandler(async (req, res) => {
+    const rows = await query('sp_village_setting', {
+      operation: 'Select',
+      village_id: VIL(req.villageId),
+    });
+    return ok(res, { settings: rows[0] ?? null });
+  }),
+);
+
+router.put(
+  '/settings',
+  asyncHandler(async (req, res) => {
+    const body = req.body ?? {};
+    await exec('sp_village_setting', {
+      operation: 'Update',
+      village_id: VIL(req.villageId),
+      auto_bill_generation: {
+        type: sql.Bit,
+        value: bool(body.autoBillGeneration, 'autoBillGeneration', { default: false }),
+      },
+      /*
+       * Capped at 28 to match the CHECK on the column: a 29th, 30th or 31st
+       * would skip February and that month's bills would never be raised.
+       */
+      bill_gen_day: {
+        type: sql.TinyInt,
+        value: int(body.billGenDay, 'billGenDay', { min: 1, max: 28, required: false, default: 1 }),
+      },
+      property_tax_month: {
+        type: sql.TinyInt,
+        value: int(body.propertyTaxMonth, 'propertyTaxMonth', { min: 1, max: 12, required: false, default: 4 }),
+      },
+      due_days: {
+        type: sql.SmallInt,
+        value: int(body.dueDays, 'dueDays', { min: 0, max: 365, required: false, default: 30 }),
+      },
+      interest_rate: {
+        type: sql.Decimal(5, 2),
+        value: num(body.interestRate, 'interestRate', { min: 0, max: 100, required: false, default: 0 }),
+      },
+      interest_after_days: {
+        type: sql.SmallInt,
+        value: int(body.interestAfterDays, 'interestAfterDays', { min: 0, max: 365, required: false, default: 30 }),
+      },
+    });
+    return ok(res, { saved: true });
   }),
 );
 
@@ -643,43 +1077,59 @@ router.get(
       .request()
       .input('village_id', sql.NVarChar(10), req.villageId)
       .query(`
-        -- Property tax, current financial year (the legacy card is "Yearly").
-        -- paidCount / pendingCount feed the card's "356 Paid / 94 Pending"
-        -- footer: a bill counts as settled once nothing is left due on it.
-        SELECT
-          ISNULL(SUM(ISNULL(house_tax_amount, 0)), 0)                        AS total,
-          ISNULL(SUM(ISNULL(house_tax_amount, 0) - ISNULL(due, 0)), 0)       AS paid,
-          -- SUM over no rows is NULL, which would render as an empty footer
-          -- rather than "0 Paid".
-          ISNULL(SUM(CASE WHEN ISNULL(due, 0) <= 0 THEN 1 ELSE 0 END), 0)    AS paidCount,
-          ISNULL(SUM(CASE WHEN ISNULL(due, 0) >  0 THEN 1 ELSE 0 END), 0)    AS pendingCount
-        FROM dbo.house_tax
-        WHERE village_id = @village_id
-          AND ISNULL(active_status, 0) = 0
-          AND YEAR(ISNULL(from_date, GETDATE())) = YEAR(GETDATE());
+        /*
+         * All three cards read house_tax_receipt — the table bills are raised
+         * into and payments are settled against.
+         *
+         * They used to read dbo.house_tax and dbo.water_tax, which nothing
+         * writes: both are empty for every village, so the cards showed 0 no
+         * matter how many bills existed. Waste read the per-house charge on
+         * dbo.house, which is the rate rather than what was billed, and had no
+         * collection figure at all.
+         *
+         * Amount_paid holds the bill's amount whether or not it has been
+         * settled; payment_status says which. So total is every bill in the
+         * period, and paid is the settled ones.
+         */
 
-        -- Water tax, current month.
+        -- Property tax, this year. It is charged yearly, so the year is the
+        -- period; bill_year is the year the bill is *for*, not when it was
+        -- raised.
         SELECT
-          ISNULL(SUM(ISNULL(water_tax_amount, 0)), 0)                        AS total,
-          ISNULL(SUM(ISNULL(water_tax_amount, 0) - ISNULL(due, 0)), 0)       AS paid,
-          -- SUM over no rows is NULL, which would render as an empty footer
-          -- rather than "0 Paid".
-          ISNULL(SUM(CASE WHEN ISNULL(due, 0) <= 0 THEN 1 ELSE 0 END), 0)    AS paidCount,
-          ISNULL(SUM(CASE WHEN ISNULL(due, 0) >  0 THEN 1 ELSE 0 END), 0)    AS pendingCount
-        FROM dbo.water_tax
-        WHERE village_id = @village_id
-          AND ISNULL(active_status, 0) = 0
-          AND YEAR(ISNULL(from_date, GETDATE()))  = YEAR(GETDATE())
-          AND MONTH(ISNULL(from_date, GETDATE())) = MONTH(GETDATE());
+          ISNULL(SUM(ISNULL(r.Amount_paid, 0)), 0)                                    AS total,
+          ISNULL(SUM(CASE WHEN r.payment_status = 1 THEN ISNULL(r.Amount_paid, 0) ELSE 0 END), 0) AS paid,
+          ISNULL(SUM(CASE WHEN r.payment_status = 1 THEN 1 ELSE 0 END), 0)            AS paidCount,
+          ISNULL(SUM(CASE WHEN r.payment_status = 0 THEN 1 ELSE 0 END), 0)            AS pendingCount
+        FROM dbo.house_tax_receipt AS r
+        JOIN dbo.Village_payment_type AS t ON t.payment_type = r.payment_type
+        WHERE r.village_id = @village_id
+          AND t.frequency = 'Y'
+          AND r.bill_year = YEAR(GETDATE());
 
-        -- Waste tax is a per-house charge on dbo.house, not a billed table of
-        -- its own, so the monthly total is the sum of those charges. Nothing
-        -- records what has been collected against it.
+        -- Water, this month.
         SELECT
-          ISNULL(SUM(ISNULL(waste_charges, 0)), 0) AS total,
-          CAST(NULL AS DECIMAL(18, 2))             AS paid
-        FROM dbo.house
-        WHERE village_id = @village_id;
+          ISNULL(SUM(ISNULL(r.Amount_paid, 0)), 0)                                    AS total,
+          ISNULL(SUM(CASE WHEN r.payment_status = 1 THEN ISNULL(r.Amount_paid, 0) ELSE 0 END), 0) AS paid,
+          ISNULL(SUM(CASE WHEN r.payment_status = 1 THEN 1 ELSE 0 END), 0)            AS paidCount,
+          ISNULL(SUM(CASE WHEN r.payment_status = 0 THEN 1 ELSE 0 END), 0)            AS pendingCount
+        FROM dbo.house_tax_receipt AS r
+        WHERE r.village_id = @village_id
+          AND r.payment_type = 2
+          AND r.bill_year  = YEAR(GETDATE())
+          AND r.bill_month = MONTH(GETDATE());
+
+        -- Waste, this month. Now a billed figure like the other two, so it
+        -- carries a collection total rather than "no collection record".
+        SELECT
+          ISNULL(SUM(ISNULL(r.Amount_paid, 0)), 0)                                    AS total,
+          ISNULL(SUM(CASE WHEN r.payment_status = 1 THEN ISNULL(r.Amount_paid, 0) ELSE 0 END), 0) AS paid,
+          ISNULL(SUM(CASE WHEN r.payment_status = 1 THEN 1 ELSE 0 END), 0)            AS paidCount,
+          ISNULL(SUM(CASE WHEN r.payment_status = 0 THEN 1 ELSE 0 END), 0)            AS pendingCount
+        FROM dbo.house_tax_receipt AS r
+        WHERE r.village_id = @village_id
+          AND r.payment_type = 3
+          AND r.bill_year  = YEAR(GETDATE())
+          AND r.bill_month = MONTH(GETDATE());
 
         -- Population. house_owner carries no gender column, so the legacy
         -- card's male/female split cannot be derived and only the total is
@@ -753,7 +1203,9 @@ router.get(
     return ok(res, {
       propertyTax: propertyTax[0] ?? { total: 0, paid: 0, paidCount: 0, pendingCount: 0 },
       waterTax: waterTax[0] ?? { total: 0, paid: 0, paidCount: 0, pendingCount: 0 },
-      wasteTax: wasteTax[0] ?? { total: 0, paid: null },
+      // Waste is billed like the other two now, so it has the same shape —
+      // paid is a figure rather than the null that meant "not recorded".
+      wasteTax: wasteTax[0] ?? { total: 0, paid: 0, paidCount: 0, pendingCount: 0 },
       residents: population[0]?.residents ?? 0,
       houses: houses[0]?.houses ?? 0,
       outstanding: totals[0]?.outstanding ?? 0,

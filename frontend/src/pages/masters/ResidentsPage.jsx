@@ -41,7 +41,9 @@ const docsFor = (row) =>
  * disk cannot be reached at all and says so.
  */
 function StoredFileRow({ label, path }) {
-  const target = openableUrl(path);
+  // Not linked when there is a reason against it — a legacy path resolves to a
+  // URL nothing serves, so the link 404'd.
+  const target = unopenableReason(path) ? null : openableUrl(path);
   const [href, setHref] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);

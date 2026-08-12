@@ -299,6 +299,13 @@ router.get(
         owner_id: row.owner_id ?? 0,
         active_status: row.active_status ?? null,
         photo_path: row.photo_path ?? null,
+        /*
+         * Which tenant the account belongs to. A village user has no society
+         * and vice versa, so exactly one of these is set — the profile can
+         * name where the account sits without knowing which kind it is.
+         */
+        society_name: row.Society_name ?? null,
+        village_name: row.Village_name ?? null,
       },
     });
   }),

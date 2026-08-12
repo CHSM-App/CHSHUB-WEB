@@ -592,13 +592,15 @@ const CHARGE_TYPE_NAMES = { 1: 'Property Tax', 2: 'Water Charges', 3: 'Waste Cha
  * buildReceiptPdf() instead, so the printed and downloaded documents are the
  * same file rather than two layouts kept in step by hand.
  */
-function TaxReceipt({ receipt: r, villageName }) {
+function TaxReceipt({ receipt: r, villageName, bills = [] }) {
   const rows = [
     ['Owner Name', r.name],
     ['House Number', r.house_no],
     ['Address', r.address],
     ['Contact', r.pre_mob],
-    ['Bill Type', r.payment_type_name],
+    /* The bills are itemised below when there is more than one, so repeating
+       the charge names here would say it twice. */
+    ...(bills.length > 1 ? [] : [['Bill Type', r.payment_type_name]]),
     ['Payment Method', r.pay_mode],
     /* Transation_ref is on house_tax_receipt but Grid_paid_charges does not
        select it, so it only appears when the row came from the single-receipt
@@ -670,6 +672,54 @@ function TaxReceipt({ receipt: r, villageName }) {
         </span>
       </div>
 
+      {/*
+        What the payment settled. A payment can cover several bills — June and
+        July together, say — and a receipt that names only a total does not say
+        what it was for. Shown whenever the breakdown is known, so a single
+        bill still states its period.
+      */}
+      {bills.length ? (
+        <div className="mt-4 overflow-hidden rounded-xl" style={{ border: '1px solid var(--line)' }}>
+          <table className="w-full text-sm">
+            <thead>
+              <tr style={{ background: '#f8fafc' }}>
+                <th className="px-4 py-2 text-left font-semibold" style={{ color: '#718096' }}>
+                  Period
+                </th>
+                <th className="px-4 py-2 text-left font-semibold" style={{ color: '#718096' }}>
+                  Charge
+                </th>
+                <th className="px-4 py-2 text-right font-semibold" style={{ color: '#718096' }}>
+                  Amount
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {bills.map((b) => (
+                <tr key={b.house_receipt_id} className="border-t" style={{ borderColor: 'var(--line)' }}>
+                  {/* A yearly charge has no month, so it reads as the year. */}
+                  <td className="px-4 py-2">{[b.Month, b.year].filter(Boolean).join(' ') || '—'}</td>
+                  <td className="px-4 py-2">{b.payment_type_name}</td>
+                  <td className="px-4 py-2 text-right font-semibold">₹{money(b.Amount_paid)}</td>
+                </tr>
+              ))}
+            </tbody>
+            {bills.length > 1 ? (
+              <tfoot>
+                <tr className="border-t" style={{ borderColor: 'var(--line)', background: '#f8fafc' }}>
+                  <td className="px-4 py-2 font-semibold" colSpan={2}>
+                    Total
+                  </td>
+                  <td className="px-4 py-2 text-right font-bold">
+                    ₹{money(bills.reduce((s, b) => s + Number(b.Amount_paid || 0), 0))}
+                  </td>
+                </tr>
+              </tfoot>
+            ) : null}
+          </table>
+        </div>
+      ) : null}
+
       {/* Details, one per line, so the eye runs down a single column. */}
       <dl className="mt-4 divide-y" style={{ borderColor: 'var(--line)' }}>
         {rows.map(([label, value]) => (
@@ -730,7 +780,10 @@ function PendingAmount({ value, row, type, onPay }) {
 const pendingTotal = (r) =>
   Number(r?.pending_property_tax || 0) +
   Number(r?.pending_water_charges || 0) +
-  Number(r?.pending_waste_charges || 0);
+  Number(r?.pending_waste_charges || 0) +
+  // Charges a village added itself. Without this the row total omitted them,
+  // so a house owing one showed less than it owes.
+  Number(r?.pending_other_charges || 0);
 
 /**
  * Taking money is guarded the same way bill generation and receipt entry are:
@@ -760,6 +813,12 @@ export function VillagePaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [viewing, setViewing] = useState(null);
+  /*
+   * The bills the payment settled. A payment can cover several — June and July
+   * together share one receipt number — and a receipt that names only a total
+   * does not say what was paid for.
+   */
+  const [viewingBills, setViewingBills] = useState([]);
   const [receiptPdfBusy, setReceiptPdfBusy] = useState(false);
 
   // Pay modal: which house, its unpaid bills, and which are ticked.
@@ -776,6 +835,29 @@ export function VillagePaymentsPage() {
    * receipt number in the box that leads, and the details as rows. Reusing it
    * keeps this file free of a second PDF implementation.
    */
+  /*
+   * Open a receipt, and fetch the bills behind it. The grid row carries the
+   * payment's total; the bills say which periods and charges it covered, which
+   * is what someone checks a receipt against.
+   */
+  const openReceipt = async (row) => {
+    setViewing(row);
+    setViewingBills([]);
+    try {
+      const data = await village.houseTaxReceipt(row.house_receipt_id);
+      setViewingBills(data.bills ?? []);
+    } catch {
+      // The receipt still shows its header and total without the breakdown.
+    }
+  };
+
+  // Cleared on close, so the next receipt opened cannot show the last one's
+  // bills while its own are still being fetched.
+  const closeReceipt = () => {
+    setViewing(null);
+    setViewingBills([]);
+  };
+
   const buildReceiptPdf = async ({ print = false } = {}) => {
     if (!viewing) return;
     setReceiptPdfBusy(true);
@@ -787,7 +869,8 @@ export function VillagePaymentsPage() {
         ['House Number', viewing.house_no],
         ['Address', viewing.address],
         ['Contact', viewing.pre_mob],
-        ['Bill Type', viewing.payment_type_name],
+        // Itemised below when the payment covered more than one bill.
+        ...(viewingBills.length > 1 ? [] : [['Bill Type', viewing.payment_type_name]]),
         ['Payment Method', viewing.pay_mode],
         ['Transaction Reference', viewing.Transation_ref],
         ['Cheque No.', viewing.chqno],
@@ -795,6 +878,24 @@ export function VillagePaymentsPage() {
       ]
         .filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '')
         .map(([field, value]) => ({ field, value: String(value) }));
+
+      /*
+       * The bills the payment settled, listed under the details so the printed
+       * receipt says what was paid for and not just the total. The same table
+       * takes both, so each bill is a Detail/Value pair: the period and charge
+       * on the left, its amount on the right.
+       */
+      if (viewingBills.length) {
+        rows.push({ field: '', value: '' });
+        rows.push({ field: 'Bills settled', value: '' });
+        for (const b of viewingBills) {
+          const period = [b.Month, b.year].filter(Boolean).join(' ');
+          rows.push({
+            field: `   ${period} — ${b.payment_type_name ?? ''}`.trimEnd(),
+            value: `Rs. ${money(b.Amount_paid)}`,
+          });
+        }
+      }
 
       await tableToPdf({
         columns: [
@@ -949,6 +1050,8 @@ export function VillagePaymentsPage() {
       property: pending.reduce((s, r) => s + Number(r.pending_property_tax || 0), 0),
       water: pending.reduce((s, r) => s + Number(r.pending_water_charges || 0), 0),
       waste: pending.reduce((s, r) => s + Number(r.pending_waste_charges || 0), 0),
+      // Charges the village added itself, which have no card of their own.
+      other: pending.reduce((s, r) => s + Number(r.pending_other_charges || 0), 0),
       collected: receipts.reduce((s, r) => s + Number(r.Amount_paid || 0), 0),
     }),
     [pending, receipts],
@@ -956,18 +1059,25 @@ export function VillagePaymentsPage() {
 
   return (
     <section>
-      {/* "Tax Payments", as the legacy page headed itself. */}
-      <PageHeader title="Tax Payments" subtitle="Pending charges and collected receipts">
-        <button type="button" className="btn-secondary" onClick={() => window.print()}>
-          Print
-        </button>
-      </PageHeader>
+      {/* "Tax Payments", as the legacy page headed itself. The grid below
+          carries its own Print in the export toolbar, beside Excel and PDF, so
+          a second one up here was the same action offered twice. */}
+      <PageHeader title="Tax Payments" subtitle="Pending charges and collected receipts" />
 
       {/* Screen only, as on the residents page. */}
       <div className="mb-4 grid gap-3 sm:grid-cols-4 print:hidden">
         <StatCard label="Property tax due" value={money(totals.property)} tone="negative" />
         <StatCard label="Water charges due" value={money(totals.water)} tone="negative" />
-        <StatCard label="Waste charges due" value={money(totals.waste)} tone="negative" />
+        {/*
+          Waste and anything the village added itself share a card: the strip
+          is four wide, and a fifth would wrap. The grid below still lists
+          other charges in their own column.
+        */}
+        <StatCard
+          label={totals.other > 0 ? 'Waste & other due' : 'Waste charges due'}
+          value={money(totals.waste + totals.other)}
+          tone="negative"
+        />
         <StatCard label="Collected" value={money(totals.collected)} tone="positive" />
       </div>
 
@@ -1023,6 +1133,22 @@ export function VillagePaymentsPage() {
                 align: 'right',
                 render: (v, r) => <PendingAmount value={v} row={r} type={3} onPay={openPay} />,
                 exportValue: (r) => money(r.pending_waste_charges),
+              },
+              {
+                /*
+                 * Charges the village added itself, summed. They have no
+                 * column of their own because there can be any number of
+                 * them; without this they were left out of the grid entirely
+                 * and a house owing one appeared to owe nothing for it.
+                 *
+                 * Not payable from here: the pay dialog settles one charge
+                 * type at a time and this column can stand for several.
+                 */
+                key: 'pending_other_charges',
+                label: 'Other Charges',
+                align: 'right',
+                render: (v) => money(v),
+                exportValue: (r) => money(r.pending_other_charges),
               },
               {
                 /*
@@ -1122,7 +1248,7 @@ export function VillagePaymentsPage() {
             emptyTitle="No receipts recorded"
             /* gvPaid's Action column held a single "Receipt" button. */
             actions={(row) => (
-              <button type="button" className="btn-secondary" onClick={() => setViewing(row)}>
+              <button type="button" className="btn-secondary" onClick={() => openReceipt(row)}>
                 Receipt
               </button>
             )}
@@ -1133,12 +1259,12 @@ export function VillagePaymentsPage() {
       <Modal
         open={Boolean(viewing)}
         title={`Receipt ${viewing?.receipt_no ?? ''}`}
-        onClose={() => setViewing(null)}
+        onClose={() => closeReceipt()}
         /* The legacy footer was Close then Print Receipt; the PDF is added
            because a receipt is usually wanted as a file to send on. */
         footer={
           <>
-            <button type="button" className="btn-secondary" onClick={() => setViewing(null)}>
+            <button type="button" className="btn-secondary" onClick={() => closeReceipt()}>
               Close
             </button>
             <button
@@ -1162,7 +1288,9 @@ export function VillagePaymentsPage() {
           </>
         }
       >
-        {viewing ? <TaxReceipt receipt={viewing} villageName={villageName} /> : null}
+        {viewing ? (
+          <TaxReceipt receipt={viewing} villageName={villageName} bills={viewingBills} />
+        ) : null}
       </Modal>
 
       {/*
@@ -1270,8 +1398,13 @@ export function VillagePaymentsPage() {
                               onChange={() => toggleBill(id)}
                             />
                           </td>
+                          {/*
+                            A yearly charge has no month — the view returns an
+                            empty Month for it — so it reads as the year alone
+                            rather than a stray leading space.
+                          */}
                           <td className="table-cell">
-                            {b.Month} {b.year}
+                            {[b.Month, b.year].filter(Boolean).join(' ')}
                           </td>
                           <td className="table-cell">{b.payment_type_name}</td>
                           <td className="table-cell text-right">{money(b.pending_amount)}</td>

@@ -71,4 +71,26 @@ function requireVillage(req, _res, next) {
   next();
 }
 
-module.exports = { authenticate, requireSociety, requireVillage };
+/**
+ * Either kind of tenant, for the routes that serve both.
+ *
+ * Uploads are the case this exists for: files are stored per category, not per
+ * society, so requiring a society_id there locked every village account out of
+ * its own ID-proof and document fields with "This account is not linked to a
+ * society". Sets whichever id the account carries, so a handler that does scope
+ * by tenant still can.
+ */
+function requireTenant(req, _res, next) {
+  const societyId = req.user?.societyId;
+  const villageId = req.user?.villageId;
+
+  if (!societyId && !villageId) {
+    return next(ApiError.forbidden('This account is not linked to a society or village'));
+  }
+
+  if (societyId) req.societyId = societyId;
+  if (villageId) req.villageId = villageId;
+  next();
+}
+
+module.exports = { authenticate, requireSociety, requireVillage, requireTenant };

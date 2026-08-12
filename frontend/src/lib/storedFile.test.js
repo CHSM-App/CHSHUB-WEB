@@ -92,6 +92,32 @@ describe('fetchProtectedUrl', () => {
     expect(url).toMatch(/^blob:/);
     revokeBlobUrl(url);
   });
+
+  /*
+   * openableUrl returns a path already rooted at /api/web, and the client it is
+   * given carries baseURL '/api/web'. Passing it through unchanged made axios
+   * request /api/web/api/web/... — answered by the dev server's HTML 404, which
+   * surfaced as "Request failed (404)" with no API error body.
+   */
+  it('does not repeat the baseURL the client already carries', async () => {
+    const blob = new Blob(['pdf'], { type: 'application/pdf' });
+    const client = { defaults: { baseURL: '/api/web' }, get: vi.fn(async () => ({ data: blob })) };
+
+    const url = await fetchProtectedUrl('/api/web/uploads/file/staff/a.pdf', client);
+
+    expect(client.get).toHaveBeenCalledWith('/uploads/file/staff/a.pdf', { responseType: 'blob' });
+    revokeBlobUrl(url);
+  });
+
+  it('leaves an unrelated absolute path alone', async () => {
+    const blob = new Blob(['png'], { type: 'image/png' });
+    const client = { defaults: { baseURL: '/api/web' }, get: vi.fn(async () => ({ data: blob })) };
+
+    const url = await fetchProtectedUrl('/uploads/file/staff/a.png', client);
+
+    expect(client.get).toHaveBeenCalledWith('/uploads/file/staff/a.png', { responseType: 'blob' });
+    revokeBlobUrl(url);
+  });
 });
 
 describe('unopenableReason', () => {
@@ -105,5 +131,28 @@ describe('unopenableReason', () => {
 
   it('has nothing to say about a servable path', () => {
     expect(unopenableReason('staff/a.pdf')).toBeNull();
+  });
+
+  it('has nothing to say about an absolute URL', () => {
+    expect(unopenableReason('https://app.chshub.co.in/upload/a.png')).toBeNull();
+  });
+
+  /*
+   * Only /api is proxied and nothing serves the old site's /Documents tree, so
+   * these resolved to a link that 404s — the viewer showed a 404 page rather
+   * than saying where the file is.
+   */
+  it('explains a legacy web path instead of leaving it to 404', () => {
+    expect(unopenableReason('/Documents/village_Docs/Adeli/id.pdf')).toMatch(/old site/i);
+    expect(unopenableReason('Documents/Docs/x.pdf')).toMatch(/re-upload/i);
+  });
+
+  it('does not mistake a profile photo for a legacy path', () => {
+    // profile-photos was missing from the category list, so an uploaded
+    // profile photo fell through to the legacy branch and 404'd.
+    expect(unopenableReason('profile-photos/1785921102958-1.png')).toBeNull();
+    expect(openableUrl('profile-photos/1785921102958-1.png')).toBe(
+      '/api/web/uploads/file/profile-photos/1785921102958-1.png',
+    );
   });
 });

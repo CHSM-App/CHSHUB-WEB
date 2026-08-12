@@ -1268,8 +1268,10 @@ export function DocumentsPage() {
  * over HTTP at all, so the modal explains that instead of failing silently.
  */
 function DocumentFileModal({ doc, onClose }) {
-  const target = doc ? openableUrl(doc.file_save_path) : null;
   const reason = doc ? unopenableReason(doc.file_save_path) : null;
+  // Not fetched when there is a reason against it — a legacy path resolves to
+  // a URL nothing serves, which showed a 404 page inside the viewer.
+  const target = doc && !reason ? openableUrl(doc.file_save_path) : null;
 
   const [src, setSrc] = useState(null);
   const [loading, setLoading] = useState(false);

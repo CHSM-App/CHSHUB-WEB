@@ -138,14 +138,30 @@ const NAV = [
         label: 'Village',
         icon: 'file',
         heading: 'Village Management',
+        /*
+         * Ordered by the work, not by when each screen was built: a house is
+         * recorded, its charges are set, the period's bills are raised, and
+         * then payment is taken against them. Charges and Generate Bills sat
+         * after Tax Payments, which put the last step before the two that
+         * produce what it collects.
+         *
+         * Announcements and Staff Management have nothing to do with billing,
+         * so they follow it rather than interrupting it, and Settings sits
+         * last as it does elsewhere in the app.
+         */
         items: [
           // Dashboard is not repeated here: the rail already carries it above
           // the first heading, for both kinds of account.
           { to: '/village/residents', label: 'Village Residents' },
+          { to: '/village/house-charges', label: 'Charges' },
+          { to: '/village/bill-run', label: 'Generate Bills' },
           { to: '/village/payments', label: 'Tax Payments' },
-          { to: '/community/notices', label: 'Announcements' },
-          { to: '/village/staff', label: 'Staff Management' },
+          { to: '/village/reports', label: 'Reports' },
           { to: '/village/history', label: 'History' },
+          { to: '/community/notices', label: 'Announcements' },
+          { to: '/village/schemes', label: 'Government Schemes' },
+          { to: '/village/staff', label: 'Staff Management' },
+          { to: '/village/settings', label: 'Settings' },
         ],
       },
     ],
@@ -446,8 +462,14 @@ export default function AppLayout() {
                   </span>
                   Profile
                 </button>
+                {/*
+                  Settings means a different page for each kind of account.
+                  /settings/accounts is the society's billing settings, and a
+                  village has no rows behind it — the API refuses it — so this
+                  sent a village account to a page that could only error.
+                */}
                 <Link
-                  to="/settings/accounts"
+                  to={isVillage ? '/village/settings' : '/settings/accounts'}
                   role="menuitem"
                   className="flex items-center gap-2.5 px-4 py-2 text-sm hover:bg-slate-50"
                   style={{ color: '#012970' }}

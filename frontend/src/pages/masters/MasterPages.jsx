@@ -541,9 +541,13 @@ export function StaffMasterPage() {
  * uploaded file. Those cannot be fetched over HTTP, so the modal explains that
  * instead of showing a broken frame.
  */
-function StoredFileModal({ file, onClose }) {
-  const target = file ? openableUrl(file.path) : null;
+export function StoredFileModal({ file, onClose }) {
   const reason = file ? unopenableReason(file.path) : null;
+  // A path with a reason against it is not fetched at all. A legacy
+  // /Documents/... path resolves to a URL nothing serves, so loading it put a
+  // 404 page inside the viewer; the explanation below says where the file
+  // actually is instead.
+  const target = file && !reason ? openableUrl(file.path) : null;
 
   // Files served by this API sit behind the bearer token, which an <iframe>
   // cannot send — pointing it straight at the URL returns 401. Fetch through

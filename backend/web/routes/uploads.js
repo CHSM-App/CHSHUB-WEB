@@ -14,7 +14,7 @@ const fs = require('fs');
 const { exec, sql } = require('../lib/db');
 const { ApiError, ok, asyncHandler } = require('../lib/http');
 const { str, optionalStr, int, oneOf } = require('../lib/validate');
-const { requireSociety } = require('../middleware/authenticate');
+const { requireSociety, requireTenant } = require('../middleware/authenticate');
 
 const router = express.Router();
 
@@ -65,7 +65,9 @@ const upload = multer({
   },
 });
 
-router.use(requireSociety);
+// Either tenant: uploads are filed by category, not scoped to a society, and a
+// village account needs them for its staff ID proofs and house documents.
+router.use(requireTenant);
 
 /**
  * POST /uploads/:category
@@ -125,9 +127,13 @@ router.get(
 /**
  * POST /uploads/owner-document — record an uploaded owner document.
  * Upload first, then call this with the returned path.
+ *
+ * Society-only for the same reason as society-document below: owner_documents
+ * rows hang off flat_id, and a village has no flats.
  */
 router.post(
   '/record/owner-document',
+  requireSociety,
   asyncHandler(async (req, res) => {
     const flatId = int(req.body?.flatId, 'flatId', { min: 1 });
     const docName = str(req.body?.docName, 'docName', { max: 255 });
@@ -149,9 +155,16 @@ router.post(
   }),
 );
 
-/** POST /uploads/record/society-document — register a file in upload_doc. */
+/**
+ * POST /uploads/record/society-document — register a file in upload_doc.
+ *
+ * Society-only: upload_doc rows are keyed by society_id. The router-wide guard
+ * now admits a village too, so this one re-asserts the narrower rule rather
+ * than writing a row with no society against it.
+ */
 router.post(
   '/record/society-document',
+  requireSociety,
   asyncHandler(async (req, res) => {
     await exec('sp_upload_doc', {
       operation: 'Update',

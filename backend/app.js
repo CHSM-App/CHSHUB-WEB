@@ -131,10 +131,38 @@ async function cleanupRefreshTokens() {
 	  	 console.error(err);
   }
 }
+/*
+ * Village tax bills, the counterpart to GenerateBill above.
+ *
+ * Called with no village and no period: sp_village_bill_run's 'Auto' branch
+ * works out both, the way gen_bill does for societies. It bills each village
+ * whose village_setting has auto_bill_generation on and whose bill_gen_day is
+ * today, and holds yearly charges back until the month named by
+ * property_tax_month so property tax is not attempted every month.
+ *
+ * Nothing is raised twice: a house and charge already billed for the period is
+ * skipped, so a restart on the same day is harmless. That also means the run
+ * on boot below costs nothing when the day's bills already exist.
+ *
+ * node-cron rather than a SQL Server Agent job, matching the society side —
+ * the API is deployed to Plesk, where Agent is generally unavailable, and this
+ * runs inside the Node process instead.
+ */
+async function GenerateVillageBill() {
+  try {
+    await db.request()
+      .input('operation', 'Auto')
+      .execute('sp_village_bill_run');
+
+  } catch (err) {
+    console.error('Village bill generation failed:', err);
+  }
+}
+
 async function GenerateBill() {
   try {
    const result = await db.request()
-      
+
       .execute('gen_bill');
 
   } catch (err) {
@@ -158,10 +186,31 @@ app.use((err, req, res, next) => {
 sendMaintenancePaymentNotifications();
 cleanupRefreshTokens();
 GenerateBill();
+GenerateVillageBill();
 
 //schedule job at 10:00 AM daily
 cron.schedule('0 10 * * *', () => {
   GenerateBill()
+});
+
+/*
+ * Village tax bills at 02:00, not 10:00 like the society run above.
+ *
+ * Bills are raised overnight so the day's figures do not change under anyone:
+ * a run at 10:00 lands while the office is open, and a clerk part-way through
+ * taking a payment would see the outstanding amounts grow as they worked.
+ * Overnight also means a bad run has hours to be spotted before anyone acts on
+ * it, and the month-end is genuinely over by then.
+ *
+ * 02:00 rather than midnight: backups and other nightly work cluster at 00:00.
+ *
+ * This only fires if the Node process happens to be running at 02:00, which on
+ * Plesk it may not be — an idle app is recycled. GET /api/web/village/bill-run/auto
+ * exists for a Plesk scheduled task to call, and that does not depend on this
+ * process being up. Both are safe to run: a period already billed is skipped.
+ */
+cron.schedule('0 2 * * *', () => {
+  GenerateVillageBill()
 });
 
 //schedule job at 10:00 AM daily

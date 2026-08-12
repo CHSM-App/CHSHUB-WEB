@@ -45,6 +45,11 @@ import {
 import SocietySetupPage from './pages/auth/SocietySetupPage.jsx';
 import VillageSetupPage from './pages/auth/VillageSetupPage.jsx';
 import VillageAnnouncementsPage from './pages/village/VillageAnnouncementsPage.jsx';
+import VillageSettingsPage from './pages/village/VillageSettingsPage.jsx';
+import HouseChargesPage from './pages/village/HouseChargesPage.jsx';
+import BillRunPage from './pages/village/BillRunPage.jsx';
+import VillageSchemesPage from './pages/village/VillageSchemesPage.jsx';
+import VillageReportsPage from './pages/village/VillageReportsPage.jsx';
 import {
   PaidAmountsPage,
   AgmReportPage,
@@ -205,9 +210,19 @@ export default function App() {
         <Route path="/village/water-tax" element={<VP.VillageTaxPage kind="water" />} />
         <Route path="/village/rates" element={<R.VillageRatesPage />} />
         <Route path="/village/staff" element={<S.VillageStaffPage />} />
-        <Route path="/village/balance-sheet" element={<R.VillageBalanceSheetPage />} />
+        {/*
+          The village balance sheet is gone: it listed accounting heads and
+          their amounts, which answers none of the questions the office has.
+          /village/reports covers them — collection, defaulters, monthly
+          takings and a per-house ledger — all from the bills themselves.
+        */}
         <Route path="/village/payments" element={<VP.VillagePaymentsPage />} />
         <Route path="/village/history" element={<R.VillageHistoryPage />} />
+        <Route path="/village/house-charges" element={<HouseChargesPage />} />
+        <Route path="/village/bill-run" element={<BillRunPage />} />
+        <Route path="/village/schemes" element={<VillageSchemesPage />} />
+        <Route path="/village/reports" element={<VillageReportsPage />} />
+        <Route path="/village/settings" element={<VillageSettingsPage />} />
       </Route>
 
       <Route path="*" element={<NotFoundPage />} />

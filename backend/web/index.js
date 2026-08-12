@@ -27,6 +27,7 @@ const vendorRoutes = require('./routes/accounts/vendors');
 const vendorBillRoutes = require('./routes/accounts/vendorBills');
 const ownerExtraRoutes = require('./routes/masters/ownerExtras');
 const uploadRoutes = require('./routes/uploads');
+const cronRoutes = require('./routes/cron');
 const communityRoutes = require('./routes/community');
 const reportRoutes = require('./routes/reports');
 const villageRoutes = require('./routes/village');
@@ -44,6 +45,13 @@ router.get('/health', (_req, res) => ok(res, { status: 'up', api: 'web', time: n
 // Public. onboarding applies `authenticate` internally to its setup routes.
 router.use('/auth', authRoutes);
 router.use('/onboarding', onboardingRoutes);
+
+/*
+ * Scheduled work, for a Plesk task or any external scheduler. Not behind
+ * `authenticate` — a scheduler has no user to sign in as — but behind its own
+ * shared-secret check, which refuses everything unless CRON_TOKEN is set.
+ */
+router.use('/cron', cronRoutes);
 
 // Protected areas. authenticate is applied per mount rather than globally so an
 // unknown path still falls through to notFoundHandler and reports 404 instead of

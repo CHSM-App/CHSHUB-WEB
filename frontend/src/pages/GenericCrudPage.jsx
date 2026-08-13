@@ -1,6 +1,20 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import useCrudResource from './masters/useCrudResource';
-import { ConfirmDialog, EmptyState, ErrorNotice, Field, Modal, Spinner } from '@/components/ui.jsx';
+import {
+  ConfirmDialog,
+  EmptyState,
+  ErrorNotice,
+  Field,
+  FormErrorSummary,
+  Modal,
+  Spinner,
+} from '@/components/ui.jsx';
+import {
+  countErrors,
+  validateFields,
+  focusFirstInvalid,
+  singularise,
+} from '@/components/formValidation.js';
 import { FileUploadField } from '@/components/FormControls.jsx';
 import ExportToolbar from '@/components/ExportToolbar.jsx';
 import RichTextField from '@/components/RichTextField.jsx';
@@ -57,8 +71,10 @@ export default function GenericCrudPage({
     [searchable, filterRow, deferred],
   );
 
+  const recordLabel = useMemo(() => singularise(title), [title]);
+
   const { items, loading, error, saving, create, update, remove, refresh, setError } =
-    useCrudResource(resource, { params });
+    useCrudResource(resource, { params, label: recordLabel });
 
   const rows = useMemo(() => {
     const term = deferred.trim().toLowerCase();
@@ -71,6 +87,7 @@ export default function GenericCrudPage({
   const [confirming, setConfirming] = useState(null);
   // name -> message, for the fields the last submit found empty.
   const [fieldErrors, setFieldErrors] = useState({});
+  const errorCount = countErrors(fieldErrors);
 
   // Dropdown data, loaded once. Each entry is name -> () => Promise<rows>.
   useEffect(() => {
@@ -146,17 +163,12 @@ export default function GenericCrudPage({
      * Only fields actually on screen count: a `showIf` field that is hidden
      * is not rendered, so its value cannot be supplied.
      */
-    const missing = {};
-    for (const f of fields) {
-      if (!f.required) continue;
-      if (f.showIf && !f.showIf(editing.form)) continue;
-      const v = editing.form[f.name];
-      if (v === null || v === undefined || String(v).trim() === '') {
-        missing[f.name] = `${f.label} is required`;
-      }
-    }
+    const missing = validateFields(fields, editing.form);
     setFieldErrors(missing);
-    if (Object.keys(missing).length) return;
+    if (Object.keys(missing).length) {
+      focusFirstInvalid(fields, missing);
+      return;
+    }
 
     const body = toBody ? toBody(editing.form) : editing.form;
     try {
@@ -164,7 +176,7 @@ export default function GenericCrudPage({
       else await create(body);
       setEditing(null);
     } catch {
-      // Rendered inside the modal.
+      // Rendered inside the modal; useCrudResource raises the toast.
     }
   };
 
@@ -174,6 +186,25 @@ export default function GenericCrudPage({
     } finally {
       setConfirming(null);
     }
+  };
+
+  /*
+   * "Delete this record?" does not say which record, so the only way to check
+   * was to cancel and re-read the row. The first column is the identifying one
+   * on every screen — the name, the flat number, the receipt number — so the
+   * prompt quotes it and names what is going.
+   *
+   * Screens that need to warn about knock-on effects ("its booking slots will
+   * also be removed") still pass their own deleteMessage; this is the fallback.
+   */
+  const defaultDeleteMessage = (row) => {
+    const consequence = `This cannot be undone from the app.`;
+    if (!row) return consequence;
+    const identifier = row[columns[0]?.key];
+    if (identifier === null || identifier === undefined || String(identifier).trim() === '') {
+      return `${deleteLabel} this ${recordLabel.toLowerCase()}? ${consequence}`;
+    }
+    return `${deleteLabel} “${String(identifier).trim()}”? ${consequence}`;
   };
 
   // `index` is passed through for the legacy grids' serial-number column, which
@@ -322,6 +353,13 @@ export default function GenericCrudPage({
       >
         {editing ? (
           <form id="generic-form" onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2" noValidate>
+            {/*
+              How much is left to do, before the user goes hunting for it. On a
+              two-column form the offending field can be well below the fold,
+              and a count is the difference between "something is wrong
+              somewhere" and "three fields, and here is the first".
+            */}
+            <FormErrorSummary count={errorCount} />
             {fields.map((f) => {
               // `showIf` mirrors the legacy pages' conditional panels — the ones
               // that swapped inputs in and out as a dropdown changed. A hidden
@@ -377,7 +415,8 @@ export default function GenericCrudPage({
                 );
               }
               return (
-                <div key={f.name} className={span}>
+                // data-field is what a failed submit scrolls to and flashes.
+                <div key={f.name} className={`rounded-md ${span}`} data-field={f.name}>
                   <Field label={f.label} required={f.required} hint={f.hint} error={fieldErrors[f.name]}>
                     {f.type === 'select' ? (
                       <select
@@ -434,14 +473,12 @@ export default function GenericCrudPage({
 
       <ConfirmDialog
         open={Boolean(confirming)}
-        title={`${deleteLabel} record`}
+        title={`${deleteLabel} ${recordLabel.toLowerCase()}`}
         message={
           // The dialog stays mounted while closed, when `confirming` is null —
           // so a screen whose deleteMessage reads fields off the row threw on
           // every render until one was picked.
-          confirming && deleteMessage
-            ? deleteMessage(confirming)
-            : `${deleteLabel} this record? This cannot be undone from the app.`
+          confirming && deleteMessage ? deleteMessage(confirming) : defaultDeleteMessage(confirming)
         }
         confirmLabel={deleteLabel}
         onConfirm={onDelete}

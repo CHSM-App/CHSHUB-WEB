@@ -225,6 +225,62 @@ describe('VendorBillsPage — sections per service type', () => {
     await user.click(screen.getByRole('button', { name: /remove item 1/i }));
     expect(document.getElementById('f-it-name-0')).not.toBeInTheDocument();
   });
+
+  /*
+   * Vendor is the one required box on this form that can actually reach a
+   * submit empty — the Save button is hidden until a service type is picked,
+   * picking one stamps the bill number, and the date defaults to today.
+   *
+   * It used to be reported as a banner reading "Select a vendor", which left
+   * the box itself looking untouched.
+   */
+  it('marks the vendor box when a bill is saved without one', async () => {
+    const user = userEvent.setup();
+    const created = vi.fn();
+    server.use(
+      http.get(`${BASE}/accounts/vendor-bills`, () => ok({ items: [BILL], count: 1 })),
+      http.post(`${BASE}/accounts/vendor-bills`, async ({ request }) => {
+        created(await request.json());
+        return ok({ bill_id: 1 });
+      }),
+      http.get(`${BASE}/accounts/vendor-bills/form-data`, () =>
+        ok({
+          vendors: [{ vendor_id: 4, vendor_name: 'Acme Pumps' }],
+          staff: [],
+          staffRoles: [],
+          approvers: [],
+          chargeHeads: [],
+        }),
+      ),
+    );
+    await openWith(user, '3');
+
+    await user.click(await screen.findByRole('button', { name: /save bill/i }));
+
+    expect(await screen.findByText('Select a vendor name')).toBeInTheDocument();
+    expect(screen.getByText(/required field/i)).toBeInTheDocument();
+    expect(created).not.toHaveBeenCalled();
+
+    // ...and it clears once answered, rather than waiting for the next submit.
+    await user.selectOptions(screen.getByLabelText(/vendor name/i), '4');
+    expect(screen.queryByText('Select a vendor name')).not.toBeInTheDocument();
+  });
+
+  /*
+   * A staff run has no vendor section, so the same rule must not block it —
+   * that is what the showIf on the field descriptor is for.
+   */
+  it('does not ask for a vendor on a staff payment', async () => {
+    const user = userEvent.setup();
+    server.use(...handlers());
+    await openWith(user, '0');
+
+    await screen.findByLabelText(/bill number/i);
+    await user.click(screen.getByRole('button', { name: /save bill/i }));
+
+    // It stops for its own reason (no staff picked), never for the vendor.
+    expect(screen.queryByText('Select a vendor name')).not.toBeInTheDocument();
+  });
 });
 
 describe('VendorBillsPage — payment mode', () => {
@@ -394,15 +450,92 @@ describe('VendorBillsPage — pay', () => {
     // paid in nearly every case.
     // The dialog opens with no mode picked, as the legacy panels did.
     await user.click(await screen.findByRole('button', { name: 'Cheque' }));
-    const amount = await screen.findByLabelText(/^amount\s*\*?$/i);
+    // Matches on the field name only: the label now carries a trailing
+    // "(required)", the screen-reader half of the asterisk.
+    const amount = await screen.findByLabelText(/^amount\b/i);
     expect(amount).toHaveValue(4000);
 
     await user.clear(amount);
     await user.type(amount, '1500');
+
+    // A cheque is only traceable with its own details, so they are required
+    // once that mode is picked.
+    await user.type(screen.getByLabelText(/cheque number/i), '112233');
+    await user.type(screen.getByLabelText(/cheque date/i), '2026-08-13');
+    await user.type(screen.getByLabelText(/bank name/i), 'HDFC');
+
     await user.click(screen.getByRole('button', { name: /record payment/i }));
 
     await waitFor(() => expect(paid).toHaveBeenCalled());
-    expect(paid.mock.lastCall[0]).toMatchObject({ mode: 'Cheque', amount: '1500' });
+    expect(paid.mock.lastCall[0]).toMatchObject({
+      mode: 'Cheque',
+      amount: '1500',
+      chequeNo: '112233',
+      bankName: 'HDFC',
+    });
+  });
+
+  /*
+   * Cheque and online transfers are only traceable if their identifying
+   * details are recorded — a cheque with no number cannot be matched to a bank
+   * statement. Cash needs nothing beyond the amount.
+   */
+  it('will not record a cheque payment without the cheque details', async () => {
+    const user = userEvent.setup();
+    const paid = vi.fn();
+    server.use(
+      ...handlers({
+        extra: [
+          http.post(`${BASE}/accounts/vendor-bills/12/payments`, async ({ request }) => {
+            paid(await request.json());
+            return ok({ bill_id: 12, payment_id: 3 });
+          }),
+        ],
+      }),
+    );
+    render(<VendorBillsPage />);
+
+    await screen.findAllByText('VB-0012');
+    await user.click(screen.getAllByRole('button', { name: 'Pay' })[0]);
+    await user.click(await screen.findByRole('button', { name: 'Cheque' }));
+    await user.click(screen.getByRole('button', { name: /record payment/i }));
+
+    expect(await screen.findByText('Enter the cheque number')).toBeInTheDocument();
+    expect(screen.getByText('Enter the bank name')).toBeInTheDocument();
+    expect(paid).not.toHaveBeenCalled();
+
+    // Switching mode drops the old mode's complaints with its inputs, and
+    // asks for what the new one needs instead.
+    await user.click(screen.getByRole('button', { name: 'Online' }));
+    expect(screen.queryByText('Enter the cheque number')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /record payment/i }));
+    expect(await screen.findByText('Enter the transaction reference')).toBeInTheDocument();
+    expect(paid).not.toHaveBeenCalled();
+  });
+
+  it('records a cash payment with no extra details', async () => {
+    const user = userEvent.setup();
+    const paid = vi.fn();
+    server.use(
+      ...handlers({
+        extra: [
+          http.post(`${BASE}/accounts/vendor-bills/12/payments`, async ({ request }) => {
+            paid(await request.json());
+            return ok({ bill_id: 12, payment_id: 3 });
+          }),
+        ],
+      }),
+    );
+    render(<VendorBillsPage />);
+
+    await screen.findAllByText('VB-0012');
+    await user.click(screen.getAllByRole('button', { name: 'Pay' })[0]);
+    await user.click(await screen.findByRole('button', { name: 'Cash' }));
+    await user.click(screen.getByRole('button', { name: /record payment/i }));
+
+    await waitFor(() => expect(paid).toHaveBeenCalled());
+    expect(paid.mock.lastCall[0]).toMatchObject({ mode: 'Cash' });
   });
 
   it('refuses to pay more than is outstanding', async () => {
@@ -425,12 +558,90 @@ describe('VendorBillsPage — pay', () => {
 
     // The dialog opens with no mode picked, as the legacy panels did.
     await user.click(await screen.findByRole('button', { name: 'Cheque' }));
-    const amount = await screen.findByLabelText(/^amount\s*\*?$/i);
+    // Matches on the field name only: the label now carries a trailing
+    // "(required)", the screen-reader half of the asterisk.
+    const amount = await screen.findByLabelText(/^amount\b/i);
     await user.clear(amount);
     await user.type(amount, '9999');
     await user.click(screen.getByRole('button', { name: /record payment/i }));
 
     expect(await screen.findByText(/more than the .* outstanding/i)).toBeInTheDocument();
     expect(paid).not.toHaveBeenCalled();
+  });
+});
+
+/*
+ * The quick-add vendor dialog ran no validation at all — not even the starred
+ * Vendor name, which saved blank, so the contact number and e-mail took any
+ * text at all.
+ */
+describe('VendorBillsPage — quick-add vendor', () => {
+  const openVendorForm = async (user, onCreate) => {
+    server.use(
+      ...handlers({
+        extra: [
+          http.post(`${BASE}/accounts/vendors`, async ({ request }) => {
+            onCreate?.(await request.json());
+            return ok({ vendor_id: 9 });
+          }),
+        ],
+      }),
+    );
+    render(<VendorBillsPage />);
+    await user.click(await screen.findByRole('button', { name: /add vendor/i }));
+    return screen.findByRole('dialog', { name: /add vendor/i });
+  };
+
+  it('refuses a blank vendor name', async () => {
+    const user = userEvent.setup();
+    const created = vi.fn();
+    const dialog = await openVendorForm(user, created);
+
+    await user.click(within(dialog).getByRole('button', { name: /save vendor/i }));
+
+    expect(await within(dialog).findByText(/enter the vendor name/i)).toBeInTheDocument();
+    expect(created).not.toHaveBeenCalled();
+  });
+
+  it('refuses a malformed e-mail and a short contact number', async () => {
+    const user = userEvent.setup();
+    const created = vi.fn();
+    const dialog = await openVendorForm(user, created);
+
+    await user.type(within(dialog).getByLabelText(/vendor name/i), 'Acme Pumps');
+    await user.type(within(dialog).getByLabelText(/contact number/i), '98765');
+    await user.type(within(dialog).getByLabelText(/^email/i), 'not-an-address');
+    await user.click(within(dialog).getByRole('button', { name: /save vendor/i }));
+
+    expect(await within(dialog).findByText(/10-digit contact number/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/valid email address/i)).toBeInTheDocument();
+    expect(created).not.toHaveBeenCalled();
+  });
+
+  it('keeps the contact box to ten digits and drops the letters', async () => {
+    const user = userEvent.setup();
+    const dialog = await openVendorForm(user);
+
+    const contact = within(dialog).getByLabelText(/contact number/i);
+    await user.type(contact, '98a76b543210999');
+    expect(contact).toHaveValue('9876543210');
+  });
+
+  it('saves a vendor once the name and contact details are right', async () => {
+    const user = userEvent.setup();
+    const created = vi.fn();
+    const dialog = await openVendorForm(user, created);
+
+    await user.type(within(dialog).getByLabelText(/vendor name/i), 'Acme Pumps');
+    await user.type(within(dialog).getByLabelText(/contact number/i), '9876543210');
+    await user.type(within(dialog).getByLabelText(/^email/i), 'sales@acme.example');
+    await user.click(within(dialog).getByRole('button', { name: /save vendor/i }));
+
+    await waitFor(() => expect(created).toHaveBeenCalled());
+    expect(created.mock.calls[0][0]).toMatchObject({
+      name: 'Acme Pumps',
+      contactNo: '9876543210',
+      email: 'sales@acme.example',
+    });
   });
 });

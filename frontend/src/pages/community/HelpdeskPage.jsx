@@ -4,6 +4,7 @@ import { api } from '@/api/client';
 import DataGrid from '@/components/DataGrid.jsx';
 import { EmptyState, ErrorNotice, Modal, Spinner } from '@/components/ui.jsx';
 import { PageHeader, StatCard, Tabs, TextAreaField } from '@/components/FormControls.jsx';
+import { useToast } from '@/components/Toast.jsx';
 import {
   fetchProtectedUrl,
   needsAuth,
@@ -137,6 +138,7 @@ function TicketImage({ path }) {
 export default function HelpdeskPage() {
   const [rows, setRows] = useState([]);
   const [statuses, setStatuses] = useState([]);
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -206,8 +208,10 @@ export default function HelpdeskPage() {
       });
       setReply('');
       await openComments(comments.ticket);
+      toast.success('Your reply has been posted to the ticket.', { title: 'Reply sent' });
     } catch (err) {
       setError(err);
+      toast.error(err?.message ?? 'The reply could not be posted. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -228,8 +232,25 @@ export default function HelpdeskPage() {
       setRows((prev) =>
         prev.map((r) => (r.helpdesk_id === row.helpdesk_id ? { ...r, status } : r)),
       );
+      // The row updates in place and the dropdown keeps its new value whether
+      // or not the write landed, so without this a failed save looks identical
+      // to a successful one.
+      // The statuses are loaded from the API, so name the one just picked
+      // rather than hard-coding a list that could drift from it.
+      const label = statuses.find((s) => Number(s.id) === status)?.status;
+      toast.success(
+        label
+          ? `Ticket #${row.helpdesk_id} set to ${label}.`
+          : `Ticket #${row.helpdesk_id} updated.`,
+        { title: 'Status updated' },
+      );
     } catch (err) {
       setError(err);
+      // Put the dropdown back, so it does not claim a status the API refused.
+      setRows((prev) =>
+        prev.map((r) => (r.helpdesk_id === row.helpdesk_id ? { ...r, status: row.status } : r)),
+      );
+      toast.error(err?.message ?? 'The ticket status could not be changed. Please try again.');
     } finally {
       setSavingStatus(null);
     }

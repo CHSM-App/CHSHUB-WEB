@@ -180,10 +180,72 @@
   .field-input:disabled {
     background-color: #e9ecef;
   }
+
+  /*
+   * A rejected field turns red itself, rather than relying on a line of small
+   * text below it to carry the whole message. Bootstrap's .is-invalid, driven
+   * off the data-invalid the Field wrapper sets, so no page has to remember to
+   * add a class to its own input.
+   *
+   * :focus still wins on border-color further down, deliberately: while the
+   * user is fixing the field the blue ring tells them where they are, and the
+   * red returns the moment they leave it still empty.
+   */
+  [data-invalid] .field-input,
+  .field-input.is-invalid {
+    border-color: #dc3545;
+    background-color: #fffafa;
+  }
+  [data-invalid] .field-input:focus,
+  .field-input.is-invalid:focus {
+    border-color: #dc3545;
+    box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.2);
+  }
+
+  /*
+   * The complaint under a field, with its warning mark.
+   *
+   * The icon rides on the rule rather than the markup because four different
+   * controls render this line — Field, TextField, SelectField, TextAreaField —
+   * and they had drifted: some showed an icon, some plain text, so the same
+   * mistake looked different depending on which screen you were on.
+   *
+   * An inline SVG data URI, not a glyph: no webfont is loaded, and colour
+   * alone must not be the only signal that something is wrong.
+   */
   .field-error {
-    @apply mt-1;
+    @apply mt-1 flex items-center gap-1;
     font-size: 0.8125rem;
     color: #dc3545;
+  }
+  .field-error::before {
+    content: '';
+    flex: none;
+    width: 0.875rem;
+    height: 0.875rem;
+    background-color: currentColor;
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6.6' fill='none' stroke='black' stroke-width='1.5'/%3E%3Cpath d='M8 4.8v3.6m0 2.3h.01' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6.6' fill='none' stroke='black' stroke-width='1.5'/%3E%3Cpath d='M8 4.8v3.6m0 2.3h.01' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+    mask-repeat: no-repeat;
+    -webkit-mask-repeat: no-repeat;
+  }
+
+  /*
+   * The field a failed submit jumped to. A brief wash of red draws the eye to
+   * where the page has just scrolled, which a static border alone does not —
+   * the user pressed Save and needs to understand why nothing saved.
+   */
+  .field-flash {
+    animation: field-flash 1.1s ease-out;
+  }
+  @keyframes field-flash {
+    0%,
+    100% {
+      background-color: transparent;
+    }
+    18% {
+      background-color: rgba(220, 53, 69, 0.13);
+    }
   }
 
   /*
@@ -302,6 +364,58 @@
     }
   }
 
+  /*
+   * Dialog entrance. The backdrop fades and the panel rises a little as it
+   * scales in — the movement is what tells the eye a new layer arrived on top
+   * of the page rather than the page itself having changed. Kept short (180ms)
+   * because these open on a click and anything slower reads as lag.
+   */
+  .modal-backdrop {
+    animation: modal-backdrop-in 180ms ease-out;
+  }
+  .modal-panel {
+    animation: modal-panel-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes modal-backdrop-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes modal-panel-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  /* The draining bar under a toast — how long it has left before it clears.
+     Paused while the pointer is over the card, so a toast being read does not
+     disappear mid-sentence; Toast.jsx pauses its timer at the same moment. */
+  .toast-progress {
+    transform-origin: left;
+    animation-name: toast-drain;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+  }
+  .toast-card:hover .toast-progress {
+    animation-play-state: paused;
+  }
+  @keyframes toast-drain {
+    from {
+      transform: scaleX(1);
+    }
+    to {
+      transform: scaleX(0);
+    }
+  }
+
   /* Users who prefer reduced motion get the surface without the sweep, and
      tiles that settle instead of sliding. */
   @media (prefers-reduced-motion: reduce) {
@@ -314,6 +428,28 @@
     .stat-tile:hover {
       transition: none;
       transform: none;
+    }
+    /* The toast still has to appear — only the slide and the drain go. Its
+       entrance animates opacity, so this forces the visible end state rather
+       than leaving the card mounted at zero. */
+    .toast-card {
+      transition: none;
+      transform: none;
+      opacity: 1;
+    }
+    .toast-progress {
+      animation: none;
+    }
+    /* The dialog still has to arrive — only the rise and the fade go. Both
+       animate from opacity 0, so the animation is dropped rather than paused;
+       the elements' own static styles already are the visible end state. */
+    .modal-backdrop,
+    .modal-panel {
+      animation: none;
+    }
+    /* The scroll and the red border still mark the field; only the pulse goes. */
+    .field-flash {
+      animation: none;
     }
   }
 
@@ -597,6 +733,16 @@
     overflow: visible !important;
     background: transparent !important;
     padding: 0 !important;
+    /* The entrance animation ends at opacity 1, so it is harmless on paper —
+       but the blurred backdrop is not, and neither is an animation caught
+       mid-flight if the print fires as the dialog opens. */
+    animation: none !important;
+    backdrop-filter: none !important;
+  }
+  .modal-root > div {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
   }
   .modal-root > div {
     position: static !important;

@@ -2,6 +2,26 @@ import { useRef, useState } from 'react';
 import { api } from '@/api/client';
 import { useOptionalUser } from '@/auth/AuthContext.jsx';
 
+/**
+ * The red asterisk on a mandatory field's label.
+ *
+ * aria-hidden with an sr-only word beside it: the asterisk is a sighted
+ * shorthand, and read aloud it turns "Facility name" into "Facility name star".
+ * Matches the marker <Field> renders, so a required field looks and sounds the
+ * same on every screen.
+ */
+function RequiredMark({ required }) {
+  if (!required) return null;
+  return (
+    <>
+      <span className="ml-0.5 text-red-500" aria-hidden="true">
+        *
+      </span>
+      <span className="sr-only"> (required)</span>
+    </>
+  );
+}
+
 /** Labelled input with inline validation message. Replaces asp:TextBox + validator. */
 export function TextField({ label, error, required, hint, type = 'text', className = '', ...rest }) {
   const id = `f-${rest.name}`;
@@ -15,15 +35,16 @@ export function TextField({ label, error, required, hint, type = 'text', classNa
     <div className={className}>
       <label htmlFor={id} className="field-label">
         {label}
-        {required ? <span className="ml-0.5 text-red-500">*</span> : null}
+        <RequiredMark required={required} />
       </label>
       <div className={isPassword ? 'relative' : undefined}>
         <input
           id={id}
           type={inputType}
-          className={`field-input ${isPassword ? 'pr-10' : ''} ${
-            error ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : ''
-          }`}
+          // .is-invalid, not Tailwind's border-red-400: .field-input sets
+          // border-color inside @layer components, so a utility of the same
+          // specificity lost to it on file order and the field stayed blue.
+          className={`field-input ${isPassword ? 'pr-10' : ''} ${error ? 'is-invalid' : ''}`}
           aria-invalid={Boolean(error)}
           aria-describedby={error ? `${id}-err` : undefined}
           {...rest}
@@ -92,11 +113,11 @@ export function SelectField({
     <div className={className}>
       <label htmlFor={id} className="field-label">
         {label}
-        {required ? <span className="ml-0.5 text-red-500">*</span> : null}
+        <RequiredMark required={required} />
       </label>
       <select
         id={id}
-        className={`field-input ${error ? 'border-red-400' : ''}`}
+        className={`field-input ${error ? 'is-invalid' : ''}`}
         aria-invalid={Boolean(error)}
         {...rest}
       >
@@ -123,12 +144,12 @@ export function TextAreaField({ label, error, required, hint, rows = 4, classNam
     <div className={className}>
       <label htmlFor={id} className="field-label">
         {label}
-        {required ? <span className="ml-0.5 text-red-500">*</span> : null}
+        <RequiredMark required={required} />
       </label>
       <textarea
         id={id}
         rows={rows}
-        className={`field-input ${error ? 'border-red-400' : ''}`}
+        className={`field-input ${error ? 'is-invalid' : ''}`}
         aria-invalid={Boolean(error)}
         {...rest}
       />

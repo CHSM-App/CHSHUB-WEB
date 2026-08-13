@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useState } from 'react';
 import { village } from '@/api/modules';
 import { EmptyState, ErrorNotice, Spinner } from '@/components/ui.jsx';
 import ExportToolbar from '@/components/ExportToolbar.jsx';
+import { useToast } from '@/components/Toast.jsx';
 
 /*
  * Raising a period's bills.
@@ -53,6 +54,7 @@ export default function BillRunPage() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
+  const toast = useToast();
   // The house whose charges are expanded, if any.
   const [openHouse, setOpenHouse] = useState(null);
 
@@ -104,8 +106,18 @@ export default function BillRunPage() {
       const data = await village.runBills({ year, month });
       setResult(data);
       await load(year, month);
+      // A bill run is the kind of operation worth stating plainly — it writes
+      // a row per house and cannot be undone from the app.
+      const raised = Number(data?.bills ?? 0);
+      toast.success(
+        raised
+          ? `${raised} bill(s) raised for ${MONTHS[month - 1]} ${year}.`
+          : `Nothing new to raise for ${MONTHS[month - 1]} ${year} — the period is already billed.`,
+        { title: raised ? 'Bills generated' : 'Already billed' },
+      );
     } catch (err) {
       setError(err);
+      toast.error(err?.message ?? 'The bill run could not be completed. Please try again.');
     } finally {
       setRunning(false);
     }

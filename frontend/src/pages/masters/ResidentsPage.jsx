@@ -12,7 +12,13 @@ import {
   fetchProtectedUrl,
   revokeBlobUrl,
 } from '@/lib/storedFile';
-import { ConfirmDialog, ErrorNotice, Field, Modal, Spinner } from '@/components/ui.jsx';
+import { ConfirmDialog, ErrorNotice, Field, Modal, Spinner, FormErrorSummary } from '@/components/ui.jsx';
+import {
+  countErrors,
+  findInvalidFormats,
+  validateFields,
+  focusFirstInvalid,
+} from '@/components/formValidation.js';
 
 /**
  * The three files rental_search.aspx's "View Docs" opened, as
@@ -157,6 +163,22 @@ const toForm = (row) => ({
  * Owners and tenants are the same record type (owner_master.type), so one page
  * serves both. `type` is fixed by the route: 'Owner' or 'Rent'.
  */
+/*
+ * What Submit insists on, in the shape validateFields expects.
+ *
+ * The three optional contact boxes are listed without `required` so they are
+ * format-checked when filled: this form renders an email and two more numbers
+ * that no rule covered, so a tenant saved with "abc" in the email box.
+ */
+const RESIDENT_FORM_FIELDS = [
+  { name: 'name', label: 'Full name', required: true },
+  { name: 'mobile', label: 'Mobile', required: true, phone: true, digits: true, maxLength: 10 },
+  { name: 'altMobile', label: 'Alternate mobile', phone: true, digits: true, maxLength: 10 },
+  { name: 'email', label: 'Email', type: 'email' },
+  { name: 'wingId', label: 'Wing', type: 'select', required: true },
+  { name: 'officeTel', label: 'Office telephone', phone: true, digits: true, maxLength: 10 },
+];
+
 export default function ResidentsPage({ type = 'Owner' }) {
   const isTenant = type === 'Rent';
   const noun = isTenant ? 'tenant' : 'owner';
@@ -174,6 +196,8 @@ export default function ResidentsPage({ type = 'Owner' }) {
   const [lookups, setLookups] = useState({ wings: [], docs: [], marital: [], availableFlats: [] });
   const [editing, setEditing] = useState(null);
   const [confirming, setConfirming] = useState(null);
+  // name -> message, for the fields the last submit found empty.
+  const [fieldErrors, setFieldErrors] = useState({});
   const [familyFor, setFamilyFor] = useState(null);
   const [docsRow, setDocsFor] = useState(null);
 
@@ -213,11 +237,45 @@ export default function ResidentsPage({ type = 'Owner' }) {
   // only the first keystroke survives.
   const setField = (key) => (e) => {
     const { value } = e.target;
-    setEditing((prev) => ({ ...prev, form: { ...prev.form, [key]: value } }));
+    const field = RESIDENT_FORM_FIELDS.find((f) => f.name === key);
+    /*
+     * A `digits` field takes 0-9 only, trimmed to maxLength — the same filter
+     * the two shared form engines apply. These inputs are hand-rolled rather
+     * than rendered from the field list, so they had no filter at all.
+     */
+    const next =
+      field?.digits ? String(value).replace(/\D/g, '').slice(0, field.maxLength) : value;
+    setFieldErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
+    setEditing((prev) => ({ ...prev, form: { ...prev.form, [key]: next } }));
+  };
+
+  /*
+   * Checked when the box loses focus, rather than saving up every complaint
+   * until Submit: a mistyped address is easiest to fix while you are still
+   * looking at it, and waiting until the end means scrolling back.
+   *
+   * Only what is already filled in is judged — tabbing through an empty
+   * optional box should not put an error under it, and an empty required one
+   * is Submit's business.
+   */
+  const checkField = (key) => () => {
+    const field = RESIDENT_FORM_FIELDS.find((f) => f.name === key);
+    if (!field) return;
+    const { [key]: message } = findInvalidFormats([field], editing.form);
+    if (message) setFieldErrors((prev) => ({ ...prev, [key]: message }));
   };
 
   const onSubmit = async (event) => {
     event.preventDefault();
+
+    // The form carries noValidate, so nothing enforced the asterisks — an
+    // empty save wrote a blank row. Same pass as every other screen.
+    const missing = validateFields(RESIDENT_FORM_FIELDS, editing.form);
+    setFieldErrors(missing);
+    if (Object.keys(missing).length) {
+      focusFirstInvalid(RESIDENT_FORM_FIELDS, missing);
+      return;
+    }
     const f = editing.form;
     const body = {
       ...f,
@@ -376,20 +434,42 @@ export default function ResidentsPage({ type = 'Owner' }) {
       >
         {editing ? (
           <form id="resident-form" onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2" noValidate>
-            <Field label="Full name" required>
+            <FormErrorSummary count={countErrors(fieldErrors)} />
+            <Field label="Full name" required name="name" error={fieldErrors.name}>
               <input className="field-input" value={editing.form.name} onChange={setField('name')} required />
             </Field>
-            <Field label="Mobile" required>
-              <input className="field-input" value={editing.form.mobile} onChange={setField('mobile')} required />
+            <Field label="Mobile" required name="mobile" error={fieldErrors.mobile}>
+              <input
+                className="field-input"
+                inputMode="numeric"
+                maxLength={10}
+                value={editing.form.mobile}
+                onChange={setField('mobile')}
+                onBlur={checkField('mobile')}
+                required
+              />
             </Field>
-            <Field label="Alternate mobile">
-              <input className="field-input" value={editing.form.altMobile} onChange={setField('altMobile')} />
+            <Field label="Alternate mobile" name="altMobile" error={fieldErrors.altMobile}>
+              <input
+                className="field-input"
+                inputMode="numeric"
+                maxLength={10}
+                value={editing.form.altMobile}
+                onChange={setField('altMobile')}
+                onBlur={checkField('altMobile')}
+              />
             </Field>
-            <Field label="Email">
-              <input className="field-input" type="email" value={editing.form.email} onChange={setField('email')} />
+            <Field label="Email" name="email" error={fieldErrors.email}>
+              <input
+                className="field-input"
+                type="email"
+                value={editing.form.email}
+                onChange={setField('email')}
+                onBlur={checkField('email')}
+              />
             </Field>
 
-            <Field label="Wing" required>
+            <Field label="Wing" required name="wingId" error={fieldErrors.wingId}>
               <select className="field-input" value={editing.form.wingId} onChange={setField('wingId')} required>
                 <option value="">Select a wing…</option>
                 {lookups.wings.map((w) => (
@@ -457,8 +537,15 @@ export default function ResidentsPage({ type = 'Owner' }) {
                 onChange={setField('officeAddress2')}
               />
             </Field>
-            <Field label="Office telephone">
-              <input className="field-input" value={editing.form.officeTel} onChange={setField('officeTel')} />
+            <Field label="Office telephone" name="officeTel" error={fieldErrors.officeTel}>
+              <input
+                className="field-input"
+                inputMode="numeric"
+                maxLength={10}
+                value={editing.form.officeTel}
+                onChange={setField('officeTel')}
+                onBlur={checkField('officeTel')}
+              />
             </Field>
             <Field label="ID document type">
               <select className="field-input" value={editing.form.docId} onChange={setField('docId')}>

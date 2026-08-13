@@ -166,6 +166,21 @@ router.delete(
   '/owners/:id',
   asyncHandler(async (req, res) => {
     const id = int(req.params.id, 'id', { min: 1 });
+
+    /*
+     * Read the row first, to check it belongs to the signed-in village. The SP
+     * takes only village_owner_id, so without this any village could delete
+     * any other's owner by guessing an id — every other route on this file
+     * makes the same check.
+     */
+    const rows = await query('sp_house_owner', {
+      operation: 'Select',
+      village_owner_id: { type: sql.Int, value: id },
+    });
+    if (!rows[0] || String(rows[0].village_id) !== String(req.villageId)) {
+      throw ApiError.notFound('House owner not found');
+    }
+
     await exec('sp_house_owner', {
       operation: 'Delete',
       village_owner_id: { type: sql.Int, value: id },

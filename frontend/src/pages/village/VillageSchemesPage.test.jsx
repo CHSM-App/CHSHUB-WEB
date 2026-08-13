@@ -133,8 +133,47 @@ describe('VillageSchemesPage', () => {
     await user.click(screen.getByRole('button', { name: 'Add' }));
     await user.click(await screen.findByRole('button', { name: 'Save' }));
 
-    expect(await screen.findByText('Scheme name is required')).toBeInTheDocument();
+    expect(await screen.findByText('Enter the scheme name')).toBeInTheDocument();
     expect(onCreate).not.toHaveBeenCalled();
+  });
+
+  /*
+   * Naming the field was not enough on a two-column form: the complaint could
+   * sit below the fold, so pressing Save looked like it did nothing at all.
+   * The count says how much is left, and focus moves to the first offender.
+   */
+  it('summarises what is missing and puts the cursor in the first empty field', async () => {
+    const user = userEvent.setup();
+    server.use(...handlers({}));
+    render(<VillageSchemesPage />);
+
+    await screen.findByText('Gharkul Yojana');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    await user.click(await screen.findByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByText(/required field/i)).toBeInTheDocument();
+
+    // The offending control is focused, so it can be typed into straight away.
+    const name = screen.getByLabelText(/Scheme name/i);
+    expect(document.activeElement).toBe(name);
+    // ...and marked, rather than leaving the message to carry it alone.
+    expect(name.closest('[data-invalid]')).not.toBeNull();
+  });
+
+  it('drops the summary once the fields are answered', async () => {
+    const user = userEvent.setup();
+    server.use(...handlers({}));
+    render(<VillageSchemesPage />);
+
+    await screen.findByText('Gharkul Yojana');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    await user.click(await screen.findByRole('button', { name: 'Save' }));
+    expect(await screen.findByText(/required field/i)).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/Scheme name/i), 'Awas Yojana');
+    // The complaint clears as the field is answered, not only on the next
+    // submit — a form that keeps scolding a fixed field reads as broken.
+    expect(screen.queryByText(/required field/i)).not.toBeInTheDocument();
   });
 
   /*

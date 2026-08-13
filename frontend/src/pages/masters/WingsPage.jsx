@@ -1,7 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { buildings as buildingsApi, wings } from '@/api/masters';
 import useCrudResource from './useCrudResource';
-import { ConfirmDialog, EmptyState, ErrorNotice, Field, Modal, Spinner } from '@/components/ui.jsx';
+import { ConfirmDialog, EmptyState, ErrorNotice, Field, Modal, Spinner, FormErrorSummary } from '@/components/ui.jsx';
+import {
+  countErrors,
+  validateFields,
+  focusFirstInvalid,
+} from '@/components/formValidation.js';
+
+/* What Submit insists on, in the shape validateFields expects. */
+const WING_FIELDS = [
+  { name: 'buildingId', label: 'Building', type: 'select', required: true },
+  { name: 'name', label: 'Wing name', required: true },
+];
 
 export default function WingsPage() {
   const [buildingFilter, setBuildingFilter] = useState('');
@@ -16,6 +27,8 @@ export default function WingsPage() {
   const [buildingOptions, setBuildingOptions] = useState([]);
   const [editing, setEditing] = useState(null);
   const [confirming, setConfirming] = useState(null);
+  // name -> message, for the fields the last submit found empty.
+  const [fieldErrors, setFieldErrors] = useState({});
 
   // Buildings populate both the filter and the form's parent selector.
   useEffect(() => {
@@ -47,11 +60,21 @@ export default function WingsPage() {
   // Read e.target.value eagerly — see ResidentsPage for the full explanation.
   const setField = (key) => (e) => {
     const { value } = e.target;
+    setFieldErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
     setEditing((prev) => ({ ...prev, form: { ...prev.form, [key]: value } }));
   };
 
   const onSubmit = async (event) => {
     event.preventDefault();
+
+    // The form carries noValidate, so nothing enforced the asterisks — an
+    // empty save wrote a blank row. Same pass as every other screen.
+    const missing = validateFields(WING_FIELDS, editing.form);
+    setFieldErrors(missing);
+    if (Object.keys(missing).length) {
+      focusFirstInvalid(WING_FIELDS, missing);
+      return;
+    }
     const body = { name: editing.form.name, buildingId: Number(editing.form.buildingId) };
     try {
       if (editing.id) await update(editing.id, body);
@@ -152,7 +175,8 @@ export default function WingsPage() {
       >
         {editing ? (
           <form id="wing-form" onSubmit={onSubmit} className="grid gap-4" noValidate>
-            <Field label="Building" required>
+            <FormErrorSummary count={countErrors(fieldErrors)} />
+            <Field label="Building" required name="buildingId" error={fieldErrors.buildingId}>
               <select
                 className="field-input"
                 value={editing.form.buildingId}
@@ -167,7 +191,7 @@ export default function WingsPage() {
                 ))}
               </select>
             </Field>
-            <Field label="Wing name" required>
+            <Field label="Wing name" required name="name" error={fieldErrors.name}>
               <input className="field-input" value={editing.form.name} onChange={setField('name')} required />
             </Field>
             <ErrorNotice error={error} />

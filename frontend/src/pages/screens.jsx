@@ -106,7 +106,7 @@ export const StaffPage = () => (
     ]}
     fields={[
       { name: 'name', label: 'Name', required: true },
-      { name: 'contactNo', label: 'Contact number' },
+      { name: 'contactNo', label: 'Contact number', phone: true, digits: true, maxLength: 10 },
       { name: 'email', label: 'Email', type: 'email' },
       { name: 'address', label: 'Address' },
       { name: 'dateOfJoin', label: 'Date of joining', type: 'date' },
@@ -145,7 +145,7 @@ export const CaretakersPage = () => (
       { name: 'name', label: 'Name', required: true },
       { name: 'address', label: 'Address' },
       { name: 'area', label: 'Area' },
-      { name: 'mobile', label: 'Mobile' },
+      { name: 'mobile', label: 'Mobile', phone: true, digits: true, maxLength: 10 },
       { name: 'email', label: 'Email', type: 'email' },
       { name: 'city', label: 'City' },
       { name: 'pincode', label: 'Pincode' },
@@ -178,8 +178,8 @@ export const HelpersPage = () => (
     ]}
     fields={[
       { name: 'name', label: 'Name', required: true },
-      { name: 'mobile1', label: 'Mobile' },
-      { name: 'mobile2', label: 'Alternate mobile' },
+      { name: 'mobile1', label: 'Mobile', phone: true, digits: true, maxLength: 10 },
+      { name: 'mobile2', label: 'Alternate mobile', phone: true, digits: true, maxLength: 10 },
       { name: 'address1', label: 'Address line 1' },
       { name: 'address2', label: 'Address line 2' },
       { name: 'remark', label: 'Remark', span: 2 },
@@ -211,7 +211,7 @@ export const ContactsPage = () => (
       { name: 'name', label: 'Name', required: true },
       { name: 'typeId', label: 'Type', type: 'select', lookup: 'types', optionValue: 'p_type_id', optionLabel: 'p_type_name' },
       { name: 'orgName', label: 'Organisation' },
-      { name: 'contactNo', label: 'Contact number' },
+      { name: 'contactNo', label: 'Contact number', phone: true, digits: true, maxLength: 10 },
       { name: 'email', label: 'Email', type: 'email' },
       { name: 'address', label: 'Address line 1' },
       { name: 'address2', label: 'Address line 2' },
@@ -676,7 +676,7 @@ export const VendorsPage = () => (
     fields={[
       { name: 'name', label: 'Vendor name', required: true },
       { name: 'contactPerson', label: 'Contact person' },
-      { name: 'contactNo', label: 'Contact number' },
+      { name: 'contactNo', label: 'Contact number', phone: true, digits: true, maxLength: 10 },
       { name: 'email', label: 'Email', type: 'email' },
       { name: 'serviceType', label: 'Service type' },
       { name: 'gstNo', label: 'GST number' },
@@ -993,8 +993,10 @@ export const VillageStaffPage = () => {
       { name: 'name', label: 'Name', required: true, span: 2 },
       { name: 'roleId', label: 'Role', type: 'select', lookup: 'roles', optionValue: 'role_id', optionLabel: 'role', required: true, span: 2 },
       // MaxLength="10" plus the digits-only onkeypress the legacy field
-      // carried, and what Village_staff.contact_no holds.
-      { name: 'contactNo', label: 'Contact number', required: true, span: 2, digits: true, maxLength: 10 },
+      // carried, and what Village_staff.contact_no holds. `digits` stops the
+      // typing at ten characters; `phone` is what rejects a short number on
+      // submit, which the input filter alone never did.
+      { name: 'contactNo', label: 'Contact number', required: true, span: 2, digits: true, maxLength: 10, phone: true },
       { name: 'address', label: 'Address', required: true, span: 2 },
       { name: 'salary', label: 'Salary', type: 'number', required: true, span: 2 },
       { name: 'joinedDate', label: 'Joined date', type: 'date', required: true, span: 2 },

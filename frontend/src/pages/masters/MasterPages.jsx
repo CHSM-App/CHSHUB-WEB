@@ -11,7 +11,21 @@ import {
   fetchProtectedUrl,
   revokeBlobUrl,
 } from '@/lib/storedFile';
-import { ConfirmDialog, EmptyState, ErrorNotice, Modal, Spinner } from '@/components/ui.jsx';
+import {
+  ConfirmDialog,
+  EmptyState,
+  ErrorNotice,
+  FormErrorSummary,
+  Modal,
+  Spinner,
+} from '@/components/ui.jsx';
+import { useToast } from '@/components/Toast.jsx';
+import {
+  countErrors,
+  validateFields,
+  focusFirstInvalid,
+  singularise,
+} from '@/components/formValidation.js';
 import {
   CheckboxField,
   FileUploadField,
@@ -52,6 +66,20 @@ function addMonths(date, months) {
  * export) and renders fields through the FormControls set, so every screen gets
  * the same production behaviour without being written out per page.
  */
+/**
+ * The default delete prompt: quotes the row's first column, which is the
+ * identifying one on every screen, so the user can see what they are about to
+ * destroy without cancelling to go and re-read it.
+ */
+function describeDeletion(row, columns, deleteLabel) {
+  const identifier = row?.[columns?.[0]?.key];
+  const consequence = 'This cannot be undone from the app.';
+  if (identifier === null || identifier === undefined || String(identifier).trim() === '') {
+    return `${deleteLabel} this record? ${consequence}`;
+  }
+  return `${deleteLabel} “${String(identifier).trim()}”? ${consequence}`;
+}
+
 function MasterScreen({
   title,
   resource,
@@ -81,6 +109,11 @@ function MasterScreen({
   const [lookups, setLookups] = useState({});
   const [form, setForm] = useState(null);
   const [confirming, setConfirming] = useState(null);
+  // name -> message, for the fields the last submit found empty.
+  const [fieldErrors, setFieldErrors] = useState({});
+  const toast = useToast();
+  // "Buildings" is the screen; "Building" is what a toast just saved.
+  const recordLabel = singularise(title);
 
   // `filterRow` screens narrow the loaded rows in the browser, so the term is
   // not a query parameter. It is also kept out of the dependencies below:
@@ -127,13 +160,56 @@ function MasterScreen({
     return rows.filter((r) => filterRow(r, term));
   }, [rows, search, filterRow]);
 
-  const setField = (key) => (e) => {
+  const setField = (key, field) => (e) => {
     const { value, type, checked } = e.target;
-    setForm((prev) => ({ ...prev, [key]: type === 'checkbox' ? checked : value }));
+    let next = type === 'checkbox' ? checked : value;
+    /*
+     * A `digits` field takes 0-9 only, trimmed to maxLength — the same filter
+     * GenericCrudPage applies. Doing it on the value catches a paste as well,
+     * which the legacy onkeypress never saw.
+     */
+    if (field?.digits && type !== 'checkbox') {
+      next = String(next).replace(/\D/g, '');
+      if (field.maxLength) next = next.slice(0, field.maxLength);
+    }
+    setForm((prev) => ({ ...prev, [key]: next }));
+    // Clear the field's complaint as soon as it is being answered, rather than
+    // leaving it up until the next submit.
+    setFieldErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
+  };
+
+  // Opening and closing both reset the complaints, so a dialog dismissed with
+  // errors up does not reopen still showing them.
+  const openForm = (values) => {
+    setFieldErrors({});
+    setError(null);
+    setForm(values);
+  };
+  const closeForm = () => {
+    setFieldErrors({});
+    setError(null);
+    setForm(null);
   };
 
   const onSubmit = async (event) => {
     event.preventDefault();
+
+    /*
+     * The same required-field pass GenericCrudPage runs, so both families of
+     * screen reject an empty form the same way. This used to be a single
+     * banner from `validate`, which named one problem at a time and left the
+     * offending input looking untouched.
+     *
+     * `validate` still runs, for the cross-field rules a per-field check
+     * cannot express ("a rented flat needs a tenant"); it keeps the banner.
+     */
+    const missing = validateFields(fields, form);
+    setFieldErrors(missing);
+    if (Object.keys(missing).length) {
+      focusFirstInvalid(fields, missing);
+      return;
+    }
+
     const message = validate?.(form);
     if (message) {
       setError(new Error(message));
@@ -143,12 +219,20 @@ function MasterScreen({
     setError(null);
     try {
       const body = toBody ? toBody(form) : form;
-      if (form.__id) await resource.update(form.__id, body);
+      const wasEdit = Boolean(form.__id);
+      if (wasEdit) await resource.update(form.__id, body);
       else await resource.create(body);
-      setForm(null);
+      closeForm();
       await load();
+      // These screens call the resource directly rather than going through
+      // useCrudResource, so the confirmation is raised here — same wording as
+      // every other list screen.
+      toast.success(`${recordLabel} ${wasEdit ? 'updated' : 'added'} successfully.`, {
+        title: 'Saved',
+      });
     } catch (err) {
       setError(err);
+      toast.error('Your changes were not saved. Please check the form and try again.');
     } finally {
       setBusy(false);
     }
@@ -176,7 +260,7 @@ function MasterScreen({
         {/* Screens whose legacy page carried an extra toolbar button. */}
         {headerActions}
         {canCreate ? (
-          <button type="button" className="btn-primary" onClick={() => setForm({ ...blank })}>
+          <button type="button" className="btn-primary" onClick={() => openForm({ ...blank })}>
             Add
           </button>
         ) : null}
@@ -202,7 +286,7 @@ function MasterScreen({
               <button
                 type="button"
                 className="btn-secondary px-2 text-xs"
-                onClick={() => setForm({ ...toForm(row), __id: row[idKey] })}
+                onClick={() => openForm({ ...toForm(row), __id: row[idKey] })}
               >
                 Edit
               </button>
@@ -213,7 +297,10 @@ function MasterScreen({
                   onClick={() =>
                     setConfirming({
                       title: `${deleteLabel} record`,
-                      message: deleteMessage?.(row) ?? `${deleteLabel} this record?`,
+                      // Names the row being destroyed rather than asking about
+                      // "this record" — see the same fallback in
+                      // GenericCrudPage for why the first column identifies it.
+                      message: deleteMessage?.(row) ?? describeDeletion(row, columns, deleteLabel),
                       run: () => resource.remove(row[idKey]),
                     })
                   }
@@ -229,10 +316,10 @@ function MasterScreen({
       <Modal
         open={Boolean(form)}
         title={`${form?.__id ? 'Edit' : 'Add'} — ${title}`}
-        onClose={() => setForm(null)}
+        onClose={closeForm}
         footer={
           <>
-            <button type="button" className="btn-secondary" onClick={() => setForm(null)} disabled={busy}>
+            <button type="button" className="btn-secondary" onClick={closeForm} disabled={busy}>
               Cancel
             </button>
             <button type="submit" form="master-form" className="btn-primary" disabled={busy}>
@@ -243,6 +330,7 @@ function MasterScreen({
       >
         {form ? (
           <form id="master-form" onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2" noValidate>
+            <FormErrorSummary count={countErrors(fieldErrors)} />
             {fields.map((f) => {
               // Values computed from other fields, recalculated as they change
               // — the legacy pages did this with an AutoPostBack per input.
@@ -254,9 +342,12 @@ function MasterScreen({
                 name: f.name,
                 required: f.required,
                 hint: f.hint,
+                // The controls already render the message and set aria-invalid
+                // — they were simply never given anything to show.
+                error: fieldErrors[f.name],
                 className: span,
                 value: derived !== undefined ? derived : (form[f.name] ?? ''),
-                onChange: setField(f.name),
+                onChange: setField(f.name, f),
               };
               if (f.type === 'select') {
                 return (
@@ -277,7 +368,7 @@ function MasterScreen({
                     name={f.name}
                     className={span}
                     checked={Boolean(form[f.name])}
-                    onChange={setField(f.name)}
+                    onChange={setField(f.name, f)}
                   />
                 );
               }
@@ -295,7 +386,20 @@ function MasterScreen({
                   />
                 );
               }
-              return <TextField {...common} type={f.type ?? 'text'} step={f.step} readOnly={f.readOnly} />;
+              return (
+                <TextField
+                  {...common}
+                  type={f.type ?? 'text'}
+                  step={f.step}
+                  readOnly={f.readOnly}
+                  // The field stops taking characters at the limit rather than
+                  // letting the user type past it and refusing the whole save
+                  // afterwards. A numeric keypad on mobile for digits fields;
+                  // not type="number", which brings a spinner and accepts "e".
+                  maxLength={f.maxLength}
+                  inputMode={f.digits ? 'numeric' : undefined}
+                />
+              );
             })}
             <div className="sm:col-span-2">
               <ErrorNotice error={error} />
@@ -316,8 +420,12 @@ function MasterScreen({
           try {
             await confirming.run();
             await load();
+            // This screen calls the resource directly rather than going through
+            // useCrudResource, so the confirmation is raised here.
+            toast.success(`${recordLabel} deleted successfully.`, { title: 'Deleted' });
           } catch (err) {
             setError(err);
+            toast.error(err?.message ?? 'The record could not be deleted. Please try again.');
           } finally {
             setBusy(false);
             setConfirming(null);
@@ -467,7 +575,7 @@ export function StaffMasterPage() {
           optionValue: 'role_id',
           optionLabel: 'role',
         },
-        { name: 'contactNo', label: 'Contact number' },
+        { name: 'contactNo', label: 'Contact number', phone: true, digits: true, maxLength: 10 },
         { name: 'email', label: 'Email', type: 'email' },
         { name: 'address', label: 'Address', span: 2 },
         { name: 'dateOfJoin', label: 'Date of joining', type: 'date' },
@@ -1073,8 +1181,8 @@ export function HelpersMasterPage() {
       ]}
       fields={[
         { name: 'name', label: 'Helper name', required: true },
-        { name: 'mobile1', label: 'Mobile number' },
-        { name: 'mobile2', label: 'Alternate mobile' },
+        { name: 'mobile1', label: 'Mobile number', phone: true, digits: true, maxLength: 10 },
+        { name: 'mobile2', label: 'Alternate mobile', phone: true, digits: true, maxLength: 10 },
         { name: 'address1', label: 'Address line 1' },
         { name: 'address2', label: 'Address line 2' },
         // Each service is a checkbox plus the charge it attracts, as in
@@ -1117,6 +1225,9 @@ export function HelpersMasterPage() {
  * Replaces parking_allotment_search.aspx, whose grid joined vehicles, parking
  * places and owners.
  */
+/* What Assign insists on — a place cannot be allotted without a flat. */
+const ALLOT_FIELDS = [{ name: 'flatId', label: 'Owner', type: 'select', required: true }];
+
 export function ParkingAllotmentPage() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1124,6 +1235,7 @@ export function ParkingAllotmentPage() {
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(null);
   const [form, setForm] = useState(null);
+  const toast = useToast();
   const [places, setPlaces] = useState([]);
   const [owners, setOwners] = useState([]);
   const [vehicles, setVehicles] = useState([]);
@@ -1447,8 +1559,10 @@ export function ParkingAllotmentPage() {
           try {
             await confirming.run();
             await load();
+            toast.success('Parking place released successfully.', { title: 'Released' });
           } catch (err) {
             setError(err);
+            toast.error(err?.message ?? 'The parking place could not be released. Please try again.');
           } finally {
             setBusy(false);
             setConfirming(null);
@@ -1471,6 +1585,22 @@ const EMPTY_MEMBER = {
   contactNo: '',
 };
 
+/*
+ * What Submit insists on, in the shape validateFields expects.
+ *
+ * E-mail ID and Username carry a red asterisk on the form but were not listed,
+ * so nothing enforced either — a member saved with both blank, and the e-mail
+ * took any text at all. The password is required only when adding: editing
+ * leaves it blank to keep the current one, which is why it is not here.
+ */
+const MEMBER_FIELDS = [
+  { name: 'ownerId', label: 'Name', type: 'select', required: true },
+  { name: 'userTypeId', label: 'Designation', type: 'select', required: true },
+  { name: 'contactNo', label: 'Contact no', required: true, phone: true, digits: true, maxLength: 10 },
+  { name: 'email', label: 'E-mail ID', required: true, type: 'email' },
+  { name: 'username', label: 'Username', required: true },
+];
+
 export function CommitteeMembersPage() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1485,6 +1615,10 @@ export function CommitteeMembersPage() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
   const [confirming, setConfirming] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  // name -> message, for the fields the last submit found empty.
+  const [memberErrors, setMemberErrors] = useState({});
+  const toast = useToast();
 
   useEffect(() => {
     setLoading(true);
@@ -1511,6 +1645,7 @@ export function CommitteeMembersPage() {
    */
   const pickOwner = (e) => {
     const ownerId = e.target.value;
+    setMemberErrors((p) => (p.ownerId ? { ...p, ownerId: undefined } : p));
     const o = ownerOptions.find((x) => String(x.owner_id) === String(ownerId));
     setEditing((p) => ({
       ...p,
@@ -1569,11 +1704,33 @@ export function CommitteeMembersPage() {
 
   const setField = (key) => (e) => {
     const { value } = e.target;
-    setEditing((p) => ({ ...p, form: { ...p.form, [key]: value } }));
+    const field = MEMBER_FIELDS.find((f) => f.name === key);
+    // A `digits` field takes 0-9 only, trimmed to maxLength, as the shared form
+    // engines do — these inputs are hand-rolled and had no filter.
+    const next = field?.digits
+      ? String(value).replace(/\D/g, '').slice(0, field.maxLength)
+      : value;
+    setEditing((p) => ({ ...p, form: { ...p.form, [key]: next } }));
+    // The complaint goes as soon as it is being answered.
+    setMemberErrors((p) => (p[key] ? { ...p, [key]: undefined } : p));
   };
 
   const saveMember = async (e) => {
     e.preventDefault();
+
+    /*
+     * A new member needs a password; an existing one keeps theirs when the box
+     * is left blank, so it is only insisted on while adding.
+     */
+    const fields = editing.id
+      ? MEMBER_FIELDS
+      : [...MEMBER_FIELDS, { name: 'password', label: 'Password', required: true }];
+    const missing = validateFields(fields, editing.form);
+    setMemberErrors(missing);
+    if (Object.keys(missing).length) {
+      focusFirstInvalid(fields, missing);
+      return;
+    }
     setSaving(true);
     setFormError(null);
     try {
@@ -1586,12 +1743,19 @@ export function CommitteeMembersPage() {
       // keep whatever is stored, rather than clearing the link.
       if (editing.form.ownerId) body.ownerId = Number(editing.form.ownerId);
       else if (!editing.ownerUnknown && !editing.id) body.ownerId = 0;
-      if (editing.id) await api.put(`/masters/members/${editing.id}`, body);
+      const wasEdit = Boolean(editing.id);
+      if (wasEdit) await api.put(`/masters/members/${editing.id}`, body);
       else await api.post('/masters/members', body);
       setEditing(null);
       reload();
+      toast.success(`Committee member ${wasEdit ? 'updated' : 'added'} successfully.`, {
+        title: 'Saved',
+      });
     } catch (err) {
       setFormError(err);
+      // The detail renders inside the form, which stays open; this covers the
+      // case where that notice has scrolled out of view.
+      toast.error('Your changes were not saved. Please check the form and try again.');
     } finally {
       setSaving(false);
     }
@@ -1666,6 +1830,7 @@ export function CommitteeMembersPage() {
       >
         {editing ? (
           <form id="member-form" onSubmit={saveMember} className="grid gap-4 sm:grid-cols-2" noValidate>
+            <FormErrorSummary count={countErrors(memberErrors)} />
             {/*
               Labels and placeholders follow society_member_search.aspx. "Name"
               there is a picker over the resident list, not a text box — the
@@ -1674,6 +1839,7 @@ export function CommitteeMembersPage() {
             <SelectField
               label="Name"
               name="ownerId"
+              error={memberErrors.ownerId}
               required
               placeholder="Select Name"
               options={ownerOptions}
@@ -1685,6 +1851,7 @@ export function CommitteeMembersPage() {
             <SelectField
               label="Designation"
               name="userTypeId"
+              error={memberErrors.userTypeId}
               required
               placeholder="Select Designation"
               options={memberTypes}
@@ -1696,8 +1863,11 @@ export function CommitteeMembersPage() {
             <TextField
               label="Contact No."
               name="contactNo"
+              error={memberErrors.contactNo}
               required
               placeholder="Enter contact No."
+              inputMode="numeric"
+              maxLength={10}
               value={editing.form.contactNo}
               onChange={setField('contactNo')}
             />
@@ -1705,6 +1875,7 @@ export function CommitteeMembersPage() {
               label="E-mail ID"
               name="email"
               type="email"
+              error={memberErrors.email}
               required
               placeholder="Enter Email"
               value={editing.form.email}
@@ -1713,6 +1884,7 @@ export function CommitteeMembersPage() {
             <TextField
               label="Username"
               name="username"
+              error={memberErrors.username}
               required
               placeholder="Enter Username"
               value={editing.form.username}
@@ -1722,6 +1894,7 @@ export function CommitteeMembersPage() {
               label="Password"
               name="password"
               type="password"
+              error={memberErrors.password}
               required={!editing.id}
               placeholder="Enter Password"
               // Not in the legacy page, which always rewrote the password —
@@ -1741,14 +1914,21 @@ export function CommitteeMembersPage() {
         open={Boolean(confirming)}
         title="Delete committee member"
         message={`Delete ${confirming?.name}? Their login will stop working.`}
+        // Without this the confirm button stayed live while the delete was in
+        // flight, and an impatient second click sent the request twice.
+        busy={deleting}
         onCancel={() => setConfirming(null)}
         onConfirm={async () => {
+          setDeleting(true);
           try {
             await api.delete(`/masters/members/${confirming.user_id}`);
             reload();
+            toast.success(`${confirming.name} removed from the committee.`, { title: 'Deleted' });
           } catch (err) {
             setError(err);
+            toast.error(err?.message ?? 'The member could not be removed. Please try again.');
           } finally {
+            setDeleting(false);
             setConfirming(null);
           }
         }}

@@ -3,7 +3,20 @@ import { village } from '@/api/modules';
 import { api } from '@/api/client';
 import { useOptionalUser } from '@/auth/AuthContext.jsx';
 import DataGrid from '@/components/DataGrid.jsx';
-import { ConfirmDialog, EmptyState, ErrorNotice, Modal, Spinner } from '@/components/ui.jsx';
+import {
+  ConfirmDialog,
+  EmptyState,
+  ErrorNotice,
+  FormErrorSummary,
+  Modal,
+  Spinner,
+} from '@/components/ui.jsx';
+import { useToast } from '@/components/Toast.jsx';
+import {
+  countErrors,
+  validateFields,
+  focusFirstInvalid,
+} from '@/components/formValidation.js';
 import {
   FileUploadField,
   ModeSwitch,
@@ -58,9 +71,27 @@ const rowTotal = (row) =>
   Number(row?.water_charges || 0) +
   Number(row?.waste_charges || 0);
 
+/*
+ * What Submit insists on, in the shape validateFields expects.
+ *
+ * Owner Name, Phone and House No. are the three the record cannot be filed
+ * without: the grid lists residents by name and house, and the phone is how
+ * the panchayat reaches them.
+ *
+ * House No. carries a showIf because it is only asked for when adding — an
+ * existing resident's house is already set, and the dialog does not offer to
+ * move them to another one.
+ */
+const RESIDENT_FIELDS = [
+  { name: 'name', label: 'Owner name', required: true },
+  { name: 'mobile', label: 'Phone', required: true, phone: true, digits: true, maxLength: 10 },
+  { name: 'houseNo', label: 'House no.', required: true, showIf: (f) => !f.__id },
+];
+
 export function VillageResidentsPage() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const toast = useToast();
   /*
    * Two error slots, because they belong to two different places on screen.
    *
@@ -108,30 +139,15 @@ export function VillageResidentsPage() {
   const save = async (event) => {
     event.preventDefault();
 
-    /*
-     * Checked on Submit rather than as you type, which is when the legacy page
-     * checked. Owner Name, Phone and House No. are the three the record cannot
-     * be filed without: the grid lists residents by name and house, and the
-     * phone is how the panchayat reaches them.
-     *
-     * House No. is only asked for when adding — an existing resident's house is
-     * already set, and the dialog does not offer to move them to another one.
-     */
-    const missing = {};
-    if (!form.name.trim()) missing.name = 'Owner name is required';
-    if (!String(form.mobile ?? '').trim()) missing.mobile = 'Phone is required';
-    if (!form.__id && !String(form.houseNo ?? '').trim()) {
-      missing.houseNo = 'House no. is required';
-    }
-
+    // Checked on Submit rather than as you type, which is when the legacy page
+    // checked. What counts as required is RESIDENT_FIELDS, above.
+    const missing = validateFields(RESIDENT_FIELDS, form);
     if (Object.keys(missing).length) {
       setFieldErrors(missing);
       setFormError(null);
       // The dialog scrolls, so the first field at fault is brought into view —
       // pressing Submit from the bottom would otherwise mark a box above it.
-      const first = event.currentTarget?.elements?.[Object.keys(missing)[0]];
-      first?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
-      first?.focus?.({ preventScroll: true });
+      focusFirstInvalid(RESIDENT_FIELDS, missing);
       return;
     }
 
@@ -184,12 +200,15 @@ export function VillageResidentsPage() {
           idProofPath: form.idProofPath,
         });
       }
+      const wasEdit = Boolean(form.__id);
       setForm(null);
       await load();
+      toast.success(`Resident ${wasEdit ? 'updated' : 'added'} successfully.`, { title: 'Saved' });
     } catch (err) {
       // A save that fails leaves the dialog open with what was typed, so the
       // message belongs in it rather than on the page behind.
       setFormError(err);
+      toast.error('Your changes were not saved. Please check the form and try again.');
     } finally {
       setBusy(false);
     }
@@ -237,8 +256,10 @@ export function VillageResidentsPage() {
       });
       setEditing(null);
       await load();
+      toast.success('House charges updated successfully.', { title: 'Saved' });
     } catch (err) {
       setError(err);
+      toast.error(err?.message ?? 'The row could not be saved. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -437,6 +458,7 @@ export function VillageResidentsPage() {
       >
         {form ? (
           <form id="vres-form" onSubmit={save} className="grid gap-4 sm:grid-cols-2" noValidate>
+            <FormErrorSummary count={countErrors(fieldErrors)} />
             {/*
               addHouseModal's own order: Owner Name, Address, Phone, then House
               No. beside House SqFt, then the three charge boxes, then Waste
@@ -551,8 +573,10 @@ export function VillageResidentsPage() {
           try {
             await confirming.run();
             await load();
+            toast.success('Resident deleted successfully.', { title: 'Deleted' });
           } catch (err) {
             setError(err);
+            toast.error(err?.message ?? 'The resident could not be deleted. Please try again.');
           } finally {
             setBusy(false);
             setConfirming(null);
@@ -574,6 +598,21 @@ const PAY_METHODS = [
 ];
 
 const EMPTY_PAYMENT = { payMode: 1, transactionRef: '', chequeNo: '', chequeDate: '', remark: '' };
+
+/*
+ * What a payment must carry, by method. Cash needs nothing beyond the receipt;
+ * the other two are only traceable if their identifying details are there — a
+ * cheque with no number cannot be matched to a bank statement.
+ *
+ * Keyed by Village_payment_type’s own codes, as PAY_METHODS is.
+ */
+const PAYMENT_FIELDS_BY_MODE = {
+  4: [{ name: 'transactionRef', label: 'Transaction reference', required: true }],
+  2: [
+    { name: 'chequeNo', label: 'Cheque no.', required: true },
+    { name: 'chequeDate', label: 'Cheque date', required: true },
+  ],
+};
 
 /** Village_payment_type's codes, for the pay dialog's heading. */
 const CHARGE_TYPE_NAMES = { 1: 'Property Tax', 2: 'Water Charges', 3: 'Waste Charges' };
@@ -806,6 +845,7 @@ export function VillagePaymentsPage() {
    */
   const user = useOptionalUser();
   const villageName = user?.village_name || '';
+  const toast = useToast();
   const [smsSelected, setSmsSelected] = useState([]);
   const [smsPreview, setSmsPreview] = useState(false);
   const [pending, setPending] = useState([]);
@@ -825,6 +865,8 @@ export function VillagePaymentsPage() {
   const [paying, setPaying] = useState(null); // { house, bills, selected:Set }
   const [payForm, setPayForm] = useState({ ...EMPTY_PAYMENT });
   const [payBusy, setPayBusy] = useState(false);
+  // name -> message, for the payment boxes the last submit found empty.
+  const [payFieldErrors, setPayFieldErrors] = useState({});
   const [payError, setPayError] = useState(null);
 
   /**
@@ -969,6 +1011,7 @@ export function VillagePaymentsPage() {
   const openPay = async (house, type) => {
     setPayError(null);
     setPayForm({ ...EMPTY_PAYMENT });
+    setPayFieldErrors({});
     setPaying({ house, type, bills: [], selected: new Set(), loading: true });
     try {
       const d = await village.houseTaxBills(house.house_id, Number(type));
@@ -1011,17 +1054,23 @@ export function VillagePaymentsPage() {
         .reduce((s, b) => s + Number(b.pending_amount || 0), 0)
     : 0;
 
+  const clearPayFieldError = (key) =>
+    setPayFieldErrors((p) => (p[key] ? { ...p, [key]: undefined } : p));
+
   const submitPayment = async (e) => {
     e.preventDefault();
 
-    // The boxes the legacy modal starred, for the method that is showing.
-    const mode = Number(payForm.payMode);
-    if (mode === 4 && !payForm.transactionRef.trim()) {
-      setPayError(new Error('Transaction Reference is required for a UPI payment'));
-      return;
-    }
-    if (mode === 2 && (!payForm.chequeNo.trim() || !payForm.chequeDate)) {
-      setPayError(new Error('Cheque No. and Cheque Date are required for a cheque payment'));
+    /*
+     * The boxes the legacy modal starred, for the method that is showing —
+     * marked against the box at fault rather than named in one sentence, the
+     * same as every other form in the app.
+     */
+    const payFields = PAYMENT_FIELDS_BY_MODE[Number(payForm.payMode)] ?? [];
+    const missing = validateFields(payFields, payForm);
+    setPayFieldErrors(missing);
+    if (Object.keys(missing).length) {
+      setPayError(null);
+      focusFirstInvalid(payFields, missing);
       return;
     }
 
@@ -1036,10 +1085,18 @@ export function VillagePaymentsPage() {
         chequeDate: payForm.chequeDate,
         remark: payForm.remark,
       });
+      const count = paying.selected.size;
       setPaying(null);
       await load();
+      // Money changing hands is the one outcome an operator most needs
+      // confirmed, so it names how many bills the receipt covered.
+      toast.success(
+        count === 1 ? 'Payment recorded for 1 bill.' : `Payment recorded for ${count} bills.`,
+        { title: 'Payment saved' },
+      );
     } catch (err) {
       setPayError(err);
+      toast.error(err?.message ?? 'The payment could not be recorded. Please try again.');
     } finally {
       setPayBusy(false);
     }
@@ -1364,7 +1421,8 @@ export function VillagePaymentsPage() {
         {paying?.loading ? (
           <Spinner label="Loading pending bills…" />
         ) : paying ? (
-          <form id="village-pay-form" onSubmit={submitPayment} className="space-y-4">
+          <form id="village-pay-form" onSubmit={submitPayment} className="space-y-4" noValidate>
+            <FormErrorSummary count={countErrors(payFieldErrors)} />
             {paying.bills.length === 0 ? (
               <EmptyState title="No unpaid bills of this type for this house" />
             ) : (
@@ -1442,7 +1500,7 @@ export function VillagePaymentsPage() {
                 placeholder=""
                 options={PAY_METHODS}
                 value={String(payForm.payMode)}
-                onChange={(e) =>
+                onChange={(e) => {
                   setPayForm((p) => ({
                     ...p,
                     payMode: Number(e.target.value),
@@ -1451,8 +1509,11 @@ export function VillagePaymentsPage() {
                     transactionRef: '',
                     chequeNo: '',
                     chequeDate: '',
-                  }))
-                }
+                  }));
+                  // ...and its complaints go with those inputs, rather than
+                  // hanging over boxes that are no longer shown.
+                  setPayFieldErrors({});
+                }}
               />
 
               {/*
@@ -1466,10 +1527,15 @@ export function VillagePaymentsPage() {
                   label="Transaction Reference"
                   name="transactionRef"
                   required
+                  error={payFieldErrors.transactionRef}
                   maxLength={50}
                   placeholder="Enter transaction/reference number"
                   value={payForm.transactionRef}
-                  onChange={(e) => setPayForm((p) => ({ ...p, transactionRef: e.target.value }))}
+                  onChange={(e) => {
+                    const { value } = e.target;
+                    setPayForm((p) => ({ ...p, transactionRef: value }));
+                    clearPayFieldError('transactionRef');
+                  }}
                 />
               ) : null}
 
@@ -1479,18 +1545,28 @@ export function VillagePaymentsPage() {
                     label="Cheque No."
                     name="chequeNo"
                     required
+                    error={payFieldErrors.chequeNo}
                     maxLength={50}
                     placeholder="Enter Cheque number"
                     value={payForm.chequeNo}
-                    onChange={(e) => setPayForm((p) => ({ ...p, chequeNo: e.target.value }))}
+                    onChange={(e) => {
+                      const { value } = e.target;
+                      setPayForm((p) => ({ ...p, chequeNo: value }));
+                      clearPayFieldError('chequeNo');
+                    }}
                   />
                   <TextField
                     label="Cheque Date"
                     name="chequeDate"
                     type="date"
                     required
+                    error={payFieldErrors.chequeDate}
                     value={payForm.chequeDate}
-                    onChange={(e) => setPayForm((p) => ({ ...p, chequeDate: e.target.value }))}
+                    onChange={(e) => {
+                      const { value } = e.target;
+                      setPayForm((p) => ({ ...p, chequeDate: value }));
+                      clearPayFieldError('chequeDate');
+                    }}
                   />
                 </>
               ) : null}

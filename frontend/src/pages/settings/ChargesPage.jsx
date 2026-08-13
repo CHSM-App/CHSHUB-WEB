@@ -1,7 +1,12 @@
 import { useMemo, useState } from 'react';
 import { charges } from '@/api/settings';
 import useCrudResource from '../masters/useCrudResource';
-import { ConfirmDialog, EmptyState, ErrorNotice, Field, Modal, Spinner } from '@/components/ui.jsx';
+import { ConfirmDialog, EmptyState, ErrorNotice, Field, Modal, Spinner, FormErrorSummary } from '@/components/ui.jsx';
+import {
+  countErrors,
+  validateFields,
+  focusFirstInvalid,
+} from '@/components/formValidation.js';
 
 const EMPTY = { name: '', amount: '', chargesType: '1', active: true };
 
@@ -21,6 +26,13 @@ const toForm = (row) => ({
  * Maintenance charge heads. Each charge's amount is divided across the
  * society's flats when a bill is generated.
  */
+/* What Submit insists on, in the shape validateFields expects. */
+const CHARGE_FIELDS = [
+  { name: 'name', label: 'Nature of charge', required: true },
+  { name: 'amount', label: 'Amount', required: true },
+  { name: 'chargesType', label: 'Charge type', type: 'select', required: true },
+];
+
 export default function ChargesPage() {
   const [typeFilter, setTypeFilter] = useState('');
   const params = useMemo(
@@ -33,6 +45,8 @@ export default function ChargesPage() {
 
   const [editing, setEditing] = useState(null);
   const [confirming, setConfirming] = useState(null);
+  // name -> message, for the fields the last submit found empty.
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const openCreate = () => setEditing({ id: null, form: { ...EMPTY } });
   const openEdit = (row) => setEditing({ id: row.charge_id, form: toForm(row) });
@@ -48,10 +62,21 @@ export default function ChargesPage() {
       ...prev,
       form: { ...prev.form, [key]: type === 'checkbox' ? checked : value },
     }));
+    // The complaint goes as soon as it is being answered.
+    setFieldErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
   };
 
   const onSubmit = async (event) => {
     event.preventDefault();
+
+    // The form carries noValidate, so nothing enforced the asterisks — an
+    // empty save wrote a blank row. Same pass as every other screen.
+    const missing = validateFields(CHARGE_FIELDS, editing.form);
+    setFieldErrors(missing);
+    if (Object.keys(missing).length) {
+      focusFirstInvalid(CHARGE_FIELDS, missing);
+      return;
+    }
     try {
       if (editing.id) await update(editing.id, editing.form);
       else await create(editing.form);
@@ -200,10 +225,11 @@ export default function ChargesPage() {
       >
         {editing ? (
           <form id="charge-form" onSubmit={onSubmit} className="grid gap-4" noValidate>
-            <Field label="Nature of charge" required>
+            <FormErrorSummary count={countErrors(fieldErrors)} />
+            <Field label="Nature of charge" required name="name" error={fieldErrors.name}>
               <input className="field-input" value={editing.form.name} onChange={setField('name')} required />
             </Field>
-            <Field label="Amount" required hint="Divided across all flats at bill generation">
+            <Field label="Amount" required name="amount" error={fieldErrors.amount} hint="Divided across all flats at bill generation">
               <input
                 className="field-input"
                 type="number"
@@ -214,7 +240,7 @@ export default function ChargesPage() {
                 required
               />
             </Field>
-            <Field label="Charge type" required>
+            <Field label="Charge type" required name="chargesType" error={fieldErrors.chargesType}>
               <select className="field-input" value={editing.form.chargesType} onChange={setField('chargesType')}>
                 <option value="1">Regular — included in the monthly bill</option>
                 <option value="0">Add-on — used for ad-hoc bills</option>

@@ -4,8 +4,10 @@ import { onboarding } from '@/api/onboarding';
 import { api } from '@/api/client';
 import { useAuth } from '@/auth/AuthContext.jsx';
 import { ErrorNotice, Field } from '@/components/ui.jsx';
+import { findInvalidFormats } from '@/components/formValidation.js';
 import RichTextField from '@/components/RichTextField.jsx';
 import { AuthSplitLayout, AuthSubmit, Glyph } from '@/components/AuthLayout.jsx';
+import { useToast } from '@/components/Toast.jsx';
 
 /*
  * Replaces new_society.aspx — the four-step wizard a new account was sent to
@@ -59,6 +61,16 @@ const REQUIRED = [
   ['ratePerSqFt', 'twoWheelerRate', 'fourWheelerRate', 'billGenerationDay', 'billDuePeriodDays'],
 ];
 
+/*
+ * The boxes on step 2 that have a shape as well as having to be filled, in the
+ * form validateFields takes. Being non-empty was the only test here, so a
+ * society saved with "abc" as its e-mail and a three-digit contact number.
+ */
+const FORMATTED = [
+  { name: 'contactNo', label: 'Contact number', phone: true, digits: true, maxLength: 10 },
+  { name: 'email', label: 'Email ID', type: 'email' },
+];
+
 export default function SocietySetupPage() {
   const navigate = useNavigate();
   const { societyId, refreshUser, logout } = useAuth();
@@ -67,6 +79,7 @@ export default function SocietySetupPage() {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const toast = useToast();
   const [regions, setRegions] = useState({ states: [], districts: [], divisions: [] });
   const [form, setForm] = useState({
     // Step 1
@@ -123,6 +136,17 @@ export default function SocietySetupPage() {
   /** Required fields still empty on a given step. */
   const missingOn = (i) => REQUIRED[i].filter((k) => String(form[k] ?? '').trim() === '');
 
+  /*
+   * name -> message for anything on this step that is filled but the wrong
+   * shape. Scoped to the step's own fields so a bad e-mail on step 2 cannot
+   * block step 4, which does not show it.
+   */
+  const badFormatOn = (i) =>
+    findInvalidFormats(
+      FORMATTED.filter((f) => REQUIRED[i].includes(f.name)),
+      form,
+    );
+
   const stepComplete = missingOn(step).length === 0;
 
   const onSubmit = async (event) => {
@@ -131,6 +155,15 @@ export default function SocietySetupPage() {
     // A step will not be left until its own starred fields are filled.
     if (!stepComplete) {
       setError(new Error('Please fill in every required field on this step.'));
+      return;
+    }
+
+    // Filled is not the same as usable — the contact number and e-mail have to
+    // be the right shape before the step is left, or the mistake is only found
+    // three steps later when the save fails.
+    const malformed = Object.values(badFormatOn(step));
+    if (malformed.length) {
+      setError(new Error(malformed[0]));
       return;
     }
 
@@ -151,6 +184,14 @@ export default function SocietySetupPage() {
       return;
     }
 
+    // Same for a field edited into the wrong shape after its step was passed.
+    const wrong = REQUIRED.findIndex((_, i) => Object.keys(badFormatOn(i)).length > 0);
+    if (wrong !== -1) {
+      setStep(wrong);
+      setError(new Error(Object.values(badFormatOn(wrong))[0]));
+      return;
+    }
+
     setError(null);
     setBusy(true);
     try {
@@ -161,6 +202,9 @@ export default function SocietySetupPage() {
       setDone(true);
     } catch (err) {
       setError(err);
+      // Success replaces the whole screen below, so only the failure needs a
+      // toast — the form stays put with every step's answers.
+      toast.error(err?.message ?? 'The society could not be saved. Please try again.');
     } finally {
       setBusy(false);
     }

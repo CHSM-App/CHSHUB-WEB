@@ -191,4 +191,78 @@ describe('ResidentsPage', () => {
       expect(within(dialog).getByText(/stored as a path on the old server/i)).toBeInTheDocument();
     });
   });
+
+  /*
+   * The form renders an email and two extra numbers that the page's field list
+   * did not mention, so nothing checked them — a tenant saved with "abc" as an
+   * address. The tenant route is used here because that is where it was found;
+   * both routes render the same form.
+   */
+  describe('contact validation', () => {
+    const openForm = async (user) => {
+      server.use(...handlers({ items: [] }));
+      render(<ResidentsPage type="Rent" />);
+      await user.click(await screen.findByRole('button', { name: /add tenant/i }));
+      return screen.findByRole('dialog');
+    };
+
+    it('complains about a malformed email as soon as the box is left', async () => {
+      const user = userEvent.setup();
+      const dialog = await openForm(user);
+
+      await user.type(within(dialog).getByLabelText(/^email/i), 'not-an-address');
+      // Focus moves on: the complaint is due now, not at Submit.
+      await user.tab();
+
+      expect(await within(dialog).findByText(/valid email address/i)).toBeInTheDocument();
+    });
+
+    it('clears the complaint once the address is corrected', async () => {
+      const user = userEvent.setup();
+      const dialog = await openForm(user);
+      const email = within(dialog).getByLabelText(/^email/i);
+
+      await user.type(email, 'nope');
+      await user.tab();
+      expect(await within(dialog).findByText(/valid email address/i)).toBeInTheDocument();
+
+      await user.clear(email);
+      await user.type(email, 'tenant@example.com');
+      await user.tab();
+      await waitFor(() =>
+        expect(within(dialog).queryByText(/valid email address/i)).not.toBeInTheDocument(),
+      );
+    });
+
+    it('keeps a mobile box to ten digits and refuses the letters', async () => {
+      const user = userEvent.setup();
+      const dialog = await openForm(user);
+      const mobile = within(dialog).getByLabelText(/^mobile/i);
+
+      await user.type(mobile, '98a76b543210999');
+      // Letters dropped on the way in, and the rest stops at ten.
+      expect(mobile).toHaveValue('9876543210');
+    });
+
+    it('blocks Save on a short alternate mobile, which nothing checked before', async () => {
+      const user = userEvent.setup();
+      let posted = null;
+      server.use(
+        ...handlers({ items: [], onCreate: (body) => (posted = body) }),
+      );
+      render(<ResidentsPage type="Rent" />);
+      await user.click(await screen.findByRole('button', { name: /add tenant/i }));
+      const dialog = await screen.findByRole('dialog');
+
+      await user.type(within(dialog).getByLabelText(/full name/i), 'R Deshpande');
+      await user.type(within(dialog).getByLabelText(/^mobile/i), '9876543210');
+      await user.selectOptions(within(dialog).getByLabelText(/wing/i), '1');
+      await user.type(within(dialog).getByLabelText(/alternate mobile/i), '98765');
+
+      await user.click(within(dialog).getByRole('button', { name: /^save$/i }));
+
+      expect(await within(dialog).findByText(/10-digit contact number/i)).toBeInTheDocument();
+      expect(posted).toBeNull();
+    });
+  });
 });

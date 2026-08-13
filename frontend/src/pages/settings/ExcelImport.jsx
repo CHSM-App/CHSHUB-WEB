@@ -4,6 +4,7 @@ import { parkingPlaces } from '@/api/modules';
 import { api } from '@/api/client';
 import { ErrorNotice } from '@/components/ui.jsx';
 import { SelectField } from '@/components/FormControls.jsx';
+import { useToast } from '@/components/Toast.jsx';
 
 /**
  * Bulk import from a spreadsheet — society_search.aspx's "Import Data" modal.
@@ -139,6 +140,7 @@ export default function ExcelImport({ onDone, defaultType = 'building' }) {
   const [progress, setProgress] = useState(null);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
+  const toast = useToast();
   const [lookups, setLookups] = useState(null);
 
   const selected = IMPORT_TYPES.find((t) => t.value === type);
@@ -370,6 +372,23 @@ export default function ExcelImport({ onDone, defaultType = 'building' }) {
     setProgress(null);
     setResult({ imported: imported.length, failed });
     setBusy(false);
+
+    /*
+     * One summary, not one per row — a hundred-row sheet would otherwise bury
+     * the screen. Partial success is the normal outcome here (the import skips
+     * duplicates rather than stopping), so a run with failures is reported as
+     * a warning-ish info rather than a flat error.
+     */
+    if (failed.length && !imported.length) {
+      toast.error(`Nothing was imported — all ${failed.length} row(s) failed. See the list below.`);
+    } else if (failed.length) {
+      toast.info(
+        `${imported.length} row(s) imported, ${failed.length} skipped. See the list below.`,
+        { title: 'Import finished' },
+      );
+    } else {
+      toast.success(`${imported.length} row(s) imported successfully.`, { title: 'Import complete' });
+    }
   };
 
   // Normalise both column shapes to [label, key] so the preview and the hint

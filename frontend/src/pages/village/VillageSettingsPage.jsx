@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { village } from '@/api/modules';
 import { ErrorNotice, Field, Spinner } from '@/components/ui.jsx';
 import { SettingsCard, ToggleRow } from '../settings/AccountSettingsPage.jsx';
+import { useToast } from '@/components/Toast.jsx';
 
 /*
  * Village billing settings — the village_setting row added in
@@ -37,6 +38,7 @@ export default function VillageSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [saved, setSaved] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     let cancelled = false;
@@ -73,8 +75,10 @@ export default function VillageSettingsPage() {
       const data = await village.settings();
       setForm(toForm(data.settings));
       setSaved(true);
+      toast.success('Village settings saved successfully.', { title: 'Saved' });
     } catch (err) {
       setError(err);
+      toast.error(err?.message ?? 'The settings could not be saved. Please try again.');
     } finally {
       setSaving(false);
     }

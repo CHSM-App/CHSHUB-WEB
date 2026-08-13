@@ -2,7 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { onboarding } from '@/api/onboarding';
 import { api } from '@/api/client';
 import { useAuth } from '@/auth/AuthContext.jsx';
-import { ErrorNotice, Field, Modal, Spinner } from '@/components/ui.jsx';
+import { ErrorNotice, Field, FormErrorSummary, Modal, Spinner } from '@/components/ui.jsx';
+import { useToast } from '@/components/Toast.jsx';
+import {
+  countErrors,
+  validateFields,
+  focusFirstInvalid,
+} from '@/components/formValidation.js';
 
 /**
  * Your own account, as a dialog — the profile modal Site.Master opened from the
@@ -13,6 +19,16 @@ import { ErrorNotice, Field, Modal, Spinner } from '@/components/ui.jsx';
  * The disabled first/last name, the username duplicate check and the
  * old-password-required rule all carry over.
  */
+/*
+ * What Save insists on, in the shape validateFields expects — the two
+ * fields already starred. The password pair is checked separately below,
+ * because it only applies while that section is open.
+ */
+const PROFILE_FIELDS = [
+  { name: 'username', label: 'Username', required: true },
+  { name: 'email', label: 'Email address', required: true, type: 'email' },
+];
+
 export default function ProfileDialog({ open, onClose }) {
   const { user } = useAuth();
   const [form, setForm] = useState(null);
@@ -21,6 +37,9 @@ export default function ProfileDialog({ open, onClose }) {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const toast = useToast();
+  // name -> message, for the fields the last save found empty.
+  const [fieldErrors, setFieldErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [reveal, setReveal] = useState({ next: false, confirm: false });
   const fileRef = useRef(null);
@@ -69,6 +88,8 @@ export default function ProfileDialog({ open, onClose }) {
     const { value } = e.target;
     setSaved(false);
     setForm((prev) => ({ ...prev, [key]: value }));
+    // The complaint goes as soon as it is being answered.
+    setFieldErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
   };
 
   const onPickPhoto = async (event) => {
@@ -95,6 +116,15 @@ export default function ProfileDialog({ open, onClose }) {
     setError(null);
     setSaved(false);
 
+    // The form carries noValidate, so nothing enforced the asterisks — a
+    // cleared username posted straight through.
+    const missing = validateFields(PROFILE_FIELDS, form);
+    setFieldErrors(missing);
+    if (Object.keys(missing).length) {
+      focusFirstInvalid(PROFILE_FIELDS, missing);
+      return;
+    }
+
     if (showPassword && form.newPassword && form.newPassword !== form.confirm) {
       setError(new Error('Passwords do not match'));
       return;
@@ -112,11 +142,17 @@ export default function ProfileDialog({ open, onClose }) {
         // the SP reads '' as "leave the password alone".
         ...(showPassword && form.newPassword ? { newPassword: form.newPassword } : {}),
       });
+      const changedPassword = showPassword && Boolean(form.newPassword);
       setSaved(true);
       setShowPassword(false);
       setForm((prev) => ({ ...prev, newPassword: '', confirm: '' }));
+      toast.success(
+        changedPassword ? 'Profile and password updated.' : 'Profile updated successfully.',
+        { title: 'Saved' },
+      );
     } catch (err) {
       setError(err);
+      toast.error(err?.message ?? 'Your profile could not be saved. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -154,6 +190,7 @@ export default function ProfileDialog({ open, onClose }) {
         )
       ) : (
         <form id="profile-form" onSubmit={onSubmit} noValidate>
+          <FormErrorSummary count={countErrors(fieldErrors)} />
           {/* Cover banner with the avatar overlapping it — the modal's
               .cover-image / .profile-container, restyled. The soft radial
               highlights keep the flat gradient from looking like a plain bar. */}
@@ -271,7 +308,8 @@ export default function ProfileDialog({ open, onClose }) {
                 <input className="field-input" value={form.lastName} disabled placeholder="Last Name" />
               </Field>
 
-              <Field label="Username" required>
+              <div data-field="username" className="rounded-md">
+              <Field label="Username" required name="username" error={fieldErrors.username}>
                 <input
                   className="field-input"
                   value={form.username}
@@ -280,7 +318,9 @@ export default function ProfileDialog({ open, onClose }) {
                   required
                 />
               </Field>
-              <Field label="Email Address" required>
+              </div>
+              <div data-field="email" className="rounded-md">
+              <Field label="Email Address" required name="email" error={fieldErrors.email}>
                 <input
                   className="field-input"
                   type="email"
@@ -290,6 +330,7 @@ export default function ProfileDialog({ open, onClose }) {
                   required
                 />
               </Field>
+              </div>
 
               <div className="sm:col-span-2">
                 <Field label="Contact">

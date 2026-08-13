@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { accountSettings } from '@/api/settings';
 import { ErrorNotice, Field, Spinner } from '@/components/ui.jsx';
+import { useToast } from '@/components/Toast.jsx';
 
 /**
  * The ON/OFF switches account_setting.aspx rendered as OFF/ON dropdowns, in the
@@ -54,6 +55,7 @@ export default function AccountSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [saved, setSaved] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     let cancelled = false;
@@ -87,8 +89,10 @@ export default function AccountSettingsPage() {
       const data = await accountSettings.save(form);
       setForm(toForm(data.settings));
       setSaved(true);
+      toast.success('Account settings saved successfully.', { title: 'Saved' });
     } catch (err) {
       setError(err);
+      toast.error(err?.message ?? 'The settings could not be saved. Please try again.');
     } finally {
       setSaving(false);
     }

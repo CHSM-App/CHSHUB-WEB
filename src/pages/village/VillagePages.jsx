@@ -719,6 +719,10 @@ function TaxReceipt({ receipt: r, villageName, bills = [] }) {
       */}
       {bills.length ? (
         <div className="mt-4 overflow-hidden rounded-xl" style={{ border: '1px solid var(--line)' }}>
+          <div className="overflow-x-auto">
+          {/* Deliberately not `stacked-table`: this is the printed receipt, and
+              the breakdown of what a payment settled belongs in a table on
+              paper. Only three narrow columns, so it fits a phone as it is. */}
           <table className="w-full text-sm">
             <thead>
               <tr style={{ background: '#f8fafc' }}>
@@ -737,9 +741,9 @@ function TaxReceipt({ receipt: r, villageName, bills = [] }) {
               {bills.map((b) => (
                 <tr key={b.house_receipt_id} className="border-t" style={{ borderColor: 'var(--line)' }}>
                   {/* A yearly charge has no month, so it reads as the year. */}
-                  <td className="px-4 py-2">{[b.Month, b.year].filter(Boolean).join(' ') || '—'}</td>
-                  <td className="px-4 py-2">{b.payment_type_name}</td>
-                  <td className="px-4 py-2 text-right font-semibold">₹{money(b.Amount_paid)}</td>
+                  <td className="px-4 py-2" data-label="Period">{[b.Month, b.year].filter(Boolean).join(' ') || '—'}</td>
+                  <td className="px-4 py-2" data-label="Charge">{b.payment_type_name}</td>
+                  <td className="px-4 py-2 text-right font-semibold" data-label="Amount">₹{money(b.Amount_paid)}</td>
                 </tr>
               ))}
             </tbody>
@@ -756,6 +760,7 @@ function TaxReceipt({ receipt: r, villageName, bills = [] }) {
               </tfoot>
             ) : null}
           </table>
+          </div>
         </div>
       ) : null}
 
@@ -1371,7 +1376,8 @@ export function VillagePaymentsPage() {
           houses and numbers a reminder would go to.
         </p>
         <div className="overflow-hidden rounded border" style={{ borderColor: 'var(--line)' }}>
-          <table className="min-w-full">
+          <div className="overflow-x-auto">
+          <table className="min-w-full stacked-table">
             <thead>
               <tr>
                 <th className="table-head">Name</th>
@@ -1384,13 +1390,14 @@ export function VillagePaymentsPage() {
                 .filter((r) => smsSelected.includes(r.house_id))
                 .map((r) => (
                   <tr key={r.house_id}>
-                    <td className="table-cell">{r.owner_name}</td>
-                    <td className="table-cell">{r.pre_mob || '—'}</td>
-                    <td className="table-cell text-right">₹{money(pendingTotal(r))}</td>
+                    <td className="table-cell" data-label="Name">{r.owner_name}</td>
+                    <td className="table-cell" data-label="Contact">{r.pre_mob || '—'}</td>
+                    <td className="table-cell text-right" data-label="Total Pending">₹{money(pendingTotal(r))}</td>
                   </tr>
                 ))}
             </tbody>
           </table>
+          </div>
         </div>
       </Modal>
 
@@ -1427,7 +1434,11 @@ export function VillagePaymentsPage() {
               <EmptyState title="No unpaid bills of this type for this house" />
             ) : (
               <div className="overflow-hidden rounded border" style={{ borderColor: '#e3e6f0' }}>
-                <table className="min-w-full">
+                {/* Inside a dialog on a phone this is the narrowest place a
+                    table appears, so it gets its own scroller rather than
+                    being clipped by the rounded border. */}
+                <div className="overflow-x-auto">
+                <table className="min-w-full stacked-table">
                   <thead>
                     <tr>
                       <th className="table-head w-10">
@@ -1448,7 +1459,7 @@ export function VillagePaymentsPage() {
                       const id = Number(b.house_receipt_id);
                       return (
                         <tr key={id}>
-                          <td className="table-cell">
+                          <td className="table-cell" data-label="Pay">
                             <input
                               type="checkbox"
                               aria-label={`Select bill ${b.receipt_no}`}
@@ -1461,16 +1472,17 @@ export function VillagePaymentsPage() {
                             empty Month for it — so it reads as the year alone
                             rather than a stray leading space.
                           */}
-                          <td className="table-cell">
+                          <td className="table-cell" data-label="Period">
                             {[b.Month, b.year].filter(Boolean).join(' ')}
                           </td>
-                          <td className="table-cell">{b.payment_type_name}</td>
-                          <td className="table-cell text-right">{money(b.pending_amount)}</td>
+                          <td className="table-cell" data-label="Type">{b.payment_type_name}</td>
+                          <td className="table-cell text-right" data-label="Pending">{money(b.pending_amount)}</td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
+                </div>
               </div>
             )}
 

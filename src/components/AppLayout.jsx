@@ -320,7 +320,7 @@ export default function AppLayout() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen w-full min-w-0 flex-col overflow-x-hidden">
       {/*
         Sticky white topbar with the CHS HUB mark on the left and the signed-in
         user on the right — the arrangement Site.Master used.
@@ -332,9 +332,8 @@ export default function AppLayout() {
           content scrolls under it, which is what tells the eye the bar is a
           layer above the page instead of part of it. */}
       <header
-        className="app-topbar sticky top-0 z-50 flex items-center justify-between"
+        className="app-topbar sticky top-0 z-50 flex items-center justify-between gap-2 px-3 py-3 sm:px-6"
         style={{
-          padding: '12px 24px',
           background: 'rgba(255,255,255,0.85)',
           backdropFilter: 'saturate(180%) blur(12px)',
           WebkitBackdropFilter: 'saturate(180%) blur(12px)',
@@ -342,10 +341,12 @@ export default function AppLayout() {
           boxShadow: '0 1px 2px rgba(1,41,112,0.04), 0 8px 24px -12px rgba(1,41,112,0.18)',
         }}
       >
-        <div className="flex items-center gap-4">
+        {/* min-w-0 lets this cluster shrink; without it the pill's text sets a
+            floor that pushed the account controls off a narrow screen. */}
+        <div className="flex min-w-0 items-center gap-2 sm:gap-4">
           <button
             type="button"
-            className="rounded p-2 text-lg leading-none lg:hidden"
+            className="-ml-1 flex h-11 w-11 shrink-0 items-center justify-center rounded text-lg leading-none lg:hidden"
             aria-label="Toggle navigation"
             aria-expanded={navOpen}
             onClick={() => setNavOpen((v) => !v)}
@@ -405,7 +406,7 @@ export default function AppLayout() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           {/* Polls, alerts bell and messages — the icon row Site.Master placed
               immediately left of the profile menu. */}
           <HeaderIcons />
@@ -447,7 +448,9 @@ export default function AppLayout() {
                 role="menu"
                 className="absolute right-0 z-50 mt-2 overflow-hidden bg-white py-1"
                 style={{
-                  width: 200,
+                  // Clamped the way HeaderIcons clamps its panels, so a
+                  // right-anchored menu cannot spill past a narrow viewport.
+                  width: 'min(200px, calc(100vw - 2rem))',
                   borderRadius: 14,
                   border: '1px solid #eef2f9',
                   // Matched to the alerts dropdown in HeaderIcons, so the two
@@ -510,7 +513,17 @@ export default function AppLayout() {
         </div>
       </header>
 
-      <div className="flex-1 lg:flex lg:items-start lg:gap-2">
+      {/*
+        min-w-0 on the row and w-full on the shell.
+
+        A flex item's minimum width defaults to its content, so the widest
+        thing on the page — the dashboard chart — set a floor for this row,
+        the row set one for the shell, and the shell grew past the viewport.
+        The page clips horizontal overflow, so that surplus did not show up as
+        a scrollbar: it showed up as content that started at the left edge and
+        ran off the right, leaving a white gutter the topbar did not have.
+      */}
+      <div className="w-full min-w-0 flex-1 lg:flex lg:items-start lg:gap-2">
         {/*
           Legacy sidebar: a white rounded card floating on the page background,
           not a full-height rail — ul#accordionSidebar in site_master_style.css.
@@ -522,8 +535,33 @@ export default function AppLayout() {
           away with it. The <aside> is a child of the page, which is what
           scrolls, so pinning it here is what actually holds the rail in place.
         */}
+        {/*
+          Backdrop for the mobile drawer. The rail is in normal flow on a
+          phone, so an open menu pushed the page down and the only way back
+          was to find the ☰ again — every other drawer on a phone closes when
+          you tap beside it. Desktop never sees this: the rail is permanent
+          there, so the layer is hidden from `lg` up.
+        */}
+        {navOpen ? (
+          <div
+            className="fixed inset-0 z-30 bg-slate-900/40 lg:hidden"
+            onClick={() => setNavOpen(false)}
+            aria-hidden="true"
+          />
+        ) : null}
+
+        {/*
+          On a phone the rail is an overlay pinned under the topbar, not a
+          block in the flow. In the flow it pushed the page content down by
+          its full height, so opening the menu on a short screen scrolled the
+          page away from whatever the user was looking at.
+        */}
         <aside
-          className={`${navOpen ? 'block' : 'hidden'} lg:block lg:shrink-0 lg:sticky lg:top-[84px]`}
+          className={`${
+            navOpen
+              ? 'fixed inset-y-0 left-0 top-[64px] z-40 w-[min(82vw,300px)] overflow-y-auto overscroll-contain'
+              : 'hidden'
+          } lg:sticky lg:inset-auto lg:top-[84px] lg:z-auto lg:block lg:w-auto lg:overflow-visible lg:shrink-0`}
           style={{ padding: '8px' }}
         >
           {/*
@@ -543,7 +581,7 @@ export default function AppLayout() {
             onScroll={(e) => {
               navScroll.current = e.currentTarget.scrollTop;
             }}
-            className="app-sidebar overscroll-contain rounded-2xl bg-white lg:h-[calc(100vh-100px)] lg:w-[260px] lg:overflow-y-auto"
+            className="app-sidebar min-h-full overscroll-contain rounded-2xl bg-white lg:h-[calc(100vh-100px)] lg:min-h-0 lg:w-[260px] lg:overflow-y-auto"
             style={{
               padding: '14px',
               border: '1px solid var(--shell-line)',
@@ -633,7 +671,7 @@ export default function AppLayout() {
           </nav>
         </aside>
 
-        <main className="min-w-0 flex-1 p-4 lg:p-6">
+        <main className="w-full min-w-0 max-w-full flex-1 overflow-x-hidden p-4 lg:p-6">
           <Outlet />
         </main>
       </div>

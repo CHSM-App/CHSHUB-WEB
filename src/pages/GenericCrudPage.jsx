@@ -274,7 +274,7 @@ export default function GenericCrudPage({
               exportTitle={title}
             />
             <div className="overflow-x-auto">
-            <table className="min-w-full">
+            <table className="min-w-full stacked-table">
               <thead>
                 <tr>
                   {columns.map((c) => (
@@ -301,12 +301,15 @@ export default function GenericCrudPage({
                         className={`${ci === 0 ? 'table-cell font-medium text-slate-800' : 'table-cell'}${
                           c.printHidden ? ' print:hidden' : ''
                         }`}
+                        /* Names the line in the phone card view, from the same
+                           column that titles it on a wide screen. */
+                        data-label={c.label}
                       >
                         {renderCell(c, row, i)}
                       </td>
                     ))}
                     {(canEdit && fields.length) || canDelete ? (
-                      <td className="table-cell whitespace-nowrap text-right print:hidden">
+                      <td className="table-cell whitespace-nowrap text-right print:hidden" data-actions="">
                         {/* gap-2 rather than a margin on the first button, so the
                             spacing matches DataGrid's action column. */}
                         <div className="flex items-center justify-end gap-2">

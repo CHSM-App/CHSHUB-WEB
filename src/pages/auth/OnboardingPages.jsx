@@ -567,8 +567,12 @@ export function SocietyProfilePage() {
         </button>
       </PageHeader>
 
+      {/* Six columns of address and registration text do not fit a phone.
+          overflow-hidden on the card clipped the last of them with no way to
+          reach them; the inner scroller lets the table run past the card. */}
       <div className="card overflow-hidden">
-        <table className="min-w-full">
+        <div className="overflow-x-auto">
+        <table className="min-w-full stacked-table">
           <thead>
             <tr>
               <th className="table-head">No</th>
@@ -582,12 +586,12 @@ export function SocietyProfilePage() {
           <tbody>
             {matches ? (
               <tr>
-                <td className="table-cell">1</td>
-                <td className="table-cell">{row.name || '—'}</td>
-                <td className="table-cell">{row.registration_no || '—'}</td>
-                <td className="table-cell">{row.address || '—'}</td>
-                <td className="table-cell">{row.contact_no || '—'}</td>
-                <td className="table-cell">
+                <td className="table-cell" data-label="No">1</td>
+                <td className="table-cell" data-label="Name">{row.name || '—'}</td>
+                <td className="table-cell" data-label="Registration No">{row.registration_no || '—'}</td>
+                <td className="table-cell" data-label="Address">{row.address || '—'}</td>
+                <td className="table-cell" data-label="Contact No">{row.contact_no || '—'}</td>
+                <td className="table-cell" data-label="Edit">
                   <button
                     type="button"
                     className="text-blue-600 hover:underline"
@@ -607,6 +611,7 @@ export function SocietyProfilePage() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       <Modal

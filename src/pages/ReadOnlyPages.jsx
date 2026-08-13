@@ -99,7 +99,7 @@ function DataTable({
               exportTitle={title}
             />
             <div className="overflow-x-auto">
-            <table className="min-w-full">
+            <table className="min-w-full stacked-table">
               <thead>
                 <tr>
                   {columns.map((c) => (
@@ -116,6 +116,9 @@ function DataTable({
                       <td
                         key={c.key}
                         className={ci === 0 ? 'table-cell font-medium text-slate-800' : 'table-cell'}
+                        /* Names the line in the phone card view, from the same
+                           column that titles it on a wide screen. */
+                        data-label={c.label}
                       >
                         {/* `i` is passed for the legacy grids' serial-number
                             column, which numbered rows off the grid position

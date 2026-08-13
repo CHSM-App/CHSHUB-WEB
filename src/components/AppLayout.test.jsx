@@ -1,6 +1,26 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter, NavLink } from 'react-router-dom';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, NavLink, Route, Routes } from 'react-router-dom';
+
+/*
+ * The session and the header's fetches are stubbed rather than driven through
+ * a real login: what these tests cover is the shell's own layout behaviour,
+ * and a login flow would only add a second thing that can fail.
+ */
+vi.mock('@/auth/AuthContext.jsx', () => ({
+  useAuth: () => ({
+    user: { name: 'Admin User', society_name: 'Test Society' },
+    logout: vi.fn(),
+    villageId: null,
+  }),
+  useOptionalUser: () => ({ name: 'Admin User', society_name: 'Test Society' }),
+}));
+
+vi.mock('@/components/HeaderIcons.jsx', () => ({ default: () => null }));
+vi.mock('@/pages/auth/ProfileDialog.jsx', () => ({ default: () => null }));
+
+const { default: AppLayout } = await import('./AppLayout.jsx');
 
 /*
  * Sidebar link matching.
@@ -41,5 +61,87 @@ describe('sidebar link matching', () => {
 
     expect(screen.getByText('PDC Reminder')).toHaveClass('active');
     expect(screen.getByText('PDC Clearing')).not.toHaveClass('active');
+  });
+});
+
+/*
+ * The mobile navigation drawer.
+ *
+ * jsdom applies no media queries, so the `lg:` classes that make the rail
+ * permanent on a desktop are inert here and what is asserted is the phone
+ * state — which is the state these tests are about.
+ */
+describe('mobile navigation drawer', () => {
+  const renderShell = () =>
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <Routes>
+          <Route element={<AppLayout />}>
+            <Route path="/dashboard" element={<p>Dashboard body</p>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+
+  const toggle = () => screen.getByRole('button', { name: /toggle navigation/i });
+
+  /*
+   * Asserted on the class rather than on the element being absent: the rail is
+   * always rendered — `hidden` is what conceals it — and jsdom applies no CSS,
+   * so the link stays in the tree either way.
+   */
+  it('keeps the menu closed until the toggle is pressed', () => {
+    const { container } = renderShell();
+
+    expect(toggle()).toHaveAttribute('aria-expanded', 'false');
+    expect(container.querySelector('aside').className).toContain('hidden');
+  });
+
+  it('opens the menu from the toggle', async () => {
+    const { container } = renderShell();
+    await userEvent.click(toggle());
+
+    expect(toggle()).toHaveAttribute('aria-expanded', 'true');
+    expect(container.querySelector('aside').className).not.toContain('hidden');
+    expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument();
+  });
+
+  /*
+   * The regression this guards: the drawer sat in normal flow with no way to
+   * dismiss it except finding the toggle again, so a tap beside the menu did
+   * nothing. Every drawer on a phone closes on an outside tap.
+   */
+  it('closes when the backdrop beside it is tapped', async () => {
+    const { container } = renderShell();
+    await userEvent.click(toggle());
+
+    const backdrop = container.querySelector('[aria-hidden="true"].fixed.inset-0');
+    expect(backdrop).not.toBeNull();
+
+    await userEvent.click(backdrop);
+    expect(toggle()).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('closes after a menu item is chosen', async () => {
+    renderShell();
+    await userEvent.click(toggle());
+
+    await userEvent.click(screen.getByRole('link', { name: 'Dashboard' }));
+    expect(toggle()).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  /*
+   * An overlay that is only as wide as its content would leave the page
+   * tappable behind it; one wider than the screen cannot be dismissed. The
+   * width is clamped to the viewport either way.
+   */
+  it('pins the open drawer as a viewport-clamped overlay', async () => {
+    const { container } = renderShell();
+    await userEvent.click(toggle());
+
+    const aside = container.querySelector('aside');
+    expect(aside.className).toContain('fixed');
+    expect(aside.className).toContain('w-[min(82vw,300px)]');
+    expect(aside.className).toContain('overflow-y-auto');
   });
 });

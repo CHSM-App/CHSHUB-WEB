@@ -309,8 +309,14 @@ export default function DataGrid({
             <li key={row[idKey] ?? i} className="space-y-1 p-4">
               {columns.map((c) => (
                 <div key={c.key} className="flex justify-between gap-3 text-sm">
-                  <span className="text-slate-500">{c.label}</span>
-                  <span className="text-right text-slate-800">
+                  {/* The label holds its width and the value takes the rest:
+                      without the floor on the label, a long value squeezed
+                      "Registration No" down to one word per line. */}
+                  <span className="shrink-0 text-slate-500">{c.label}</span>
+                  {/* An email or a UPI reference has no break opportunity in
+                      it, so without this the card set its own width and the
+                      whole list scrolled sideways. */}
+                  <span className="break-anywhere min-w-0 text-right text-slate-800">
                     {c.render ? c.render(row[c.key], row) : (row[c.key] ?? "—")}
                   </span>
                 </div>
@@ -324,12 +330,12 @@ export default function DataGrid({
       ) : null}
 
       {pageCount > 1 ? (
-        <div className="flex items-center justify-between border-t border-slate-200 px-4 py-2 text-sm print:hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-4 py-2 text-sm print:hidden">
           <span className="text-slate-500">
             {safePage * pageSize + 1}–{Math.min((safePage + 1) * pageSize, sorted.length)} of{' '}
             {sorted.length}
           </span>
-          <div className="flex gap-2">
+          <div className="flex shrink-0 gap-2">
             <button
               type="button"
               className="btn-secondary px-3 py-1 text-xs"

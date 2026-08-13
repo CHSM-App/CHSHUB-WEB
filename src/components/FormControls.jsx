@@ -334,8 +334,14 @@ export function PageHeader({ title, subtitle, children }) {
       </div>
 
       <header className="mb-4 flex flex-wrap items-start justify-between gap-3 print:hidden">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight" style={{ color: 'var(--ink)' }}>
+        {/*
+          min-w-0 lets the title block shrink. A flex item's default minimum is
+          its content, so a long title — "Assistant|Technician|Supplier" — set a
+          floor wider than a phone and pushed the whole header off the screen
+          rather than wrapping inside it.
+        */}
+        <div className="min-w-0 flex-1">
+          <h1 className="break-anywhere text-xl font-bold tracking-tight" style={{ color: 'var(--ink)' }}>
             {title}
           </h1>
           {subtitle ? <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p> : null}

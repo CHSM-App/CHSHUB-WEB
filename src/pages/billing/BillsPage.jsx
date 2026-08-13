@@ -176,6 +176,8 @@ function BillSheet({ bill, columns }) {
         </tbody>
       </table>
 
+      {/* Deliberately not `stacked-table`: this is the printed bill, and a bill
+          has to keep its charge table on paper whatever the screen width. */}
       <table className="mt-3 w-full border border-slate-300 text-sm">
         <thead>
           <tr className="bg-slate-100">
@@ -188,9 +190,9 @@ function BillSheet({ bill, columns }) {
           {lines.length ? (
             lines.map((l, i) => (
               <tr key={l.name}>
-                <td className="border border-slate-300 px-3 py-1.5">{i + 1}</td>
-                <td className="border border-slate-300 px-3 py-1.5">{l.name}</td>
-                <td className="border border-slate-300 px-3 py-1.5 text-right">
+                <td className="border border-slate-300 px-3 py-1.5" data-label="Sr. No">{i + 1}</td>
+                <td className="border border-slate-300 px-3 py-1.5" data-label="Nature of Charges">{l.name}</td>
+                <td className="border border-slate-300 px-3 py-1.5 text-right" data-label="Amount (₹)">
                   ₹ {money(l.amount)}
                 </td>
               </tr>
@@ -663,7 +665,7 @@ export default function BillsPage() {
               exportTitle="Maintenance bills"
             />
             <div className="overflow-x-auto">
-            <table className="min-w-full">
+            <table className="min-w-full stacked-table">
               <thead>
                 <tr>
                   <th className="table-head">Bill no.</th>
@@ -678,14 +680,14 @@ export default function BillsPage() {
               <tbody>
                 {visible.map((run) => (
                   <tr key={run.bill_id} className="hover:bg-slate-50">
-                    <td className="table-cell font-medium text-slate-800">#{run.bill_id}</td>
-                    <td className="table-cell">
+                    <td className="table-cell font-medium text-slate-800" data-label="Bill no.">#{run.bill_id}</td>
+                    <td className="table-cell" data-label="Period">
                       {run.month_name} {run.year}
                     </td>
                     {/* Which button raised this run. Three November 2025 rows
                         sat next to each other reading "Bill Generated", one
                         monthly and two ad-hoc, with nothing to tell them apart. */}
-                    <td className="table-cell">
+                    <td className="table-cell" data-label="Type">
                       {run.bill_type_label ? (
                         <span
                           className={
@@ -700,14 +702,14 @@ export default function BillsPage() {
                         '—'
                       )}
                     </td>
-                    <td className="table-cell">
+                    <td className="table-cell" data-label="Generated">
                       {day(run.gen_date)}
                     </td>
-                    <td className="table-cell">
+                    <td className="table-cell" data-label="Due">
                       {day(run.due_date)}
                     </td>
-                    <td className="table-cell">{run.Status || '—'}</td>
-                    <td className="table-cell text-right">
+                    <td className="table-cell" data-label="Status">{run.Status || '—'}</td>
+                    <td className="table-cell text-right" data-actions="">
                       <button type="button" className="btn-secondary" onClick={() => openDetail(run)}>
                         View flats
                       </button>
@@ -842,7 +844,8 @@ export default function BillsPage() {
             {charges?.items?.length ? (
               <div>
                 <h3 className="mb-2 text-sm font-semibold text-slate-800">Nature of charges</h3>
-                <table className="min-w-full">
+                <div className="overflow-x-auto">
+                <table className="min-w-full stacked-table">
                   <thead>
                     <tr>
                       <th className="table-head">Nature of charges</th>
@@ -853,9 +856,9 @@ export default function BillsPage() {
                   <tbody>
                     {charges.items.map((c) => (
                       <tr key={c.charge_id}>
-                        <td className="table-cell font-medium text-slate-800">{c.charges}</td>
-                        <td className="table-cell text-right">{money(c.amount)}</td>
-                        <td className="table-cell text-right">{money(c.amount_per_flat)}</td>
+                        <td className="table-cell font-medium text-slate-800" data-label="Nature of charges">{c.charges}</td>
+                        <td className="table-cell text-right" data-label="Amount">{money(c.amount)}</td>
+                        <td className="table-cell text-right" data-label="Amount per flat">{money(c.amount_per_flat)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -871,6 +874,7 @@ export default function BillsPage() {
                     </tr>
                   </tfoot>
                 </table>
+                </div>
               </div>
             ) : (
               <div>

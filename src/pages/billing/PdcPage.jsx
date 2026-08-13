@@ -202,7 +202,7 @@ export function PdcPage() {
               exportTitle="Post-dated cheques"
             />
             <div className="overflow-x-auto">
-            <table className="min-w-full">
+            <table className="min-w-full stacked-table">
               <thead>
                 <tr>
                   <th className="table-head">Cheque no.</th>
@@ -217,12 +217,12 @@ export function PdcPage() {
               <tbody>
                 {visible.map((row) => (
                   <tr key={row.pdc_rem_id} className="hover:bg-slate-50">
-                    <td className="table-cell font-medium text-slate-800">{row.chqno}</td>
-                    <td className="table-cell">{row.name}</td>
-                    <td className="table-cell">{row.Unit}</td>
-                    <td className="table-cell">{day(row.che_date)}</td>
-                    <td className="table-cell text-right">{money(row.che_amount)}</td>
-                    <td className="table-cell space-x-1">
+                    <td className="table-cell font-medium text-slate-800" data-label="Cheque no.">{row.chqno}</td>
+                    <td className="table-cell" data-label="Resident">{row.name}</td>
+                    <td className="table-cell" data-label="Unit">{row.Unit}</td>
+                    <td className="table-cell" data-label="Cheque date">{day(row.che_date)}</td>
+                    <td className="table-cell text-right" data-label="Amount">{money(row.che_amount)}</td>
+                    <td className="table-cell space-x-1" data-label="Status">
                       {flag(row.che_dep, 'Deposited')}
                       {flag(row.che_ret, 'Returned')}
                       {/* "Bounced" is what both legacy grids call che_can. */}
@@ -231,7 +231,7 @@ export function PdcPage() {
                         <span className="text-xs text-slate-500">Pending</span>
                       ) : null}
                     </td>
-                    <td className="table-cell text-right">
+                    <td className="table-cell text-right" data-actions="">
                       <button
                         type="button"
                         className="btn-secondary"
@@ -364,7 +364,7 @@ export function PdcPage() {
                   Cheques already on file
                 </h3>
                 <div className="overflow-x-auto rounded border border-slate-200">
-                  <table className="min-w-full">
+                  <table className="min-w-full stacked-table">
                     <thead>
                       <tr>
                         <th className="table-head">Cheque no.</th>
@@ -376,10 +376,10 @@ export function PdcPage() {
                     <tbody>
                       {ownerCheques.map((c) => (
                         <tr key={c.pdc_rem_id}>
-                          <td className="table-cell font-medium text-slate-800">{c.chqno}</td>
-                          <td className="table-cell">{day(c.che_date)}</td>
-                          <td className="table-cell text-right">{money(c.che_amount)}</td>
-                          <td className="table-cell space-x-1">
+                          <td className="table-cell font-medium text-slate-800" data-label="Cheque no.">{c.chqno}</td>
+                          <td className="table-cell" data-label="Cheque date">{day(c.che_date)}</td>
+                          <td className="table-cell text-right" data-label="Amount">{money(c.che_amount)}</td>
+                          <td className="table-cell space-x-1" data-label="Status">
                             {flag(c.che_dep, 'Deposited')}
                             {flag(c.che_ret, 'Returned')}
                             {flag(c.che_can, 'Bounced')}
@@ -508,7 +508,7 @@ export function PdcClearingPage() {
               exportTitle="Cheque clearing"
             />
             <div className="overflow-x-auto">
-              <table className="min-w-full">
+              <table className="min-w-full stacked-table">
                 <thead>
                   <tr>
                     <th className="table-head">Cheque no.</th>
@@ -527,12 +527,12 @@ export function PdcClearingPage() {
                     const current = stateOf(r);
                     return (
                       <tr key={r.pdc_rem_id}>
-                        <td className="table-cell font-medium text-slate-800">{r.chqno}</td>
-                        <td className="table-cell">{r.owner_name}</td>
-                        <td className="table-cell">{day(r.che_date)}</td>
-                        <td className="table-cell text-right">{money(r.che_amount)}</td>
+                        <td className="table-cell font-medium text-slate-800" data-label="Cheque no.">{r.chqno}</td>
+                        <td className="table-cell" data-label="Resident">{r.owner_name}</td>
+                        <td className="table-cell" data-label="Cheque date">{day(r.che_date)}</td>
+                        <td className="table-cell text-right" data-label="Amount">{money(r.che_amount)}</td>
                         {CHEQUE_STATES.map((s) => (
-                          <td key={s.key} className="table-cell text-center">
+                          <td key={s.key} className="table-cell text-center" data-label={s.label}>
                             <input
                               type="radio"
                               className="h-4 w-4"

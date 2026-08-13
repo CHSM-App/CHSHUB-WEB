@@ -69,7 +69,7 @@ export default function ReceiptsPage() {
           <EmptyState title="No receipts recorded" />
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full">
+            <table className="min-w-full stacked-table">
               <thead>
                 <tr>
                   <th className="table-head">Receipt no.</th>
@@ -84,15 +84,15 @@ export default function ReceiptsPage() {
               <tbody>
                 {items.map((row) => (
                   <tr key={row.receipt_id} className="hover:bg-slate-50">
-                    <td className="table-cell font-medium text-slate-800">{row.receipt_no}</td>
-                    <td className="table-cell">
+                    <td className="table-cell font-medium text-slate-800" data-label="Receipt no.">{row.receipt_no}</td>
+                    <td className="table-cell" data-label="Date">
                       {row.receipt_date ? new Date(row.receipt_date).toLocaleDateString() : '—'}
                     </td>
-                    <td className="table-cell">{row.owner}</td>
-                    <td className="table-cell">{row.transaction_ref || '—'}</td>
-                    <td className="table-cell">{money(row.paid_amount)}</td>
-                    <td className="table-cell">{row.bill_status}</td>
-                    <td className="table-cell text-right">
+                    <td className="table-cell" data-label="Resident">{row.owner}</td>
+                    <td className="table-cell" data-label="Reference">{row.transaction_ref || '—'}</td>
+                    <td className="table-cell" data-label="Amount">{money(row.paid_amount)}</td>
+                    <td className="table-cell" data-label="Status">{row.bill_status}</td>
+                    <td className="table-cell text-right" data-actions="">
                       <button type="button" className="btn-secondary" onClick={() => openReceipt(row)}>
                         View
                       </button>

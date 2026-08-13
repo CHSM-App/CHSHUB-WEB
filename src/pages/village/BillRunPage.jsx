@@ -229,7 +229,7 @@ export default function BillRunPage() {
               exportTitle={`Bills to raise — ${periodLabel}`}
             />
             <div className="overflow-x-auto">
-              <table className="min-w-full">
+              <table className="min-w-full stacked-table">
                 <thead>
                   <tr>
                     {COLUMNS.map((c) => (
@@ -252,6 +252,9 @@ export default function BillRunPage() {
                             className={
                               ci === 0 ? 'table-cell font-medium text-slate-800' : 'table-cell'
                             }
+                            /* Names the line in the phone card view, from the
+                               same column that titles it on a wide screen. */
+                            data-label={c.label}
                           >
                             {c.format ? c.format(row[c.key], row, i) : (row[c.key] ?? '—')}
                           </td>

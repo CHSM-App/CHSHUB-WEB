@@ -175,6 +175,9 @@ export default function IncomeExpenditureReport() {
               grid in navy, rather than the app's borderless list style. Amounts
               are monospaced there so the columns of figures align. */}
           <div className="overflow-x-auto px-4 pb-4 print:px-0 print:pb-0">
+            {/* Deliberately not `stacked-table`: this is the government-form
+                grid the legacy page printed, and it has to keep its ruled
+                columns on paper. It scrolls sideways on a phone instead. */}
             <table className="w-full border-collapse border-2 border-[#2c5282] text-[14px] text-[#333]">
               <thead>
                 <tr>

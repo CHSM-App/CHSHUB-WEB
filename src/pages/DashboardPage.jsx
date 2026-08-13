@@ -169,6 +169,18 @@ function AreaChart({ series, labelKey, valueKey, height = 350 }) {
       // and animating each refetch would make the toggles feel sluggish.
       animations: { enabled: false },
       fontFamily: 'inherit',
+      /*
+       * Apex measures the parent once and keeps that width. On a phone it
+       * settled on a box wider than the column, which pushed the dashboard
+       * past the viewport — and because the page clips horizontal overflow,
+       * the surplus showed up as tiles that reached the left edge but ran off
+       * the right. Redrawing on resize keeps the chart inside its column, and
+       * `width: '100%'` stops it claiming a fixed pixel width to begin with.
+       */
+      width: '100%',
+      redrawOnParentResize: true,
+      redrawOnWindowResize: true,
+      parentHeightOffset: 0,
     },
     markers: { size: 4 },
     colors: live.map((s) => s.color),
@@ -183,16 +195,56 @@ function AreaChart({ series, labelKey, valueKey, height = 350 }) {
     },
     dataLabels: { enabled: false },
     stroke: { curve: 'smooth', width: 2 },
-    xaxis: { type: 'category', categories },
+    xaxis: {
+      type: 'category',
+      categories,
+      /*
+       * Twelve month labels do not fit across a phone — they overlapped into
+       * an unreadable band. Apex drops every other tick when it has to, and
+       * `hideOverlappingLabels` lets it, rather than drawing them on top of
+       * one another.
+       */
+      labels: { rotate: 0, hideOverlappingLabels: true, trim: true },
+      tickPlacement: 'on',
+    },
+    yaxis: {
+      /* Six-figure rupee totals rendered as "120000.00" and ate a third of a
+         phone's width in axis labels alone. */
+      labels: {
+        formatter: (v) => shortNumber(v),
+      },
+    },
     // `tooltip: { x: { format: 'MMM' } }` in the legacy config was inert — the
     // x axis is category-typed, and Apex applies that format only to datetime
     // axes. Dropped rather than carried over as a no-op.
     legend: { position: 'bottom', horizontalAlign: 'center' },
+    /*
+     * Below `sm` the chart gets more of the card: the axis labels shrink and
+     * the left gutter closes up, so the plot itself keeps a usable width.
+     */
+    responsive: [
+      {
+        breakpoint: 640,
+        options: {
+          chart: { height: 260 },
+          markers: { size: 3 },
+          grid: { padding: { left: 0, right: 8 } },
+          legend: { fontSize: '11px', itemMargin: { horizontal: 6 } },
+          yaxis: { labels: { style: { fontSize: '10px' } } },
+          xaxis: { labels: { style: { fontSize: '10px' } } },
+        },
+      },
+    ],
   };
 
   return (
     <Suspense fallback={<div className="skeleton" style={{ height }} />}>
-      <ReactApexChart type="area" height={height} series={apexSeries} options={options} />
+      {/* min-w-0 lets the chart's column shrink below the SVG's measured
+          width; without it the grid track keeps the chart's size as its
+          floor and the whole row grows instead. */}
+      <div className="min-w-0">
+        <ReactApexChart type="area" height={height} series={apexSeries} options={options} />
+      </div>
     </Suspense>
   );
 }
@@ -405,9 +457,15 @@ function DonutChart({ segments, centerLabel = 'Total' }) {
 /** Panel shell — title row plus body, the dashboard's repeating container. */
 function Panel({ title, actions, children, className = '', bodyClass = '' }) {
   return (
-    <section className={`panel ${className}`}>
+    /*
+     * min-w-0 so a panel can shrink inside a grid track. A chart or a wide
+     * table inside one otherwise sets the panel's minimum width, and the
+     * whole row grows past the screen rather than the panel's own scroller
+     * taking the strain.
+     */
+    <section className={`panel min-w-0 ${className}`}>
       <div className="panel-title">
-        <h6>{title}</h6>
+        <h6 className="min-w-0 break-anywhere">{title}</h6>
         {actions}
       </div>
       <div className={`panel-body ${bodyClass}`}>{children}</div>

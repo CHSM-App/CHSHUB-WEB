@@ -90,7 +90,8 @@ export default function GenerateBillsPage() {
               Charge heads included
             </h2>
             {preview.regular?.charges?.length ? (
-              <table className="min-w-full">
+              <div className="overflow-x-auto">
+              <table className="min-w-full stacked-table">
                 <thead>
                   <tr>
                     <th className="table-head">Charge</th>
@@ -101,13 +102,14 @@ export default function GenerateBillsPage() {
                 <tbody>
                   {preview.regular.charges.map((c) => (
                     <tr key={c.charge_id}>
-                      <td className="table-cell font-medium text-slate-800">{c.name}</td>
-                      <td className="table-cell">{money(c.amount)}</td>
-                      <td className="table-cell">{money(c.perFlat)}</td>
+                      <td className="table-cell font-medium text-slate-800" data-label="Charge">{c.name}</td>
+                      <td className="table-cell" data-label="Total amount">{money(c.amount)}</td>
+                      <td className="table-cell" data-label="Per flat">{money(c.perFlat)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              </div>
             ) : (
               <p className="px-4 py-6 text-sm text-slate-500">No active regular charges configured.</p>
             )}

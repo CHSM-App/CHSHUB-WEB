@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { extraReports } from '@/api/onboarding';
 import DateRangeReport, { money, day } from '../DateRangeReport.jsx';
 import { EmptyState } from '@/components/ui.jsx';
@@ -20,7 +21,7 @@ export function PaidAmountsPage() {
         ) : (
           <div className="card overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="min-w-full">
+              <table className="min-w-full stacked-table">
                 <thead>
                   <tr>
                     <th className="table-head">Receipt</th>
@@ -35,20 +36,20 @@ export function PaidAmountsPage() {
                 <tbody>
                   {d.items.map((r, i) => (
                     <tr key={i}>
-                      <td className="table-cell font-medium text-slate-800">{r.receipt_no}</td>
-                      <td className="table-cell">{day(r.date)}</td>
-                      <td className="table-cell">{r.name}</td>
-                      <td className="table-cell">{r.unit}</td>
-                      <td className="table-cell">{r.Billno || '—'}</td>
-                      <td className="table-cell">{r.pay_mode}</td>
-                      <td className="table-cell text-right">{money(r.paid_amount)}</td>
+                      <td className="table-cell font-medium text-slate-800" data-label="Receipt">{r.receipt_no}</td>
+                      <td className="table-cell" data-label="Date">{day(r.date)}</td>
+                      <td className="table-cell" data-label="Resident">{r.name}</td>
+                      <td className="table-cell" data-label="Unit">{r.unit}</td>
+                      <td className="table-cell" data-label="Bill">{r.Billno || '—'}</td>
+                      <td className="table-cell" data-label="Mode">{r.pay_mode}</td>
+                      <td className="table-cell text-right" data-label="Amount">{money(r.paid_amount)}</td>
                     </tr>
                   ))}
                   <tr className="bg-slate-50 font-semibold">
                     <td className="table-cell" colSpan={6}>
                       Total collected ({d.count} receipts)
                     </td>
-                    <td className="table-cell text-right">{money(d.total)}</td>
+                    <td className="table-cell text-right" data-label="Total">{money(d.total)}</td>
                   </tr>
                 </tbody>
               </table>
@@ -81,7 +82,8 @@ export function AgmReportPage() {
           <EmptyState title="No AGM data for this period" />
         ) : (
           <div className="card overflow-hidden">
-            <table className="min-w-full">
+            <div className="overflow-x-auto">
+            <table className="min-w-full stacked-table">
               <thead>
                 <tr>
                   <th className="table-head">Charge head</th>
@@ -91,18 +93,19 @@ export function AgmReportPage() {
               <tbody>
                 {d.items.map((r, i) => (
                   <tr key={i}>
-                    <td className="table-cell font-medium text-slate-800">{r.charges}</td>
-                    <td className="table-cell text-right">{money(r.total)}</td>
+                    <td className="table-cell font-medium text-slate-800" data-label="Charge head">{r.charges}</td>
+                    <td className="table-cell text-right" data-label="Total">{money(r.total)}</td>
                   </tr>
                 ))}
                 <tr className="bg-slate-50 font-semibold">
-                  <td className="table-cell">Total</td>
-                  <td className="table-cell text-right">
+                  <td className="table-cell" data-label="Charge head">Total</td>
+                  <td className="table-cell text-right" data-label="Total">
                     {money(d.items.reduce((s, r) => s + Number(r.total || 0), 0))}
                   </td>
                 </tr>
               </tbody>
             </table>
+            </div>
           </div>
         )
       }
@@ -123,7 +126,8 @@ export function BalanceSheetPage() {
         if (!d.heads?.length) return <EmptyState title="No balance-sheet heads configured" />;
         return (
           <div className="card overflow-hidden">
-            <table className="min-w-full">
+            <div className="overflow-x-auto">
+            <table className="min-w-full stacked-table">
               <thead>
                 <tr>
                   <th className="table-head">Head / sub-point</th>
@@ -131,22 +135,29 @@ export function BalanceSheetPage() {
                 </tr>
               </thead>
               <tbody>
+                {/*
+                  Keyed on the Fragment, not on the <tr> inside it. The key has
+                  to sit on the element the map returns, and a shorthand <>
+                  cannot carry one — so every head rendered keyless and React
+                  re-created the whole group on each load.
+                */}
                 {d.heads.map((h) => (
-                  <>
-                    <tr key={`h${h.bal_head_id}`} className="bg-slate-50">
-                      <td className="table-cell font-semibold text-slate-800">{h.bal_header_desc}</td>
-                      <td className="table-cell text-right font-semibold">{money(h.amount)}</td>
+                  <Fragment key={`h${h.bal_head_id}`}>
+                    <tr className="bg-slate-50">
+                      <td className="table-cell font-semibold text-slate-800" data-label="Head / sub-point">{h.bal_header_desc}</td>
+                      <td className="table-cell text-right font-semibold" data-label="Amount">{money(h.amount)}</td>
                     </tr>
                     {subsFor(h.bal_head_id).map((s) => (
                       <tr key={`s${s.bal_sub_id}`}>
-                        <td className="table-cell pl-8">{s.bal_sub_desc}</td>
-                        <td className="table-cell text-right">{money(s.amount)}</td>
+                        <td className="table-cell pl-8" data-label="Head / sub-point">{s.bal_sub_desc}</td>
+                        <td className="table-cell text-right" data-label="Amount">{money(s.amount)}</td>
                       </tr>
                     ))}
-                  </>
+                  </Fragment>
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         );
       }}

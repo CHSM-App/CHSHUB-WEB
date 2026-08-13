@@ -96,7 +96,7 @@ export default function ExportToolbar({
   };
 
   return (
-    <div className="flex justify-end gap-2 border-b border-slate-200 px-4 py-2 print:hidden">
+    <div className="flex flex-wrap justify-end gap-2 border-b border-slate-200 px-4 py-2 print:hidden">
       <button type="button" className="btn-secondary text-xs" onClick={exportCsv}>
         Export to Excel
       </button>

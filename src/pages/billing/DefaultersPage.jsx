@@ -78,7 +78,7 @@ export default function DefaultersPage() {
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full">
+            <table className="min-w-full stacked-table">
               <thead>
                 <tr>
                   <th className="table-head">Resident</th>
@@ -91,11 +91,11 @@ export default function DefaultersPage() {
               <tbody>
                 {visible.map((row) => (
                   <tr key={row.flat_id} className="hover:bg-slate-50">
-                    <td className="table-cell font-medium text-slate-800">{row.owner_name}</td>
-                    <td className="table-cell">{row.Unit}</td>
-                    <td className="table-cell">{row.pre_mob || '—'}</td>
-                    <td className="table-cell">{row.email || '—'}</td>
-                    <td className="table-cell font-medium text-red-700">{money(row.due)}</td>
+                    <td className="table-cell font-medium text-slate-800" data-label="Resident">{row.owner_name}</td>
+                    <td className="table-cell" data-label="Unit">{row.Unit}</td>
+                    <td className="table-cell" data-label="Mobile">{row.pre_mob || '—'}</td>
+                    <td className="table-cell" data-label="Email">{row.email || '—'}</td>
+                    <td className="table-cell font-medium text-red-700" data-label="Amount due">{money(row.due)}</td>
                   </tr>
                 ))}
               </tbody>

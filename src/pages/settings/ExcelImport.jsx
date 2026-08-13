@@ -447,7 +447,7 @@ export default function ExcelImport({ onDone, defaultType = 'building' }) {
             <strong>{rows.length}</strong> row(s) ready to import.
           </p>
           <div className="max-h-56 overflow-auto rounded border" style={{ borderColor: '#e3e6f0' }}>
-            <table className="min-w-full">
+            <table className="min-w-full stacked-table">
               <thead>
                 <tr>
                   <th className="table-head">Row</th>
@@ -461,9 +461,9 @@ export default function ExcelImport({ onDone, defaultType = 'building' }) {
               <tbody>
                 {rows.slice(0, 50).map((r) => (
                   <tr key={r.__row}>
-                    <td className="table-cell">{r.__row}</td>
-                    {previewColumns.map(([, key]) => (
-                      <td key={key} className="table-cell">
+                    <td className="table-cell" data-label="Row">{r.__row}</td>
+                    {previewColumns.map(([label, key]) => (
+                      <td key={key} className="table-cell" data-label={label}>
                         {r[key] || '—'}
                       </td>
                     ))}

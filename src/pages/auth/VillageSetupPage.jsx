@@ -3,8 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { onboarding } from '@/api/onboarding';
 import { api } from '@/api/client';
 import { useAuth } from '@/auth/AuthContext.jsx';
-import { ErrorNotice, Field } from '@/components/ui.jsx';
+import { ErrorNotice, Field, FormErrorSummary } from '@/components/ui.jsx';
 import { AuthSplitLayout, AuthSubmit, Glyph } from '@/components/AuthLayout.jsx';
+import { useToast } from '@/components/Toast.jsx';
+import {
+  countErrors,
+  validateFields,
+  focusFirstInvalid,
+} from '@/components/formValidation.js';
 
 /*
  * Replaces new_village.aspx — where a new account went when it registered with
@@ -16,6 +22,21 @@ import { AuthSplitLayout, AuthSubmit, Glyph } from '@/components/AuthLayout.jsx'
  * Its fields and their order are kept — registration no, village name, address,
  * contact no, email, state → district → division, pincode.
  */
+/*
+ * What Submit insists on, in the shape validateFields expects — the same
+ * fields that already carry a red asterisk below.
+ */
+const SETUP_FIELDS = [
+  { name: 'registrationNo', label: 'Registration no', required: true },
+  { name: 'name', label: 'Village name', required: true },
+  { name: 'address', label: 'Address', required: true },
+  { name: 'contactNo', label: 'Contact no', required: true, phone: true, digits: true, maxLength: 10 },
+  { name: 'email', label: 'E-mail ID', required: true, type: 'email' },
+  { name: 'stateId', label: 'State', type: 'select', required: true },
+  { name: 'districtId', label: 'District', type: 'select', required: true },
+  { name: 'division', label: 'Division', type: 'select', required: true },
+];
+
 export default function VillageSetupPage() {
   const navigate = useNavigate();
   const { villageId, refreshUser, logout } = useAuth();
@@ -23,6 +44,9 @@ export default function VillageSetupPage() {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const toast = useToast();
+  // name -> message, for the fields the last submit found empty.
+  const [fieldErrors, setFieldErrors] = useState({});
   const [regions, setRegions] = useState({ states: [], districts: [], divisions: [] });
   const [form, setForm] = useState({
     registrationNo: '',
@@ -56,10 +80,26 @@ export default function VillageSetupPage() {
   const setField = (key) => (e) => {
     const { value } = e.target;
     setForm((prev) => ({ ...prev, [key]: value }));
+    // The complaint goes as soon as it is being answered.
+    setFieldErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
   };
 
   const onSubmit = async (event) => {
     event.preventDefault();
+
+    /*
+     * The form carries noValidate, so nothing enforced the asterisks — an
+     * empty setup posted straight to sp_village_master. Same pass as every
+     * other screen in the app.
+     */
+    const missing = validateFields(SETUP_FIELDS, form);
+    setFieldErrors(missing);
+    if (Object.keys(missing).length) {
+      setError(null);
+      focusFirstInvalid(SETUP_FIELDS, missing);
+      return;
+    }
+
     setError(null);
     setBusy(true);
     try {
@@ -70,6 +110,9 @@ export default function VillageSetupPage() {
       setDone(true);
     } catch (err) {
       setError(err);
+      // Success gets its own full screen below, so only the failure needs a
+      // toast — the form stays put with what was typed.
+      toast.error(err?.message ?? 'The village could not be saved. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -126,8 +169,10 @@ export default function VillageSetupPage() {
       subtitle="Tell us about the village this account manages."
     >
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
+        <FormErrorSummary count={countErrors(fieldErrors)} />
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Registration No" required>
+          <div data-field="registrationNo" className="rounded-md">
+          <Field label="Registration No" required name="registrationNo" error={fieldErrors.registrationNo}>
             <input
               className="field-input"
               placeholder="Enter Registration No"
@@ -136,7 +181,9 @@ export default function VillageSetupPage() {
               required
             />
           </Field>
-          <Field label="Village Name" required>
+          </div>
+          <div data-field="name" className="rounded-md">
+          <Field label="Village Name" required name="name" error={fieldErrors.name}>
             <input
               className="field-input"
               placeholder="Enter Village Name"
@@ -145,10 +192,12 @@ export default function VillageSetupPage() {
               required
             />
           </Field>
+          </div>
         </div>
 
         {/* sp_village_master declares @address as nvarchar(50). */}
-        <Field label="Address" required>
+        <div data-field="address" className="rounded-md">
+        <Field label="Address" required name="address" error={fieldErrors.address}>
           <input
             className="field-input"
             placeholder="Enter Address"
@@ -158,9 +207,11 @@ export default function VillageSetupPage() {
             required
           />
         </Field>
+        </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Contact No." required>
+          <div data-field="contactNo" className="rounded-md">
+          <Field label="Contact No." required name="contactNo" error={fieldErrors.contactNo}>
             <input
               className="field-input"
               type="tel"
@@ -172,7 +223,9 @@ export default function VillageSetupPage() {
               required
             />
           </Field>
-          <Field label="E-mail ID" required>
+          </div>
+          <div data-field="email" className="rounded-md">
+          <Field label="E-mail ID" required name="email" error={fieldErrors.email}>
             <input
               className="field-input"
               type="email"
@@ -182,8 +235,10 @@ export default function VillageSetupPage() {
               required
             />
           </Field>
+          </div>
 
-          <Field label="State" required>
+          <div data-field="stateId" className="rounded-md">
+          <Field label="State" required name="stateId" error={fieldErrors.stateId}>
             <select
               className="field-input"
               value={form.stateId}
@@ -201,7 +256,9 @@ export default function VillageSetupPage() {
               ))}
             </select>
           </Field>
-          <Field label="District" required>
+          </div>
+          <div data-field="districtId" className="rounded-md">
+          <Field label="District" required name="districtId" error={fieldErrors.districtId}>
             <select
               className="field-input"
               disabled={!form.stateId}
@@ -217,13 +274,15 @@ export default function VillageSetupPage() {
               ))}
             </select>
           </Field>
+          </div>
 
           {/*
             sp_village_master takes @division as the division's *name*, not its
             id — unlike sp_society_master, which takes division_id. So the value
             posted here is the label.
           */}
-          <Field label="Division" required>
+          <div data-field="division" className="rounded-md">
+          <Field label="Division" required name="division" error={fieldErrors.division}>
             <select
               className="field-input"
               disabled={!form.districtId}
@@ -239,6 +298,7 @@ export default function VillageSetupPage() {
               ))}
             </select>
           </Field>
+          </div>
           <Field label="Pincode" required>
             <input
               className="field-input"

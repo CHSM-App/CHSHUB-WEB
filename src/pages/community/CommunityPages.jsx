@@ -2,7 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as M from '@/api/modules';
 import { api } from '@/api/client';
 import DataGrid from '@/components/DataGrid.jsx';
-import { ConfirmDialog, EmptyState, ErrorNotice, Modal, Spinner } from '@/components/ui.jsx';
+import {
+  ConfirmDialog,
+  EmptyState,
+  ErrorNotice,
+  FormErrorSummary,
+  Modal,
+  Spinner,
+} from '@/components/ui.jsx';
 import {
   CheckboxField,
   FileUploadField,
@@ -20,6 +27,12 @@ import {
   fetchProtectedUrl,
   revokeBlobUrl,
 } from '@/lib/storedFile';
+import { useToast } from '@/components/Toast.jsx';
+import {
+  countErrors,
+  validateFields,
+  focusFirstInvalid,
+} from '@/components/formValidation.js';
 
 const money = (v) =>
   v == null || v === '' ? '—' : Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -46,6 +59,35 @@ const EMPTY_BOOKING = {
   societyIn: false,
 };
 
+/*
+ * What each form insists on, in the shape validateFields expects. These
+ * mirror the red asterisks already on the inputs, which nothing enforced —
+ * every one of these forms carries noValidate, so an empty submit went
+ * straight to the API.
+ */
+const BOOKING_FIELDS = [
+  { name: 'facilityId', label: 'Facility', type: 'select', required: true },
+  { name: 'bookDate', label: 'Date', required: true },
+  { name: 'name', label: 'Name', required: true },
+  { name: 'contact', label: 'Contact no', required: true, phone: true, digits: true, maxLength: 10 },
+  { name: 'address', label: 'Address', required: true },
+  { name: 'fromDate', label: 'From date', required: true },
+  { name: 'fromTime', label: 'From time', required: true },
+  { name: 'toTime', label: 'To time', required: true },
+];
+
+const POLL_FIELDS = [{ name: 'topic', label: 'Topic', required: true }];
+
+const DOCUMENT_FIELDS = [{ name: 'docName', label: 'Document name', required: true }];
+
+const VISITOR_FIELDS = [
+  { name: 'v_name', label: 'Visitor name', required: true },
+  { name: 'type', label: 'Type', type: 'select', required: true },
+  // Optional, but format-checked once filled — the form renders a contact box
+  // that no rule covered, so a gate entry saved with "abc" as the number.
+  { name: 'contactNo', label: 'Contact number', phone: true, digits: true, maxLength: 10 },
+];
+
 /**
  * Facility bookings — replaces facility_booking.aspx.
  *
@@ -66,6 +108,30 @@ export function FacilityBookingsPage() {
   const [lookups, setLookups] = useState({ facilities: [], residents: [] });
   // Per-day cost of the chosen facility; the total is derived from it.
   const [facilityCost, setFacilityCost] = useState(null);
+  const toast = useToast();
+  // name -> message, for the fields the last submit found empty.
+  const [fieldErrors, setFieldErrors] = useState({});
+
+  /*
+   * Clear a complaint as soon as its field is answered. These forms update
+   * through inline arrows rather than one shared setField, so watching the
+   * form is simpler than threading a clear through a dozen handlers — and it
+   * behaves the same as the setField-based screens.
+   */
+  useEffect(() => {
+    if (!form) return;
+    setFieldErrors((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const k of Object.keys(prev)) {
+        if (prev[k] && String(form[k] ?? '').trim() !== '') {
+          next[k] = undefined;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [form]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -166,6 +232,15 @@ export function FacilityBookingsPage() {
 
   const saveBooking = async (e) => {
     e.preventDefault();
+
+    const missing = validateFields(BOOKING_FIELDS, form);
+    setFieldErrors(missing);
+    if (Object.keys(missing).length) {
+      setFormError(null);
+      focusFirstInvalid(BOOKING_FIELDS, missing);
+      return;
+    }
+
     setSaving(true);
     setFormError(null);
     try {
@@ -173,8 +248,10 @@ export function FacilityBookingsPage() {
       await M.community.createFacilityBooking({ ...form, amount: charge?.total ?? 0 });
       setForm(null);
       await load();
+      toast.success('Facility booked successfully.', { title: 'Saved' });
     } catch (err) {
       setFormError(err);
+      toast.error('The booking could not be saved. Please check the form and try again.');
     } finally {
       setSaving(false);
     }
@@ -192,7 +269,15 @@ export function FacilityBookingsPage() {
           onChange={(e) => setSearch(e.target.value)}
           aria-label="Search bookings"
         />
-        <button type="button" className="btn-primary" onClick={() => setForm({ ...EMPTY_BOOKING })}>
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={() => {
+            // A fresh dialog must not inherit the last one's complaints.
+            setFieldErrors({});
+            setForm({ ...EMPTY_BOOKING });
+          }}
+        >
           Add
         </button>
       </PageHeader>
@@ -237,6 +322,7 @@ export function FacilityBookingsPage() {
                   title: 'Cancel booking',
                   message: `Cancel the ${row.facility_name} booking for ${row.name}?`,
                   run: () => M.community.cancelBooking(row.facility_book_id),
+                  done: 'Booking cancelled.',
                 })
               }
             >
@@ -258,8 +344,10 @@ export function FacilityBookingsPage() {
           try {
             await confirming.run();
             await load();
+            toast.success(confirming.done ?? 'Done.', { title: 'Updated' });
           } catch (err) {
             setError(err);
+            toast.error(err?.message ?? 'That could not be completed. Please try again.');
           } finally {
             setBusy(false);
             setConfirming(null);
@@ -297,6 +385,7 @@ export function FacilityBookingsPage() {
       >
         {form ? (
           <form id="booking-form" onSubmit={saveBooking} className="grid gap-4 sm:grid-cols-2" noValidate>
+            <FormErrorSummary count={countErrors(fieldErrors)} />
             {/*
               Field order and labels follow facility_booking.aspx:
               Facilities · Date · Name · Flat no · Name · Address · Contact No ·
@@ -306,6 +395,7 @@ export function FacilityBookingsPage() {
             <SelectField
               label="Facilities"
               name="facilityId"
+              error={fieldErrors.facilityId}
               required
               placeholder="Select"
               options={lookups.facilities}
@@ -317,6 +407,7 @@ export function FacilityBookingsPage() {
             <TextField
               label="Date"
               name="bookDate"
+              error={fieldErrors.bookDate}
               type="date"
               required
               value={form.bookDate}
@@ -353,6 +444,7 @@ export function FacilityBookingsPage() {
             <TextField
               label="Name"
               name="name"
+              error={fieldErrors.name}
               required
               placeholder="Enter Name"
               value={form.name}
@@ -361,14 +453,20 @@ export function FacilityBookingsPage() {
             <TextField
               label="Contact No"
               name="contact"
+              error={fieldErrors.contact}
               required
               placeholder="Enter Mobile no"
+              inputMode="numeric"
+              maxLength={10}
               value={form.contact}
-              onChange={(e) => setForm((p) => ({ ...p, contact: e.target.value }))}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, contact: e.target.value.replace(/\D/g, '').slice(0, 10) }))
+              }
             />
             <TextField
               label="Address"
               name="address"
+              error={fieldErrors.address}
               required
               className="sm:col-span-2"
               placeholder="Enter Address"
@@ -379,6 +477,7 @@ export function FacilityBookingsPage() {
             <TextField
               label="From Date"
               name="fromDate"
+              error={fieldErrors.fromDate}
               type="date"
               required
               value={form.fromDate}
@@ -394,6 +493,7 @@ export function FacilityBookingsPage() {
             <TextField
               label="From Time"
               name="fromTime"
+              error={fieldErrors.fromTime}
               type="time"
               required
               value={form.fromTime}
@@ -402,6 +502,7 @@ export function FacilityBookingsPage() {
             <TextField
               label="To Time"
               name="toTime"
+              error={fieldErrors.toTime}
               type="time"
               required
               value={form.toTime}
@@ -486,6 +587,7 @@ function PollCard({ poll, onShowVotes, onDelete }) {
   const [options, setOptions] = useState(null);
   const [voting, setVoting] = useState(false);
   const [voteError, setVoteError] = useState(null);
+  const toast = useToast();
 
   const loadOptions = useCallback(async () => {
     try {
@@ -513,8 +615,10 @@ function PollCard({ poll, onShowVotes, onDelete }) {
     try {
       await M.community.votePoll(poll.PollId, optionId);
       await loadOptions();
+      toast.success('Your vote has been recorded.', { title: 'Voted' });
     } catch (err) {
       setVoteError(err);
+      toast.error(err?.message ?? 'Your vote could not be recorded. Please try again.');
     } finally {
       setVoting(false);
     }
@@ -629,6 +733,30 @@ export function PollsPage() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
   const [confirming, setConfirming] = useState(null);
+  const toast = useToast();
+  // name -> message, for the fields the last submit found empty.
+  const [fieldErrors, setFieldErrors] = useState({});
+
+  /*
+   * Clear a complaint as soon as its field is answered. These forms update
+   * through inline arrows rather than one shared setField, so watching the
+   * form is simpler than threading a clear through a dozen handlers — and it
+   * behaves the same as the setField-based screens.
+   */
+  useEffect(() => {
+    if (!form) return;
+    setFieldErrors((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const k of Object.keys(prev)) {
+        if (prev[k] && String(form[k] ?? '').trim() !== '') {
+          next[k] = undefined;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [form]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -664,6 +792,15 @@ export function PollsPage() {
 
   const savePoll = async (e) => {
     e.preventDefault();
+
+    const missing = validateFields(POLL_FIELDS, form);
+    setFieldErrors(missing);
+    if (Object.keys(missing).length) {
+      setFormError(null);
+      focusFirstInvalid(POLL_FIELDS, missing);
+      return;
+    }
+
     setSaving(true);
     setFormError(null);
     try {
@@ -673,8 +810,10 @@ export function PollsPage() {
       });
       setForm(null);
       await load();
+      toast.success('Poll created successfully.', { title: 'Saved' });
     } catch (err) {
       setFormError(err);
+      toast.error('The poll could not be saved. Please check the form and try again.');
     } finally {
       setSaving(false);
     }
@@ -711,6 +850,7 @@ export function PollsPage() {
                   title: 'Delete poll',
                   message: `Delete "${row.Topic}"? Votes cast on it are removed too.`,
                   run: () => M.community.removePoll(row.PollId),
+                  done: 'Poll deleted.',
                 })
               }
             />
@@ -785,10 +925,12 @@ export function PollsPage() {
         }
       >
         {form ? (
-          <form id="poll-form" onSubmit={savePoll} className="space-y-4">
+          <form id="poll-form" onSubmit={savePoll} className="space-y-4" noValidate>
+            <FormErrorSummary count={countErrors(fieldErrors)} />
             <TextField
               label="Topic"
               name="topic"
+              error={fieldErrors.topic}
               required
               value={form.topic}
               onChange={(e) => setForm((p) => ({ ...p, topic: e.target.value }))}
@@ -890,8 +1032,10 @@ export function PollsPage() {
           try {
             await confirming.run();
             await load();
+            toast.success(confirming.done ?? 'Done.', { title: 'Deleted' });
           } catch (err) {
             setError(err);
+            toast.error(err?.message ?? 'That could not be completed. Please try again.');
           } finally {
             setConfirming(null);
           }
@@ -1067,6 +1211,30 @@ export function DocumentsPage() {
   const [search, setSearch] = useState('');
   const [form, setForm] = useState(null);
   const [confirming, setConfirming] = useState(null);
+  const toast = useToast();
+  // name -> message, for the fields the last submit found empty.
+  const [fieldErrors, setFieldErrors] = useState({});
+
+  /*
+   * Clear a complaint as soon as its field is answered. These forms update
+   * through inline arrows rather than one shared setField, so watching the
+   * form is simpler than threading a clear through a dozen handlers — and it
+   * behaves the same as the setField-based screens.
+   */
+  useEffect(() => {
+    if (!form) return;
+    setFieldErrors((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const k of Object.keys(prev)) {
+        if (prev[k] && String(form[k] ?? '').trim() !== '') {
+          next[k] = undefined;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [form]);
   const [viewing, setViewing] = useState(null);
 
   const load = useCallback(async () => {
@@ -1087,6 +1255,15 @@ export function DocumentsPage() {
 
   const save = async (event) => {
     event.preventDefault();
+
+    const missing = validateFields(DOCUMENT_FIELDS, form);
+    setFieldErrors(missing);
+    if (Object.keys(missing).length) {
+      focusFirstInvalid(DOCUMENT_FIELDS, missing);
+      return;
+    }
+    // The file is not a Field, so it keeps its own message rather than a
+    // per-field complaint.
     if (!form.filePath) {
       setError(new Error('Upload a file first'));
       return;
@@ -1102,6 +1279,7 @@ export function DocumentsPage() {
       });
       setForm(null);
       await load();
+      toast.success('Document uploaded successfully.', { title: 'Saved' });
     } catch (err) {
       setError(err);
     } finally {
@@ -1159,6 +1337,7 @@ export function DocumentsPage() {
                 onClick={() =>
                   setConfirming({
                     title: 'Delete document',
+                    done: 'Document deleted.',
                     message: `Delete ${row.doc_name}?`,
                     run: () => M.documents.remove(row.file_id),
                   })
@@ -1188,9 +1367,11 @@ export function DocumentsPage() {
       >
         {form ? (
           <form id="doc-form" onSubmit={save} className="grid gap-4 sm:grid-cols-2" noValidate>
+            <FormErrorSummary count={countErrors(fieldErrors)} />
             <TextField
               label="Document name"
               name="docName"
+              error={fieldErrors.docName}
               required
               value={form.docName}
               onChange={(e) => {
@@ -1244,8 +1425,10 @@ export function DocumentsPage() {
           try {
             await confirming.run();
             await load();
+            toast.success(confirming.done ?? 'Done.', { title: 'Deleted' });
           } catch (err) {
             setError(err);
+            toast.error(err?.message ?? 'That could not be completed. Please try again.');
           } finally {
             setBusy(false);
             setConfirming(null);
@@ -1399,6 +1582,30 @@ export function VisitorsPage() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
   const [confirming, setConfirming] = useState(null);
+  const toast = useToast();
+  // name -> message, for the fields the last submit found empty.
+  const [fieldErrors, setFieldErrors] = useState({});
+
+  /*
+   * Clear a complaint as soon as its field is answered. These forms update
+   * through inline arrows rather than one shared setField, so watching the
+   * form is simpler than threading a clear through a dozen handlers — and it
+   * behaves the same as the setField-based screens.
+   */
+  useEffect(() => {
+    if (!form) return;
+    setFieldErrors((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const k of Object.keys(prev)) {
+        if (prev[k] && String(form[k] ?? '').trim() !== '') {
+          next[k] = undefined;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [form]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1443,15 +1650,27 @@ export function VisitorsPage() {
 
   const save = async (e) => {
     e.preventDefault();
+
+    const missing = validateFields(VISITOR_FIELDS, form);
+    setFieldErrors(missing);
+    if (Object.keys(missing).length) {
+      setFormError(null);
+      focusFirstInvalid(VISITOR_FIELDS, missing);
+      return;
+    }
+
     setSaving(true);
     setFormError(null);
     try {
-      if (form.visitor_id) await M.community.updateVisitor(form.visitor_id, form);
+      const wasEdit = Boolean(form.visitor_id);
+      if (wasEdit) await M.community.updateVisitor(form.visitor_id, form);
       else await M.community.createVisitor(form);
       setForm(null);
       await load();
+      toast.success(`Visitor ${wasEdit ? 'updated' : 'registered'} successfully.`, { title: 'Saved' });
     } catch (err) {
       setFormError(err);
+      toast.error('The visitor could not be saved. Please check the form and try again.');
     } finally {
       setSaving(false);
     }
@@ -1462,8 +1681,10 @@ export function VisitorsPage() {
     try {
       await confirming.run();
       await load();
+      toast.success(confirming.done ?? 'Done.', { title: 'Updated' });
     } catch (err) {
       setError(err);
+      toast.error(err?.message ?? 'That could not be completed. Please try again.');
     } finally {
       setConfirming(null);
     }
@@ -1545,6 +1766,7 @@ export function VisitorsPage() {
                       title: 'Check out visitor',
                       message: `Record ${row.v_name} leaving now?`,
                       run: () => M.community.checkoutVisitor(row.visitor_id),
+                  done: 'Visitor checked out.',
                     })
                   }
                 >
@@ -1559,6 +1781,7 @@ export function VisitorsPage() {
                     title: 'Delete visitor',
                     message: `Delete the record for ${row.v_name}?`,
                     run: () => M.community.removeVisitor(row.visitor_id),
+                  done: 'Visitor deleted.',
                   })
                 }
               >
@@ -1625,10 +1848,12 @@ export function VisitorsPage() {
         }
       >
         {form ? (
-          <form id="visitor-form" className="grid gap-3 sm:grid-cols-2" onSubmit={save}>
+          <form id="visitor-form" className="grid gap-3 sm:grid-cols-2" onSubmit={save} noValidate>
+            <FormErrorSummary count={countErrors(fieldErrors)} />
             <TextField
               label="Visitor name"
               name="v_name"
+              error={fieldErrors.v_name}
               required
               value={form.name}
               onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
@@ -1636,6 +1861,7 @@ export function VisitorsPage() {
             <SelectField
               label="Visitor type"
               name="type"
+              error={fieldErrors.type}
               required
               placeholder=""
               options={Object.keys(VISITOR_TYPES).map((t) => ({ value: t, label: t }))}
@@ -1645,9 +1871,17 @@ export function VisitorsPage() {
 
             <TextField
               label="Contact number"
-              name="contact_no"
+              // Named for the form key, not the column: focusFirstInvalid and
+              // the error lookup both go by the field name, and "contact_no"
+              // matched neither.
+              name="contactNo"
+              error={fieldErrors.contactNo}
+              inputMode="numeric"
+              maxLength={10}
               value={form.contactNo}
-              onChange={(e) => setForm((p) => ({ ...p, contactNo: e.target.value }))}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, contactNo: e.target.value.replace(/\D/g, '').slice(0, 10) }))
+              }
             />
             <TextField
               label="Flat ID"

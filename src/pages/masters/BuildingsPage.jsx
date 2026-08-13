@@ -1,7 +1,12 @@
 import { useDeferredValue, useMemo, useState } from 'react';
 import { buildings } from '@/api/masters';
 import useCrudResource from './useCrudResource';
-import { ConfirmDialog, EmptyState, ErrorNotice, Field, Modal, Spinner } from '@/components/ui.jsx';
+import { ConfirmDialog, EmptyState, ErrorNotice, Field, Modal, Spinner, FormErrorSummary } from '@/components/ui.jsx';
+import {
+  countErrors,
+  validateFields,
+  focusFirstInvalid,
+} from '@/components/formValidation.js';
 
 // Field order follows building_search.aspx exactly:
 // name > print_name > reg > add1 > add2 > floors > bank > bank_add > branch >
@@ -37,6 +42,14 @@ const toForm = (row) => ({
   email: row.email ?? '',
 });
 
+/* What Submit insists on, in the shape validateFields expects. */
+const BUILDING_FIELDS = [
+  { name: 'name', label: 'Name', required: true },
+  // Optional, but format-checked once filled: the form renders an email box
+  // that no rule covered.
+  { name: 'email', label: 'Email', type: 'email' },
+];
+
 export default function BuildingsPage() {
   const [search, setSearch] = useState('');
   // Deferring keeps typing responsive while the list refetches.
@@ -48,6 +61,8 @@ export default function BuildingsPage() {
 
   const [editing, setEditing] = useState(null); // null | { id, form }
   const [confirming, setConfirming] = useState(null);
+  // name -> message, for the fields the last submit found empty.
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const openCreate = () => setEditing({ id: null, form: { ...EMPTY } });
   const openEdit = (row) => setEditing({ id: row.build_id, form: toForm(row) });
@@ -60,11 +75,21 @@ export default function BuildingsPage() {
   // Read e.target.value eagerly — see ResidentsPage for the full explanation.
   const setField = (key) => (e) => {
     const { value } = e.target;
+    setFieldErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
     setEditing((prev) => ({ ...prev, form: { ...prev.form, [key]: value } }));
   };
 
   const onSubmit = async (event) => {
     event.preventDefault();
+
+    // The form carries noValidate, so nothing enforced the asterisks — an
+    // empty save wrote a blank row. Same pass as every other screen.
+    const missing = validateFields(BUILDING_FIELDS, editing.form);
+    setFieldErrors(missing);
+    if (Object.keys(missing).length) {
+      focusFirstInvalid(BUILDING_FIELDS, missing);
+      return;
+    }
     try {
       if (editing.id) await update(editing.id, editing.form);
       else await create(editing.form);
@@ -168,7 +193,8 @@ export default function BuildingsPage() {
       >
         {editing ? (
           <form id="building-form" onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2" noValidate>
-            <Field label="Name" required>
+            <FormErrorSummary count={countErrors(fieldErrors)} />
+            <Field label="Name" required name="name" error={fieldErrors.name}>
               <input className="field-input" value={editing.form.name} onChange={setField('name')} required />
             </Field>
             <Field label="Print name" hint="Shown on bills and receipts">

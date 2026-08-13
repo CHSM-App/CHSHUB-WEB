@@ -2,7 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { vendorBills } from '@/api/ownerExtras';
 import { vendors } from '@/api/modules';
 import DataGrid from '@/components/DataGrid.jsx';
-import { ConfirmDialog, EmptyState, ErrorNotice, Modal, Spinner } from '@/components/ui.jsx';
+import {
+  ConfirmDialog,
+  EmptyState,
+  ErrorNotice,
+  FormErrorSummary,
+  Modal,
+  Spinner,
+} from '@/components/ui.jsx';
 import {
   CheckboxField,
   FileUploadField,
@@ -13,6 +20,12 @@ import {
   TextAreaField,
   TextField,
 } from '@/components/FormControls.jsx';
+import { useToast } from '@/components/Toast.jsx';
+import {
+  countErrors,
+  validateFields,
+  focusFirstInvalid,
+} from '@/components/formValidation.js';
 
 const money = (v) =>
   v == null ? '—' : Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -234,14 +247,49 @@ function FormSection({ title, subtitle, className = '', children }) {
   );
 }
 
+/*
+ * What a payment must carry, by mode. Cash needs nothing beyond the amount;
+ * the other two are only traceable if their identifying details are there —
+ * a cheque with no number cannot be matched to a bank statement, and an
+ * online transfer with no reference cannot be found at all.
+ *
+ * Shared by the create form and the Pay dialog, so both ask the same thing.
+ */
+const PAYMENT_FIELDS_BY_MODE = {
+  Online: [{ name: 'transactionRef', label: 'Transaction reference', required: true }],
+  Cheque: [
+    { name: 'chequeNo', label: 'Cheque number', required: true },
+    { name: 'chequeDate', label: 'Cheque date', required: true },
+    { name: 'bankName', label: 'Bank name', required: true },
+  ],
+};
+
+/** The complaints a payment has, or an empty object when it is complete. */
+function validatePayment(payment) {
+  const fields = PAYMENT_FIELDS_BY_MODE[payment?.mode];
+  if (!fields) return {};
+  return validateFields(fields, payment);
+}
+
 /**
  * Cheque / online / cash inputs, shared by the create form's payment section
  * and the Pay dialog. VendorBill.aspx used the same three panels in both.
  */
-function PaymentFields({ payment, setPayment, amountRequired, amountHint, amountMax, idPrefix = '' }) {
+function PaymentFields({
+  payment,
+  setPayment,
+  amountRequired,
+  amountHint,
+  amountMax,
+  idPrefix = '',
+  errors = {},
+  clearError,
+}) {
   const set = (key) => (e) => {
     const { value } = e.target;
     setPayment((p) => ({ ...p, [key]: value }));
+    // The complaint goes as soon as it is being answered.
+    clearError?.(key);
   };
   // TextField derives its input id from `name`, so the create form's payment
   // tab and the Pay dialog would otherwise share ids while both are mounted —
@@ -254,7 +302,15 @@ function PaymentFields({ payment, setPayment, amountRequired, amountHint, amount
         label="Payment mode"
         options={PAY_MODES}
         value={payment.mode}
-        onChange={(mode) => setPayment((p) => ({ ...p, mode }))}
+        onChange={(mode) => {
+          setPayment((p) => ({ ...p, mode }));
+          // Switching mode swaps the inputs, so the old mode's complaints go
+          // with them rather than hanging over boxes that are no longer shown.
+          clearError?.('transactionRef');
+          clearError?.('chequeNo');
+          clearError?.('chequeDate');
+          clearError?.('bankName');
+        }}
       />
 
       {!payment.mode ? (
@@ -265,22 +321,44 @@ function PaymentFields({ payment, setPayment, amountRequired, amountHint, amount
         {payment.mode === 'Online' ? (
           <TextField
             label="Transaction reference"
+            data-field="transactionRef"
             name={n('txnRef')}
+            required
+            error={errors.transactionRef}
             value={payment.transactionRef}
             onChange={set('transactionRef')}
           />
         ) : null}
         {payment.mode === 'Cheque' ? (
           <>
-            <TextField label="Cheque number" name={n('cheqNo')} value={payment.chequeNo} onChange={set('chequeNo')} />
+            <TextField
+              label="Cheque number"
+              data-field="chequeNo"
+              name={n('cheqNo')}
+              required
+              error={errors.chequeNo}
+              value={payment.chequeNo}
+              onChange={set('chequeNo')}
+            />
             <TextField
               label="Cheque date"
+              data-field="chequeDate"
               name={n('cheqDate')}
               type="date"
+              required
+              error={errors.chequeDate}
               value={payment.chequeDate}
               onChange={set('chequeDate')}
             />
-            <TextField label="Bank name" name={n('bank')} value={payment.bankName} onChange={set('bankName')} />
+            <TextField
+              label="Bank name"
+              data-field="bankName"
+              name={n('bank')}
+              required
+              error={errors.bankName}
+              value={payment.bankName}
+              onChange={set('bankName')}
+            />
           </>
         ) : null}
         <TextField
@@ -323,6 +401,22 @@ const EMPTY_VENDOR = {
   address: '',
 };
 
+/*
+ * The quick-add vendor form, in the shape validateFields expects. It is also
+ * what the dialog renders, so the boxes and the rules cannot drift apart.
+ *
+ * Nothing checked this form at all — not even the starred vendor name, which
+ * saved blank — so the contact number and e-mail took any text.
+ */
+const VENDOR_FIELDS = [
+  { name: 'name', label: 'Vendor name', required: true },
+  { name: 'contactPerson', label: 'Contact person' },
+  { name: 'contactNo', label: 'Contact number', phone: true, digits: true, maxLength: 10 },
+  { name: 'email', label: 'Email', type: 'email' },
+  { name: 'gstNo', label: 'GST number' },
+  { name: 'serviceType', label: 'Service type' },
+];
+
 /**
  * Vendor bills — full parity with Society2024/VendorBill.aspx.
  *
@@ -333,6 +427,28 @@ const EMPTY_VENDOR = {
  *   3. pick approvers, then approve/reject
  *   4. record a payment in one of three modes
  */
+/*
+ * The empty-checks that can actually fail, in the shape validateFields
+ * expects.
+ *
+ * Service type, bill number and bill date are deliberately absent: the Save
+ * button is not rendered until a service type is picked, picking one fills the
+ * bill number, and the date defaults to today — so none of the three can reach
+ * a submit empty, and listing them would be validation that never fires.
+ *
+ * Vendor can. It is asked for on Daily, Inventory and Service bills and left
+ * out of a staff run, so it carries the same showIf the sub-form does.
+ */
+const BILL_FIELDS = [
+  {
+    name: 'vendorId',
+    label: 'Vendor name',
+    type: 'select',
+    required: true,
+    showIf: (f) => [SERVICE.DAILY, SERVICE.INVENTORY, SERVICE.SERVICE].includes(Number(f.serviceType)),
+  },
+];
+
 export default function VendorBillsPage() {
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -343,6 +459,15 @@ export default function VendorBillsPage() {
   const [detail, setDetail] = useState(null); // view bill
   const [vendorForm, setVendorForm] = useState(null); // quick-add vendor
   const [confirming, setConfirming] = useState(null);
+  const toast = useToast();
+  // name -> message, for the fields the last submit found empty.
+  const [fieldErrors, setFieldErrors] = useState({});
+  // The payment section's own complaints, kept apart from the bill's because
+  // the Pay dialog has a payment but no bill fields.
+  const [paymentErrors, setPaymentErrors] = useState({});
+  const [payErrors, setPayErrors] = useState({});
+  // The quick-add vendor dialog's own, kept apart for the same reason.
+  const [vendorErrors, setVendorErrors] = useState({});
 
   const [lookups, setLookups] = useState({
     vendors: [],
@@ -429,6 +554,7 @@ export default function VendorBillsPage() {
   }, [isStaff, isInventory, selectedStaff, items, form?.serviceCost, form?.taxAmount]);
 
   const setField = (key) => (e) => {
+    setFieldErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
     const { value } = e.target;
     setForm((prev) => ({ ...prev, [key]: value }));
   };
@@ -454,6 +580,9 @@ export default function VendorBillsPage() {
   };
 
   const openCreate = () => {
+    // A fresh dialog must not inherit the last one's complaints.
+    setFieldErrors({});
+    setPaymentErrors({});
     setForm({ ...EMPTY_BILL });
     setSelectedStaff({});
     setItems([]);
@@ -484,10 +613,11 @@ export default function VendorBillsPage() {
   /** Same rule as IsPaymentDataFilled(): a mode picked, with a positive amount. */
   const paymentFilled = Boolean(payment.mode) && Number(payment.amount || 0) > 0;
 
+  /*
+   * Cross-field rules only. The three plain empty-checks moved to BILL_FIELDS
+   * so they report against the box at fault rather than one at a time.
+   */
   const validate = () => {
-    if (!form.serviceType) return 'Select a service type';
-    if (!form.billNumber.trim()) return 'Bill number is required';
-    if (!form.billDate) return 'Bill date is required';
     if (isStaff && Object.keys(selectedStaff).length === 0) return 'Select at least one staff member';
     if (isStaff && !paymentFilled) {
       return 'Payment is mandatory for a staff payment — pick a mode and enter an amount';
@@ -497,7 +627,6 @@ export default function VendorBillsPage() {
     if (!payment.mode && Number(payment.amount || 0) > 0) {
       return 'Pick a payment mode for the amount entered';
     }
-    if (needsVendor && !form.vendorId) return 'Select a vendor';
     if (isInventory && items.length === 0) return 'Add at least one item';
     if (computed.total <= 0) return 'The bill total must be greater than zero';
     return null;
@@ -505,6 +634,18 @@ export default function VendorBillsPage() {
 
   const onSubmit = async (event) => {
     event.preventDefault();
+
+    const missing = validateFields(BILL_FIELDS, form);
+    setFieldErrors(missing);
+    // The payment section is optional here — but once a mode is picked, its
+    // details are not.
+    const payMissing = validatePayment(payment);
+    setPaymentErrors(payMissing);
+    if (Object.keys(missing).length || Object.keys(payMissing).length) {
+      setError(null);
+      if (Object.keys(missing).length) focusFirstInvalid(BILL_FIELDS, missing);
+      return;
+    }
     const message = validate();
     if (message) {
       setError(new Error(message));
@@ -533,15 +674,40 @@ export default function VendorBillsPage() {
       });
       setForm(null);
       await load();
+      toast.success('Vendor bill saved successfully.', { title: 'Saved' });
     } catch (err) {
       setError(err);
+      toast.error('The bill could not be saved. Please check the form and try again.');
     } finally {
       setBusy(false);
     }
   };
 
+  /*
+   * Opening and closing both drop the complaints, so a dialog dismissed with
+   * errors up does not reopen still showing them.
+   */
+  const openVendorForm = () => {
+    setVendorErrors({});
+    setVendorForm({ ...EMPTY_VENDOR });
+  };
+  const closeVendorForm = () => {
+    setVendorErrors({});
+    setVendorForm(null);
+  };
+
   const saveVendor = async (event) => {
     event.preventDefault();
+
+    // The form carries noValidate, so the asterisk on Vendor name was the only
+    // sign it was mandatory and an empty save wrote a blank vendor.
+    const missing = validateFields(VENDOR_FIELDS, vendorForm);
+    setVendorErrors(missing);
+    if (Object.keys(missing).length) {
+      focusFirstInvalid(VENDOR_FIELDS, missing);
+      return;
+    }
+
     setBusy(true);
     setError(null);
     try {
@@ -549,8 +715,10 @@ export default function VendorBillsPage() {
       const fresh = await vendorBills.formData();
       setLookups(fresh);
       setVendorForm(null);
+      toast.success('Vendor added successfully.', { title: 'Saved' });
     } catch (err) {
       setError(err);
+      toast.error('The vendor could not be saved. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -570,6 +738,7 @@ export default function VendorBillsPage() {
   /** VendorBill.aspx's Pay button — settle an outstanding bill. */
   const openPay = (row) => {
     setError(null);
+    setPayErrors({});
     setPaying(row);
     // The legacy modal opened with the balance already filled in, which is
     // what is being paid in nearly every case.
@@ -584,6 +753,12 @@ export default function VendorBillsPage() {
       setError(new Error('Pick a payment mode'));
       return;
     }
+
+    /*
+     * The amount is checked before the mode's own details: paying more than is
+     * outstanding is the more consequential mistake, and reporting a missing
+     * cheque number first would hide it behind a smaller problem.
+     */
     if (amount <= 0) {
       setError(new Error('Enter the amount being paid'));
       return;
@@ -593,14 +768,26 @@ export default function VendorBillsPage() {
       return;
     }
 
+    // A cheque or transfer is only traceable with its own details — a cheque
+    // with no number cannot be matched to a bank statement. Cash needs none.
+    const payMissing = validatePayment(payForm);
+    setPayErrors(payMissing);
+    if (Object.keys(payMissing).length) {
+      setError(null);
+      return;
+    }
+
     setBusy(true);
     setError(null);
     try {
       await vendorBills.pay(paying.bill_id, payForm);
       setPaying(null);
       await load();
+      // Money leaving the society account — worth stating plainly.
+      toast.success('Payment recorded against the bill.', { title: 'Payment saved' });
     } catch (err) {
       setError(err);
+      toast.error(err?.message ?? 'The payment could not be recorded. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -612,8 +799,12 @@ export default function VendorBillsPage() {
       await vendorBills.decide(approvalId, { decision, remarks });
       if (detail?.bill) await openDetail(detail.bill);
       await load();
+      toast.success(`Bill ${String(decision).toLowerCase() === 'reject' ? 'rejected' : 'approved'}.`, {
+        title: 'Decision saved',
+      });
     } catch (err) {
       setError(err);
+      toast.error(err?.message ?? 'The decision could not be saved. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -659,7 +850,7 @@ export default function VendorBillsPage() {
   return (
     <section>
       <PageHeader title="Vendor bills" subtitle={`${totals.count} bill(s)`}>
-        <button type="button" className="btn-secondary" onClick={() => setVendorForm({ ...EMPTY_VENDOR })}>
+        <button type="button" className="btn-secondary" onClick={openVendorForm}>
           Add vendor
         </button>
         <button type="button" className="btn-primary" onClick={openCreate}>
@@ -738,6 +929,10 @@ export default function VendorBillsPage() {
       >
         {form ? (
           <form id="bill-form" onSubmit={onSubmit} noValidate className="space-y-5">
+            {/* The payment section belongs to this form, so its complaints
+                are counted here as well — otherwise the summary said the form
+                was clean while a cheque box below it was still marked. */}
+            <FormErrorSummary count={countErrors(fieldErrors) + countErrors(paymentErrors)} />
 
             {!form.serviceType ? (
               <div className="space-y-4">
@@ -814,6 +1009,7 @@ export default function VendorBillsPage() {
                         label="Vendor name"
                         name="vendorId"
                         required
+                        error={fieldErrors.vendorId}
                         options={lookups.vendors}
                         valueKey="vendor_id"
                         labelKey="vendor_name"
@@ -823,7 +1019,7 @@ export default function VendorBillsPage() {
                       <button
                         type="button"
                         className="mt-1 text-xs text-blue-600 hover:underline"
-                        onClick={() => setVendorForm({ ...EMPTY_VENDOR })}
+                        onClick={openVendorForm}
                       >
                         Add vendor
                       </button>
@@ -1123,6 +1319,10 @@ export default function VendorBillsPage() {
                 <PaymentFields
                   payment={payment}
                   setPayment={setPayment}
+                  errors={paymentErrors}
+                  clearError={(k) =>
+                    setPaymentErrors((p) => (p[k] ? { ...p, [k]: undefined } : p))
+                  }
                   amountRequired={isStaff}
                   amountHint={isStaff ? 'Mandatory for a staff payment' : undefined}
                 />
@@ -1140,10 +1340,10 @@ export default function VendorBillsPage() {
       <Modal
         open={Boolean(vendorForm)}
         title="Add vendor"
-        onClose={() => setVendorForm(null)}
+        onClose={closeVendorForm}
         footer={
           <>
-            <button type="button" className="btn-secondary" onClick={() => setVendorForm(null)} disabled={busy}>
+            <button type="button" className="btn-secondary" onClick={closeVendorForm} disabled={busy}>
               Cancel
             </button>
             <button type="submit" form="vendor-form" className="btn-primary" disabled={busy}>
@@ -1154,23 +1354,26 @@ export default function VendorBillsPage() {
       >
         {vendorForm ? (
           <form id="vendor-form" onSubmit={saveVendor} className="grid gap-4 sm:grid-cols-2" noValidate>
-            {[
-              ['name', 'Vendor name', true],
-              ['contactPerson', 'Contact person', false],
-              ['contactNo', 'Contact number', false],
-              ['email', 'Email', false],
-              ['gstNo', 'GST number', false],
-              ['serviceType', 'Service type', false],
-            ].map(([key, label, required]) => (
+            {VENDOR_FIELDS.map((f) => (
               <TextField
-                key={key}
-                label={label}
-                name={key}
-                required={required}
-                value={vendorForm[key]}
+                key={f.name}
+                label={f.label}
+                name={f.name}
+                type={f.type ?? 'text'}
+                required={f.required}
+                error={vendorErrors[f.name]}
+                inputMode={f.digits ? 'numeric' : undefined}
+                maxLength={f.maxLength}
+                value={vendorForm[f.name]}
                 onChange={(e) => {
                   const { value } = e.target;
-                  setVendorForm((p) => ({ ...p, [key]: value }));
+                  // A `digits` box takes 0-9 only, trimmed to maxLength.
+                  const next = f.digits
+                    ? value.replace(/\D/g, '').slice(0, f.maxLength)
+                    : value;
+                  setVendorForm((p) => ({ ...p, [f.name]: next }));
+                  // The complaint goes as soon as it is being answered.
+                  setVendorErrors((p) => (p[f.name] ? { ...p, [f.name]: undefined } : p));
                 }}
               />
             ))}
@@ -1415,9 +1618,12 @@ export default function VendorBillsPage() {
               <dd className="text-right font-medium text-slate-900">{money(paying.remaining_amount)}</dd>
             </dl>
 
+            <FormErrorSummary count={countErrors(payErrors)} />
             <PaymentFields
               payment={payForm}
               setPayment={setPayForm}
+              errors={payErrors}
+              clearError={(k) => setPayErrors((p) => (p[k] ? { ...p, [k]: undefined } : p))}
               idPrefix="settle-"
               amountRequired
               amountMax={paying.remaining_amount ?? undefined}
@@ -1442,8 +1648,10 @@ export default function VendorBillsPage() {
           try {
             await confirming.run();
             await load();
+            toast.success('Vendor bill deleted successfully.', { title: 'Deleted' });
           } catch (err) {
             setError(err);
+            toast.error(err?.message ?? 'The bill could not be deleted. Please try again.');
           } finally {
             setBusy(false);
             setConfirming(null);

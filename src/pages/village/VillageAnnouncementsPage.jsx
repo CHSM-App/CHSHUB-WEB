@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { village } from '@/api/modules';
 import DataGrid from '@/components/DataGrid.jsx';
-import { ConfirmDialog, ErrorNotice, Modal } from '@/components/ui.jsx';
+import { ConfirmDialog, ErrorNotice, FormErrorSummary, Modal } from '@/components/ui.jsx';
 import { PageHeader, SelectField, Tabs, TextAreaField, TextField } from '@/components/FormControls.jsx';
+import { useToast } from '@/components/Toast.jsx';
+import {
+  countErrors,
+  validateFields,
+  focusFirstInvalid,
+} from '@/components/formValidation.js';
 
 const day = (v) => (v ? new Date(v).toLocaleDateString() : '—');
 
@@ -26,6 +32,13 @@ const CATEGORY_OPTIONS = [
 
 const EMPTY = { category: 'General', title: '', description: '', validTo: '' };
 
+/*
+ * What Submit insists on, in the shape validateFields expects. Only the
+ * title: the API takes the description as optional and the legacy modal did
+ * not star it either.
+ */
+const REQUIRED_FIELDS = [{ name: 'title', label: 'Title', required: true }];
+
 /**
  * Village announcements — replaces v_announcement.aspx.
  *
@@ -47,11 +60,13 @@ export default function VillageAnnouncementsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [form, setForm] = useState(null);
+
   const [formError, setFormError] = useState(null);
   // Which fields Submit found empty, as { fieldName: message }.
   const [fieldErrors, setFieldErrors] = useState({});
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(null);
+  const toast = useToast();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -91,21 +106,19 @@ export default function VillageAnnouncementsPage() {
     event.preventDefault();
 
     /*
-     * Checked on Submit, and reported against the box at fault rather than as
-     * one combined sentence — a message naming three fields makes you match
-     * each name back to its own box.
+     * Checked on Submit and reported against the box at fault, using the same
+     * pass every other screen runs — the wording, the summary and the jump to
+     * the first empty field all come from formValidation so this dialog does
+     * not behave differently from the rest of the app.
+     *
+     * Description is not demanded: POST /village/announcements accepts it as
+     * optional, and the legacy modal did not star it either.
      */
-    const missing = {};
-    if (!form.title.trim()) missing.title = 'Title is required';
-    // Description is not demanded: POST /village/announcements accepts it as
-    // optional, and the legacy modal did not star it either.
-
+    const missing = validateFields(REQUIRED_FIELDS, form);
     if (Object.keys(missing).length) {
       setFieldErrors(missing);
       setFormError(null);
-      const first = event.currentTarget?.elements?.[Object.keys(missing)[0]];
-      first?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
-      first?.focus?.({ preventScroll: true });
+      focusFirstInvalid(REQUIRED_FIELDS, missing);
       return;
     }
 
@@ -119,12 +132,17 @@ export default function VillageAnnouncementsPage() {
         description: form.description,
         validTo: form.validTo || undefined,
       };
-      if (form.__id) await village.updateAnnouncement(form.__id, body);
+      const wasEdit = Boolean(form.__id);
+      if (wasEdit) await village.updateAnnouncement(form.__id, body);
       else await village.createAnnouncement(body);
       setForm(null);
       await load();
+      toast.success(`Announcement ${wasEdit ? 'updated' : 'published'} successfully.`, {
+        title: 'Saved',
+      });
     } catch (err) {
       setFormError(err);
+      toast.error('Your changes were not saved. Please check the form and try again.');
     } finally {
       setBusy(false);
     }
@@ -233,6 +251,7 @@ export default function VillageAnnouncementsPage() {
       >
         {form ? (
           <form id="v-ann-form" onSubmit={save} className="grid gap-4 sm:grid-cols-2" noValidate>
+            <FormErrorSummary count={countErrors(fieldErrors)} />
             {formError ? (
               <div className="sm:col-span-2">
                 <ErrorNotice error={formError} />
@@ -249,21 +268,23 @@ export default function VillageAnnouncementsPage() {
               value={form.category}
               onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}
             />
-            <TextField
-              label="Title"
-              name="title"
-              required
-              className="sm:col-span-2"
-              placeholder="Enter announcement title"
-              error={fieldErrors.title}
-              value={form.title}
-              onChange={(e) => {
-                const { value } = e.target;
-                setForm((p) => ({ ...p, title: value }));
-                // The complaint goes as soon as it is answered.
-                setFieldErrors((p) => ({ ...p, title: undefined }));
-              }}
-            />
+            {/* data-field is what a failed submit scrolls to and flashes. */}
+            <div className="rounded-md sm:col-span-2" data-field="title">
+              <TextField
+                label="Title"
+                name="title"
+                required
+                placeholder="Enter announcement title"
+                error={fieldErrors.title}
+                value={form.title}
+                onChange={(e) => {
+                  const { value } = e.target;
+                  setForm((p) => ({ ...p, title: value }));
+                  // The complaint goes as soon as it is answered.
+                  setFieldErrors((p) => ({ ...p, title: undefined }));
+                }}
+              />
+            </div>
             <TextAreaField
               label="Description"
               name="description"
@@ -309,8 +330,10 @@ export default function VillageAnnouncementsPage() {
           try {
             await confirming.run();
             await load();
+            toast.success('Announcement deleted successfully.', { title: 'Deleted' });
           } catch (err) {
             setError(err);
+            toast.error(err?.message ?? 'The announcement could not be deleted. Please try again.');
           } finally {
             setBusy(false);
             setConfirming(null);

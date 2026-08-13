@@ -5,6 +5,7 @@ import {
   ConfirmDialog,
   EmptyState,
   ErrorNotice,
+  FormErrorSummary,
   InfoNotice,
   Modal,
   Spinner,
@@ -17,6 +18,12 @@ import {
   TextAreaField,
   TextField,
 } from '@/components/FormControls.jsx';
+import { useToast } from '@/components/Toast.jsx';
+import {
+  countErrors,
+  validateFields,
+  focusFirstInvalid,
+} from '@/components/formValidation.js';
 
 const money = (v) =>
   v == null ? '—' : Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -90,6 +97,9 @@ function ReceiptField({ label, value }) {
  */
 const WRITES_ENABLED = import.meta.env.VITE_ENABLE_RECEIPT_ENTRY === 'true';
 
+/* The one unconditional empty-check; see validate() for the rest. */
+const RECEIPT_FIELDS = [{ name: 'flatId', label: 'Resident', type: 'select', required: true }];
+
 export default function ReceiptEntryPage() {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
@@ -107,6 +117,9 @@ export default function ReceiptEntryPage() {
   const [loadingBills, setLoadingBills] = useState(false);
   const [viewing, setViewing] = useState(null);
   const [confirming, setConfirming] = useState(null);
+  // name -> message, for the fields the last submit found empty.
+  const [fieldErrors, setFieldErrors] = useState({});
+  const toast = useToast();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -131,8 +144,13 @@ export default function ReceiptEntryPage() {
   }, [load]);
 
   /** Selecting a resident loads their outstanding bills and PDC cheques. */
+  const clearFieldError = (key) =>
+    setFieldErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
+
   const onResidentChange = async (flatId) => {
     setForm((p) => ({ ...p, flatId }));
+    // The complaint goes as soon as it is answered.
+    clearFieldError('flatId');
     setSelectedBills([]);
     setOutstanding([]);
     setPdcCheques([]);
@@ -240,8 +258,12 @@ export default function ReceiptEntryPage() {
     [selectedRows],
   );
 
+  /*
+   * Cross-field rules only. The resident moved to RECEIPT_FIELDS so it marks
+   * the box; the rest depend on pay mode, the bills ticked, or a column width,
+   * so they stay as one banner.
+   */
   const validate = () => {
-    if (!form.flatId) return 'Select a resident';
     if (!selectedBills.length) return 'Select at least one bill to settle';
     if (Number(form.paidAmount || 0) <= 0) return 'Enter an amount greater than zero';
     if (Number(form.paidAmount) < minimumAmount) {
@@ -267,6 +289,13 @@ export default function ReceiptEntryPage() {
     try {
       // Inside the try so a fault in validation surfaces as a message rather
       // than escaping the handler and leaving the button silently dead.
+      const missing = validateFields(RECEIPT_FIELDS, form);
+      setFieldErrors(missing);
+      if (Object.keys(missing).length) {
+        focusFirstInvalid(RECEIPT_FIELDS, missing);
+        return;
+      }
+
       const message = validate();
       if (message) {
         setError(new Error(message));
@@ -292,10 +321,19 @@ export default function ReceiptEntryPage() {
           ? `Payment recorded — receipt ${created.receipt_id}.`
           : 'Payment recorded.',
       );
+      // The banner above stays for the receipt number; the toast is what every
+      // other screen shows on a save, so the two agree.
+      toast.success(
+        created?.receipt_id
+          ? `Receipt ${created.receipt_id} recorded successfully.`
+          : 'Payment recorded successfully.',
+        { title: 'Receipt saved' },
+      );
       setForm(null);
       await load();
     } catch (err) {
       setError(err);
+      toast.error('The receipt could not be saved. Please check the form and try again.');
     } finally {
       setBusy(false);
     }
@@ -424,10 +462,12 @@ export default function ReceiptEntryPage() {
       >
         {form ? (
           <form id="receipt-form" onSubmit={onSubmit} className="space-y-4" noValidate>
+            <FormErrorSummary count={countErrors(fieldErrors)} />
             <SelectField
               label="Resident"
               name="flatId"
               required
+              error={fieldErrors.flatId}
               options={residents}
               valueKey="flat_id"
               labelKey="resident_name"
@@ -747,8 +787,10 @@ export default function ReceiptEntryPage() {
           try {
             await confirming.run();
             await load();
+            toast.success('Receipt cancelled.', { title: 'Cancelled' });
           } catch (err) {
             setError(err);
+            toast.error(err?.message ?? 'The receipt could not be cancelled. Please try again.');
           } finally {
             setBusy(false);
             setConfirming(null);

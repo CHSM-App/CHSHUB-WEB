@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { flats } from '@/api/masters';
 import useCrudResource from './useCrudResource';
-import { ConfirmDialog, EmptyState, ErrorNotice, Field, Modal, Spinner } from '@/components/ui.jsx';
+import { ConfirmDialog, EmptyState, ErrorNotice, Field, Modal, Spinner, FormErrorSummary } from '@/components/ui.jsx';
+import {
+  countErrors,
+  validateFields,
+  focusFirstInvalid,
+} from '@/components/formValidation.js';
 
 const EMPTY = {
   wingId: '',
@@ -25,6 +30,14 @@ const toForm = (row) => ({
   intercomNo: row.intercom_no ?? '',
 });
 
+/* What Submit insists on, in the shape validateFields expects. */
+const FLAT_FIELDS = [
+  { name: 'wingId', label: 'Wing', type: 'select', required: true },
+  { name: 'flatNo', label: 'Flat number', required: true },
+  { name: 'bedroomId', label: 'Bedrooms', type: 'select', required: true },
+  { name: 'usageId', label: 'Usage', type: 'select', required: true },
+];
+
 export default function FlatsPage() {
   const [wingFilter, setWingFilter] = useState('');
   const params = useMemo(() => ({ wingId: wingFilter || undefined }), [wingFilter]);
@@ -35,6 +48,8 @@ export default function FlatsPage() {
   const [lookups, setLookups] = useState({ wings: [], flatTypes: [], usages: [], bedrooms: [] });
   const [editing, setEditing] = useState(null);
   const [confirming, setConfirming] = useState(null);
+  // name -> message, for the fields the last submit found empty.
+  const [fieldErrors, setFieldErrors] = useState({});
 
   useEffect(() => {
     let cancelled = false;
@@ -60,11 +75,21 @@ export default function FlatsPage() {
   // Read e.target.value eagerly — see ResidentsPage for the full explanation.
   const setField = (key) => (e) => {
     const { value } = e.target;
+    setFieldErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
     setEditing((prev) => ({ ...prev, form: { ...prev.form, [key]: value } }));
   };
 
   const onSubmit = async (event) => {
     event.preventDefault();
+
+    // The form carries noValidate, so nothing enforced the asterisks — an
+    // empty save wrote a blank row. Same pass as every other screen.
+    const missing = validateFields(FLAT_FIELDS, editing.form);
+    setFieldErrors(missing);
+    if (Object.keys(missing).length) {
+      focusFirstInvalid(FLAT_FIELDS, missing);
+      return;
+    }
     const f = editing.form;
     const body = {
       wingId: Number(f.wingId),
@@ -181,7 +206,8 @@ export default function FlatsPage() {
       >
         {editing ? (
           <form id="flat-form" onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2" noValidate>
-            <Field label="Wing" required>
+            <FormErrorSummary count={countErrors(fieldErrors)} />
+            <Field label="Wing" required name="wingId" error={fieldErrors.wingId}>
               <select className="field-input" value={editing.form.wingId} onChange={setField('wingId')} required>
                 <option value="">Select a wing…</option>
                 {lookups.wings.map((w) => (
@@ -191,7 +217,7 @@ export default function FlatsPage() {
                 ))}
               </select>
             </Field>
-            <Field label="Flat number" required>
+            <Field label="Flat number" required name="flatNo" error={fieldErrors.flatNo}>
               <input className="field-input" value={editing.form.flatNo} onChange={setField('flatNo')} required />
             </Field>
 
@@ -218,7 +244,7 @@ export default function FlatsPage() {
               </select>
             </Field>
 
-            <Field label="Bedrooms" required>
+            <Field label="Bedrooms" required name="bedroomId" error={fieldErrors.bedroomId}>
               <select
                 className="field-input"
                 value={editing.form.bedroomId}
@@ -234,7 +260,7 @@ export default function FlatsPage() {
               </select>
             </Field>
 
-            <Field label="Usage" required>
+            <Field label="Usage" required name="usageId" error={fieldErrors.usageId}>
               <select className="field-input" value={editing.form.usageId} onChange={setField('usageId')} required>
                 <option value="">Select…</option>
                 {lookups.usages.map((u) => (

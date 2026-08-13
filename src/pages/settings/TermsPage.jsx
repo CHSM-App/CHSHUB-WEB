@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { terms as termsApi } from '@/api/settings';
 import { ErrorNotice, Spinner } from '@/components/ui.jsx';
 import RichTextField from '@/components/RichTextField.jsx';
+import { useToast } from '@/components/Toast.jsx';
 
 /**
  * The visible text inside the editor's HTML.
@@ -29,6 +30,7 @@ export default function TermsPage() {
   const [savingTerms, setSavingTerms] = useState(false);
   const [error, setError] = useState(null);
   const [savedNote, setSavedNote] = useState('');
+  const toast = useToast();
 
   useEffect(() => {
     let cancelled = false;
@@ -57,8 +59,10 @@ export default function TermsPage() {
       const data = await termsApi.save({ terms: text });
       setText(data.current?.terms ?? text);
       setSavedNote('Terms saved.');
+      toast.success('Terms and conditions saved successfully.', { title: 'Saved' });
     } catch (err) {
       setError(err);
+      toast.error(err?.message ?? 'The terms could not be saved. Please try again.');
     } finally {
       setSavingTerms(false);
     }

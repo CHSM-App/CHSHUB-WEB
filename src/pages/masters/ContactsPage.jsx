@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as M from '@/api/modules';
 import { api } from '@/api/client';
-import { ConfirmDialog, EmptyState, ErrorNotice, Modal, Spinner } from '@/components/ui.jsx';
+import {
+  ConfirmDialog,
+  EmptyState,
+  ErrorNotice,
+  FormErrorSummary,
+  Modal,
+  Spinner,
+} from '@/components/ui.jsx';
 import {
   FileUploadField,
   PageHeader,
@@ -15,6 +22,12 @@ import {
   fetchProtectedUrl,
   revokeBlobUrl,
 } from '@/lib/storedFile';
+import { useToast } from '@/components/Toast.jsx';
+import {
+  countErrors,
+  validateFields,
+  focusFirstInvalid,
+} from '@/components/formValidation.js';
 
 /**
  * Useful contacts — replaces contact_master.aspx.
@@ -147,6 +160,21 @@ function ContactCard({ contact, onEdit, onDelete, onViewFile }) {
   );
 }
 
+/*
+ * What Submit insists on, in the shape validateFields expects. Only the
+ * name is required: usefull_contact takes every other column as optional, and
+ * the legacy form starred nothing else either.
+ *
+ * Contact no and email are listed without `required` so that they are optional
+ * but still format-checked — a directory whose numbers cannot be dialled is
+ * worth less than one with gaps in it.
+ */
+const CONTACT_FIELDS = [
+  { name: 'name', label: 'Name', required: true },
+  { name: 'contactNo', label: 'Contact no', phone: true, digits: true, maxLength: 10 },
+  { name: 'email', label: 'Email', type: 'email' },
+];
+
 export default function ContactsPage() {
   const [rows, setRows] = useState([]);
   const [types, setTypes] = useState([]);
@@ -157,6 +185,10 @@ export default function ContactsPage() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState(null);
   const [confirming, setConfirming] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  // name -> message, for the fields the last submit found empty.
+  const [fieldErrors, setFieldErrors] = useState({});
+  const toast = useToast();
   const [viewingFile, setViewingFile] = useState(null);
 
   const load = useCallback(async () => {
@@ -208,21 +240,43 @@ export default function ContactsPage() {
 
   const setField = (key) => (e) => {
     const { value } = e.target;
-    setEditing((p) => ({ ...p, form: { ...p.form, [key]: value } }));
+    const field = CONTACT_FIELDS.find((f) => f.name === key);
+    // A `digits` box takes 0-9 only, trimmed to maxLength, as the shared form
+    // engines do — these inputs are hand-rolled and had no filter.
+    const next = field?.digits
+      ? String(value).replace(/\D/g, '').slice(0, field.maxLength)
+      : value;
+    setEditing((p) => ({ ...p, form: { ...p.form, [key]: next } }));
+    // The complaint goes as soon as it is being answered.
+    setFieldErrors((p) => (p[key] ? { ...p, [key]: undefined } : p));
   };
 
   const save = async (e) => {
     e.preventDefault();
+
+    // The form carries noValidate, so nothing enforced the red asterisk on Name
+    // — an empty contact saved as a blank row. Same pass as every other screen.
+    const missing = validateFields(CONTACT_FIELDS, editing.form);
+    setFieldErrors(missing);
+    if (Object.keys(missing).length) {
+      setFormError(null);
+      focusFirstInvalid(CONTACT_FIELDS, missing);
+      return;
+    }
+
     setSaving(true);
     setFormError(null);
     try {
       const body = { ...editing.form, typeId: Number(editing.form.typeId) || 0 };
-      if (editing.id) await M.contacts.update(editing.id, body);
+      const wasEdit = Boolean(editing.id);
+      if (wasEdit) await M.contacts.update(editing.id, body);
       else await M.contacts.create(body);
       setEditing(null);
       await load();
+      toast.success(`Contact ${wasEdit ? 'updated' : 'added'} successfully.`, { title: 'Saved' });
     } catch (err) {
       setFormError(err);
+      toast.error('Your changes were not saved. Please check the form and try again.');
     } finally {
       setSaving(false);
     }
@@ -285,12 +339,14 @@ export default function ContactsPage() {
       >
         {editing ? (
           <form id="contact-form" onSubmit={save} className="grid gap-4 sm:grid-cols-2" noValidate>
+            <FormErrorSummary count={countErrors(fieldErrors)} />
             {/* Order and placeholders follow contact_master.aspx's modal. */}
             <TextField
               label="Name"
               name="name"
               required
               placeholder="Enter person's name"
+              error={fieldErrors.name}
               value={editing.form.name}
               onChange={setField('name')}
             />
@@ -314,7 +370,10 @@ export default function ContactsPage() {
             <TextField
               label="Contact number"
               name="contactNo"
+              error={fieldErrors.contactNo}
               placeholder="Enter mobile number"
+              inputMode="numeric"
+              maxLength={10}
               value={editing.form.contactNo}
               onChange={setField('contactNo')}
             />
@@ -322,6 +381,7 @@ export default function ContactsPage() {
               label="Email"
               name="email"
               type="email"
+              error={fieldErrors.email}
               placeholder="Enter email address"
               value={editing.form.email}
               onChange={setField('email')}
@@ -367,14 +427,21 @@ export default function ContactsPage() {
         open={Boolean(confirming)}
         title="Delete contact"
         message={`Delete ${confirming?.p_name}?`}
+        // Without this the confirm button stayed live during the request, so
+        // an impatient second click sent the delete twice.
+        busy={deleting}
         onCancel={() => setConfirming(null)}
         onConfirm={async () => {
+          setDeleting(true);
           try {
             await M.contacts.remove(confirming.usefull_contact_id);
             await load();
+            toast.success('Contact deleted successfully.', { title: 'Deleted' });
           } catch (err) {
             setError(err);
+            toast.error(err?.message ?? 'The contact could not be deleted. Please try again.');
           } finally {
+            setDeleting(false);
             setConfirming(null);
           }
         }}

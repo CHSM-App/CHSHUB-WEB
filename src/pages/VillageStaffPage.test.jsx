@@ -56,16 +56,18 @@ describe('VillageStaffPage', () => {
 
     // The form carries noValidate, so nothing enforced `required` — an empty
     // Add saved a blank staff row.
-    expect(await screen.findByText('Name is required')).toBeInTheDocument();
-    expect(screen.getByText('Role is required')).toBeInTheDocument();
-    expect(screen.getByText('Contact number is required')).toBeInTheDocument();
-    expect(screen.getByText('Address is required')).toBeInTheDocument();
-    expect(screen.getByText('Salary is required')).toBeInTheDocument();
-    expect(screen.getByText('Joined date is required')).toBeInTheDocument();
+    // Each says what to do rather than only what is wrong, and a dropdown is
+    // asked to be selected rather than typed into.
+    expect(await screen.findByText('Enter the name')).toBeInTheDocument();
+    expect(screen.getByText('Select a role')).toBeInTheDocument();
+    expect(screen.getByText('Enter the contact number')).toBeInTheDocument();
+    expect(screen.getByText('Enter the address')).toBeInTheDocument();
+    expect(screen.getByText('Enter the salary')).toBeInTheDocument();
+    expect(screen.getByText('Enter the joined date')).toBeInTheDocument();
 
     // Email and ID proof are optional, as on v_staff_management.aspx.
-    expect(screen.queryByText('Email is required')).not.toBeInTheDocument();
-    expect(screen.queryByText('ID proof is required')).not.toBeInTheDocument();
+    expect(screen.queryByText('Enter the email')).not.toBeInTheDocument();
+    expect(screen.queryByText('Enter the ID proof')).not.toBeInTheDocument();
   });
 
   it('clears a field complaint as soon as it is answered', async () => {
@@ -77,12 +79,12 @@ describe('VillageStaffPage', () => {
     await user.click(screen.getByRole('button', { name: 'Add' }));
     await user.click(await screen.findByRole('button', { name: 'Save' }));
 
-    await screen.findByText('Name is required');
+    await screen.findByText('Enter the name');
     await user.type(screen.getByLabelText(/^name/i), 'Aniket');
 
-    await waitFor(() => expect(screen.queryByText('Name is required')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText('Enter the name')).not.toBeInTheDocument());
     // The ones still blank keep theirs until they are answered too.
-    expect(screen.getByText('Role is required')).toBeInTheDocument();
+    expect(screen.getByText('Select a role')).toBeInTheDocument();
   });
 
   it('preselects the role, which Grid_Show returns only by name', async () => {

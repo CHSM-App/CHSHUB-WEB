@@ -1,6 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { village } from '@/api/modules';
-import { ConfirmDialog, EmptyState, ErrorNotice, Field, Modal, Spinner } from '@/components/ui.jsx';
+import {
+  ConfirmDialog,
+  EmptyState,
+  ErrorNotice,
+  Field,
+  FormErrorSummary,
+  Modal,
+  Spinner,
+} from '@/components/ui.jsx';
+import { useToast } from '@/components/Toast.jsx';
+import {
+  countErrors,
+  validateFields,
+  focusFirstInvalid,
+} from '@/components/formValidation.js';
 
 /*
  * Which charges apply to which house.
@@ -46,6 +60,12 @@ function periodLabel(value, frequency) {
 
 const blankChargeType = { payment_type: 0, name: '', frequency: 'M', basis: 'FLAT' };
 
+/*
+ * What the charge-type dialog insists on. Only the name: frequency and basis
+ * are dropdowns that start on a value, so neither can be submitted blank.
+ */
+const CHARGE_TYPE_FIELDS = [{ name: 'name', label: 'Name', required: true }];
+
 export default function HouseChargesPage() {
   const [rows, setRows] = useState([]);
   const [chargeTypes, setChargeTypes] = useState([]);
@@ -58,6 +78,10 @@ export default function HouseChargesPage() {
   const [chargeForm, setChargeForm] = useState(null);
   const [savingCharge, setSavingCharge] = useState(false);
   const [removing, setRemoving] = useState(null);
+  const [removingBusy, setRemovingBusy] = useState(false);
+  // name -> message, for the fields the last submit found empty.
+  const [fieldErrors, setFieldErrors] = useState({});
+  const toast = useToast();
 
   const load = useCallback(
     () =>
@@ -87,6 +111,15 @@ export default function HouseChargesPage() {
 
   const saveChargeType = async (event) => {
     event.preventDefault();
+
+    // The form carries noValidate, so nothing enforced the asterisk on Name.
+    const missing = validateFields(CHARGE_TYPE_FIELDS, chargeForm);
+    setFieldErrors(missing);
+    if (Object.keys(missing).length) {
+      focusFirstInvalid(CHARGE_TYPE_FIELDS, missing);
+      return;
+    }
+
     setSavingCharge(true);
     setError(null);
     try {
@@ -95,24 +128,32 @@ export default function HouseChargesPage() {
         frequency: chargeForm.frequency,
         basis: chargeForm.basis,
       };
-      if (chargeForm.payment_type) await village.updateChargeType(chargeForm.payment_type, body);
+      const wasEdit = Boolean(chargeForm.payment_type);
+      if (wasEdit) await village.updateChargeType(chargeForm.payment_type, body);
       else await village.createChargeType(body);
       setChargeForm(null);
       await load();
+      toast.success(`Charge type ${wasEdit ? 'updated' : 'added'} successfully.`, { title: 'Saved' });
     } catch (err) {
       setError(err);
+      toast.error('The charge type could not be saved. Please try again.');
     } finally {
       setSavingCharge(false);
     }
   };
 
   const removeChargeType = async () => {
+    // Guarded like every other delete, so a second click cannot send it twice.
+    setRemovingBusy(true);
     try {
       await village.removeChargeType(removing.payment_type);
       await load();
+      toast.success('Charge type deleted successfully.', { title: 'Deleted' });
     } catch (err) {
       setError(err);
+      toast.error(err?.message ?? 'The charge type could not be deleted. Please try again.');
     } finally {
+      setRemovingBusy(false);
       setRemoving(null);
     }
   };
@@ -172,6 +213,10 @@ export default function HouseChargesPage() {
       await load();
     } catch (err) {
       setError(err);
+      // No success toast here: this saves one grid cell, and an operator
+      // working down a column would get a stack of them. The cell's own
+      // spinner is the confirmation; only the failure needs announcing.
+      toast.error(err?.message ?? 'That charge could not be saved. Please try again.');
     } finally {
       setSavingKey(null);
     }
@@ -422,15 +467,27 @@ export default function HouseChargesPage() {
       >
         {chargeForm ? (
           <form id="charge-type-form" onSubmit={saveChargeType} className="grid gap-4" noValidate>
-            <Field label="Name" required hint="What this charge is called on a bill.">
+            <FormErrorSummary count={countErrors(fieldErrors)} />
+            <div data-field="name" className="rounded-md">
+            <Field
+              label="Name"
+              required
+              hint="What this charge is called on a bill."
+              name="name" error={fieldErrors.name}
+            >
               <input
                 className="field-input"
                 autoFocus
                 value={chargeForm.name}
-                onChange={(e) => setChargeForm((f) => ({ ...f, name: e.target.value }))}
+                onChange={(e) => {
+                  const { value } = e.target;
+                  setChargeForm((f) => ({ ...f, name: value }));
+                  setFieldErrors((p) => (p.name ? { ...p, name: undefined } : p));
+                }}
                 required
               />
             </Field>
+            </div>
 
             <Field label="How often it is raised" required>
               <select
@@ -489,6 +546,7 @@ export default function HouseChargesPage() {
             : ''
         }
         confirmLabel="Remove"
+        busy={removingBusy}
         onConfirm={removeChargeType}
         onCancel={() => setRemoving(null)}
       />

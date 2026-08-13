@@ -3,9 +3,25 @@ import { ownerExtras } from '@/api/ownerExtras';
 import { family as familyApi } from '@/api/masters';
 import { ConfirmDialog, EmptyState, ErrorNotice, Modal, Spinner } from '@/components/ui.jsx';
 import { CheckboxField, FileUploadField, SelectField, Tabs, TextField } from '@/components/FormControls.jsx';
+import { useToast } from '@/components/Toast.jsx';
+import { validateFields, focusFirstInvalid } from '@/components/formValidation.js';
 
 const money = (v) =>
   v == null ? '—' : Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/*
+ * What the panel's two add-forms insist on, in the shape validateFields
+ * expects. Both carry asterisks that nothing enforced, so an empty Add filed a
+ * blank family member or a vehicle with no number.
+ */
+const FAMILY_FIELDS = [
+  { name: 'name', label: 'Name', required: true },
+  { name: 'relation', label: 'Relation', required: true },
+  // Optional, but format-checked once filled — the add-row renders a contact
+  // box that no rule covered.
+  { name: 'contact', label: 'Contact', phone: true, digits: true, maxLength: 10 },
+];
+const VEHICLE_FIELDS = [{ name: 'vehicleNo', label: 'Vehicle number', required: true }];
 
 const TABS = [
   { id: 'family', label: 'Family' },
@@ -28,6 +44,9 @@ export default function OwnerDetailPanel({ resident, onClose }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  // name -> message, for the fields the last Add found empty.
+  const [fieldErrors, setFieldErrors] = useState({});
   const [confirming, setConfirming] = useState(null);
 
   // Add-row inputs, one per tab.
@@ -88,16 +107,25 @@ export default function OwnerDetailPanel({ resident, onClose }) {
     }
   }, [resident, load]);
 
-  /** Run a mutation, then refresh the panel. */
-  const mutate = async (fn) => {
+  /**
+   * Run a mutation, then refresh the panel.
+   *
+   * `done` is what the toast says on success — "Vehicle added", "Hobbies
+   * saved". Every path through this panel used to succeed in silence, which on
+   * a tabbed dialog is especially confusing: the list redraws behind the tab
+   * you are on and nothing tells you the write landed.
+   */
+  const mutate = async (fn, done) => {
     setBusy(true);
     setError(null);
     try {
       await fn();
       await load();
+      if (done) toast.success(done, { title: 'Saved' });
       return true;
     } catch (err) {
       setError(err);
+      toast.error(err?.message ?? 'The change could not be saved. Please try again.');
       return false;
     } finally {
       setBusy(false);
@@ -167,6 +195,7 @@ export default function OwnerDetailPanel({ resident, onClose }) {
                                   title: 'Remove family member',
                                   message: `Remove ${r.f_name}?`,
                                   run: () => familyApi.remove(r.o_ex_id, ownerId),
+                                  done: 'Family member removed.',
                                 })
                               }
                             >
@@ -182,7 +211,18 @@ export default function OwnerDetailPanel({ resident, onClose }) {
                   className="mt-4 grid gap-3 border-t border-slate-200 pt-4 sm:grid-cols-3 lg:grid-cols-6"
                   onSubmit={async (e) => {
                     e.preventDefault();
-                    if (await mutate(() => familyApi.create({ ownerId, ...familyForm }))) {
+                    const missing = validateFields(FAMILY_FIELDS, familyForm);
+                    setFieldErrors(missing);
+                    if (Object.keys(missing).length) {
+                      focusFirstInvalid(FAMILY_FIELDS, missing);
+                      return;
+                    }
+                    if (
+                      await mutate(
+                        () => familyApi.create({ ownerId, ...familyForm }),
+                        'Family member added.',
+                      )
+                    ) {
                       setFamilyForm({ name: '', relation: '', contact: '', occupation: '', dob: '' });
                     }
                   }}
@@ -191,15 +231,25 @@ export default function OwnerDetailPanel({ resident, onClose }) {
                     label="Name"
                     name="fname"
                     required
+                    error={fieldErrors.name}
                     value={familyForm.name}
-                    onChange={(e) => setFamilyForm((p) => ({ ...p, name: e.target.value }))}
+                    onChange={(e) => {
+                      const { value } = e.target;
+                      setFamilyForm((p) => ({ ...p, name: value }));
+                      setFieldErrors((p) => (p.name ? { ...p, name: undefined } : p));
+                    }}
                   />
                   <TextField
                     label="Relation"
                     name="frel"
                     required
+                    error={fieldErrors.relation}
                     value={familyForm.relation}
-                    onChange={(e) => setFamilyForm((p) => ({ ...p, relation: e.target.value }))}
+                    onChange={(e) => {
+                      const { value } = e.target;
+                      setFamilyForm((p) => ({ ...p, relation: value }));
+                      setFieldErrors((p) => (p.relation ? { ...p, relation: undefined } : p));
+                    }}
                   />
                   <TextField
                     label="Occupation"
@@ -255,10 +305,19 @@ export default function OwnerDetailPanel({ resident, onClose }) {
                   onSubmit={async (e) => {
                     e.preventDefault();
                     const isHobby = tab === 'hobbies';
-                    const ok = await mutate(() =>
-                      isHobby
-                        ? ownerExtras.addHobby({ ownerId, hobby })
-                        : ownerExtras.addWorkArea({ ownerId, areaOfWork: workArea }),
+                    /*
+                     * Trimmed before it is sent, not just before it is tested:
+                     * the Add button only checks for a falsy value, so a box
+                     * holding spaces enabled it and filed "   " as a hobby.
+                     */
+                    const entry = (isHobby ? hobby : workArea).trim();
+                    if (!entry) return;
+                    const ok = await mutate(
+                      () =>
+                        isHobby
+                          ? ownerExtras.addHobby({ ownerId, hobby: entry })
+                          : ownerExtras.addWorkArea({ ownerId, areaOfWork: entry }),
+                      isHobby ? 'Hobby added.' : 'Area of work added.',
                     );
                     if (ok) (isHobby ? setHobby : setWorkArea)('');
                   }}
@@ -273,7 +332,7 @@ export default function OwnerDetailPanel({ resident, onClose }) {
                   <button
                     type="submit"
                     className="btn-primary"
-                    disabled={busy || !(tab === 'hobbies' ? hobby : workArea)}
+                    disabled={busy || !(tab === 'hobbies' ? hobby : workArea).trim()}
                   >
                     Add
                   </button>
@@ -291,6 +350,7 @@ export default function OwnerDetailPanel({ resident, onClose }) {
                             tab === 'hobbies'
                               ? ownerExtras.clearHobbies(ownerId)
                               : ownerExtras.clearWorkAreas(ownerId),
+                          done: tab === 'hobbies' ? 'All hobbies cleared.' : 'All work areas cleared.',
                         })
                       }
                     >
@@ -334,6 +394,7 @@ export default function OwnerDetailPanel({ resident, onClose }) {
                                   title: 'Remove vehicle',
                                   message: `Remove ${r.vehicle_no}?`,
                                   run: () => ownerExtras.removeVehicle(r.vehicle_id),
+                                  done: 'Vehicle removed.',
                                 })
                               }
                             >
@@ -349,14 +410,22 @@ export default function OwnerDetailPanel({ resident, onClose }) {
                   className="mt-4 grid gap-3 border-t border-slate-200 pt-4 sm:grid-cols-4"
                   onSubmit={async (e) => {
                     e.preventDefault();
+                    const missing = validateFields(VEHICLE_FIELDS, vehicle);
+                    setFieldErrors(missing);
+                    if (Object.keys(missing).length) {
+                      focusFirstInvalid(VEHICLE_FIELDS, missing);
+                      return;
+                    }
                     if (
-                      await mutate(() =>
-                        ownerExtras.addVehicle({
-                          flatId,
-                          vehicleNo: vehicle.vehicleNo,
-                          vehicleType: Number(vehicle.vehicleType),
-                          modelName: vehicle.modelName,
-                        }),
+                      await mutate(
+                        () =>
+                          ownerExtras.addVehicle({
+                            flatId,
+                            vehicleNo: vehicle.vehicleNo,
+                            vehicleType: Number(vehicle.vehicleType),
+                            modelName: vehicle.modelName,
+                          }),
+                        'Vehicle added.',
                       )
                     ) {
                       setVehicle({ vehicleNo: '', vehicleType: '0', modelName: '' });
@@ -367,8 +436,13 @@ export default function OwnerDetailPanel({ resident, onClose }) {
                     label="Vehicle number"
                     name="vno"
                     required
+                    error={fieldErrors.vehicleNo}
                     value={vehicle.vehicleNo}
-                    onChange={(e) => setVehicle((p) => ({ ...p, vehicleNo: e.target.value }))}
+                    onChange={(e) => {
+                      const { value } = e.target;
+                      setVehicle((p) => ({ ...p, vehicleNo: value }));
+                      setFieldErrors((p) => (p.vehicleNo ? { ...p, vehicleNo: undefined } : p));
+                    }}
                   />
                   <TextField
                     label="Model"
@@ -430,6 +504,7 @@ export default function OwnerDetailPanel({ resident, onClose }) {
                                     title: 'Remove document',
                                     message: `Remove ${r.doc_name}?`,
                                     run: () => ownerExtras.removeDocument(r.document_id),
+                                    done: 'Document removed.',
                                   })
                                 }
                               >
@@ -457,12 +532,14 @@ export default function OwnerDetailPanel({ resident, onClose }) {
                     hint="JPEG, PNG or PDF, up to 10 MB"
                     onUploaded={async (f) => {
                       if (!f) return;
-                      await mutate(() =>
-                        ownerExtras.recordDocument({
-                          flatId,
-                          docName: docForm.docName || f.originalName,
-                          docPath: f.path,
-                        }),
+                      await mutate(
+                        () =>
+                          ownerExtras.recordDocument({
+                            flatId,
+                            docName: docForm.docName || f.originalName,
+                            docPath: f.path,
+                          }),
+                        'Document uploaded.',
                       );
                       setDocForm({ docName: '', docPath: '' });
                     }}
@@ -524,7 +601,12 @@ export default function OwnerDetailPanel({ resident, onClose }) {
                     type="button"
                     className="btn-primary"
                     disabled={busy}
-                    onClick={() => mutate(() => ownerExtras.saveSettings(ownerId, privacy))}
+                    onClick={() =>
+                      mutate(
+                        () => ownerExtras.saveSettings(ownerId, privacy),
+                        'Privacy settings saved.',
+                      )
+                    }
                   >
                     Save privacy settings
                   </button>
@@ -537,6 +619,7 @@ export default function OwnerDetailPanel({ resident, onClose }) {
                         title: 'Deactivate login',
                         message: `Deactivate app access for ${resident?.name}? Their record is kept.`,
                         run: () => ownerExtras.deactivate(ownerId, { kind: 'owner' }),
+                        done: 'App access deactivated.',
                       })
                     }
                   >
@@ -557,7 +640,9 @@ export default function OwnerDetailPanel({ resident, onClose }) {
         busy={busy}
         onCancel={() => setConfirming(null)}
         onConfirm={async () => {
-          await mutate(confirming.run);
+          // Each confirmable action supplies its own past-tense line, since
+          // "Saved" reads oddly for a removal or a deactivation.
+          await mutate(confirming.run, confirming.done);
           setConfirming(null);
         }}
       />

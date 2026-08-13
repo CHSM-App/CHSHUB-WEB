@@ -12,6 +12,7 @@ import {
   Spinner,
 } from '@/components/ui.jsx';
 import ExportToolbar from '@/components/ExportToolbar.jsx';
+import { useToast } from '@/components/Toast.jsx';
 
 // The New Maintenance modal's own fields. Bill period is how many months the
 // add-on charges are spread over — txt_period on the legacy form; the date is
@@ -274,6 +275,7 @@ export default function BillsPage() {
   const [confirmRegular, setConfirmRegular] = useState(false);
   const [confirmDuplicate, setConfirmDuplicate] = useState(false);
   const [running, setRunning] = useState(false);
+  const toast = useToast();
   const [notice, setNotice] = useState(null);
 
   /**
@@ -317,6 +319,9 @@ export default function BillsPage() {
       });
     } catch (err) {
       setError(err);
+      // The success banner above is richer than a toast could be, so only the
+      // failure is raised here.
+      toast.error(err?.message ?? 'The bill run could not be completed. Please try again.');
     } finally {
       setRunning(false);
     }
@@ -351,8 +356,12 @@ export default function BillsPage() {
           : 'No add-on bill generated — there are no active add-on charges, or no eligible flats.',
       });
     } catch (err) {
+      // A 409 is not a failure here — it opens the duplicate confirmation.
       if (err?.status === 409 && !allowDuplicate) setConfirmDuplicate(true);
-      else setError(err);
+      else {
+        setError(err);
+        toast.error(err?.message ?? 'The add-on run could not be completed. Please try again.');
+      }
     } finally {
       setRunning(false);
     }
@@ -433,8 +442,10 @@ export default function BillsPage() {
       // button on screen until a reload.
       setSocietySettings(saved?.settings ?? { auto_bill_generation: settings.form.autoBillGeneration });
       setSettings(null);
+      toast.success('Billing settings saved successfully.', { title: 'Saved' });
     } catch (err) {
       setSettingsError(err);
+      toast.error(err?.message ?? 'The settings could not be saved. Please try again.');
     } finally {
       setSettingsSaving(false);
     }

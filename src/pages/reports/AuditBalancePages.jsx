@@ -2,7 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { reports } from '@/api/modules';
 import { api } from '@/api/client';
 import DataGrid from '@/components/DataGrid.jsx';
-import { ConfirmDialog, EmptyState, ErrorNotice, Modal, Spinner } from '@/components/ui.jsx';
+import {
+  ConfirmDialog,
+  EmptyState,
+  ErrorNotice,
+  FormErrorSummary,
+  Modal,
+  Spinner,
+} from '@/components/ui.jsx';
 import {
   PageHeader,
   SelectField,
@@ -10,6 +17,12 @@ import {
   TextAreaField,
   TextField,
 } from '@/components/FormControls.jsx';
+import { useToast } from '@/components/Toast.jsx';
+import {
+  countErrors,
+  validateFields,
+  focusFirstInvalid,
+} from '@/components/formValidation.js';
 
 const money = (v) =>
   v == null || v === '' ? '—' : Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -137,6 +150,18 @@ function AuditFormReport({ sections, info, period, innerRef }) {
  * Questions are grouped under headers; both are editable, and the whole sheet
  * prints for the auditor.
  */
+/*
+ * What each form insists on, in the shape validateFields expects. These
+ * mirror asterisks already on the inputs that nothing enforced — the forms
+ * carry noValidate, so an empty submit posted a blank row.
+ */
+const HEADER_FIELDS = [{ name: 'description', label: 'Section title', required: true }];
+const QUESTION_FIELDS = [
+  { name: 'headerId', label: 'Section', type: 'select', required: true },
+  { name: 'question', label: 'Question', required: true },
+];
+const BALANCE_HEAD_FIELDS = [{ name: 'description', label: 'Header title', required: true }];
+
 export function AuditPage() {
   const [headers, setHeaders] = useState([]);
   const [questions, setQuestions] = useState([]);
@@ -147,6 +172,9 @@ export function AuditPage() {
   const [headerForm, setHeaderForm] = useState(null);
   const [questionForm, setQuestionForm] = useState(null);
   const [confirming, setConfirming] = useState(null);
+  const toast = useToast();
+  // name -> message, for the fields the last submit found empty.
+  const [fieldErrors, setFieldErrors] = useState({});
   const [viewingForm, setViewingForm] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [openSections, setOpenSections] = useState([]);
@@ -246,6 +274,14 @@ export function AuditPage() {
 
   const saveHeader = async (event) => {
     event.preventDefault();
+
+    const missing = validateFields(HEADER_FIELDS, headerForm);
+    setFieldErrors(missing);
+    if (Object.keys(missing).length) {
+      focusFirstInvalid(HEADER_FIELDS, missing);
+      return;
+    }
+
     setBusy(true);
     setError(null);
     try {
@@ -274,8 +310,10 @@ export function AuditPage() {
 
       setHeaderForm(null);
       await load();
+      toast.success('Audit section saved successfully.', { title: 'Saved' });
     } catch (err) {
       setError(err);
+      toast.error('The section could not be saved. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -283,6 +321,14 @@ export function AuditPage() {
 
   const saveQuestion = async (event) => {
     event.preventDefault();
+
+    const missing = validateFields(QUESTION_FIELDS, questionForm);
+    setFieldErrors(missing);
+    if (Object.keys(missing).length) {
+      focusFirstInvalid(QUESTION_FIELDS, missing);
+      return;
+    }
+
     setBusy(true);
     setError(null);
     try {
@@ -295,8 +341,10 @@ export function AuditPage() {
       });
       setQuestionForm(null);
       await load();
+      toast.success('Audit question saved successfully.', { title: 'Saved' });
     } catch (err) {
       setError(err);
+      toast.error('The question could not be saved. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -539,10 +587,12 @@ export function AuditPage() {
       >
         {headerForm ? (
           <form id="header-form" onSubmit={saveHeader} noValidate>
+            <FormErrorSummary count={countErrors(fieldErrors)} />
             <TextField
               label="मुख्य मुद्दा (section title)"
               name="description"
               required
+              error={fieldErrors.description}
               value={headerForm.description}
               onChange={(e) => {
                 const { value } = e.target;
@@ -614,10 +664,12 @@ export function AuditPage() {
       >
         {questionForm ? (
           <form id="question-form" onSubmit={saveQuestion} className="space-y-4" noValidate>
+            <FormErrorSummary count={countErrors(fieldErrors)} />
             <SelectField
               label="Section"
               name="headerId"
               required
+              error={fieldErrors.headerId}
               options={headers}
               valueKey="audt_header_id"
               labelKey="audt_header_desc"
@@ -631,6 +683,7 @@ export function AuditPage() {
               label="Question"
               name="question"
               required
+              error={fieldErrors.question}
               rows={2}
               value={questionForm.question}
               onChange={(e) => {
@@ -693,8 +746,10 @@ export function AuditPage() {
           try {
             await confirming.run();
             await load();
+            toast.success('Audit question deleted.', { title: 'Deleted' });
           } catch (err) {
             setError(err);
+            toast.error(err?.message ?? 'That could not be deleted. Please try again.');
           } finally {
             setBusy(false);
             setConfirming(null);
@@ -804,6 +859,9 @@ export function BalanceSheetEditorPage() {
   const [busy, setBusy] = useState(false);
   const [headForm, setHeadForm] = useState(null);
   const [confirming, setConfirming] = useState(null);
+  const toast = useToast();
+  // name -> message, for the fields the last submit found empty.
+  const [fieldErrors, setFieldErrors] = useState({});
 
   // Head order while dragging, as [{ id, compId }]. Null until the first drop,
   // so the sheet follows the server's Seq_order until it is actually reordered
@@ -1004,6 +1062,14 @@ export function BalanceSheetEditorPage() {
 
   const saveHead = async (event) => {
     event.preventDefault();
+
+    const missing = validateFields(BALANCE_HEAD_FIELDS, headForm);
+    setFieldErrors(missing);
+    if (Object.keys(missing).length) {
+      focusFirstInvalid(BALANCE_HEAD_FIELDS, missing);
+      return;
+    }
+
     setBusy(true);
     setError(null);
     try {
@@ -1035,8 +1101,10 @@ export function BalanceSheetEditorPage() {
 
       setHeadForm(null);
       await load();
+      toast.success('Balance sheet head saved successfully.', { title: 'Saved' });
     } catch (err) {
       setError(err);
+      toast.error('The head could not be saved. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -1172,6 +1240,7 @@ export function BalanceSheetEditorPage() {
       >
         {headForm ? (
           <form id="head-form" onSubmit={saveHead} noValidate>
+            <FormErrorSummary count={countErrors(fieldErrors)} />
             {/* The legacy .type-selector: two cards, the chosen one filled. */}
             <div className="mb-5 flex gap-5">
               {COLUMNS.map((column) => {
@@ -1199,6 +1268,7 @@ export function BalanceSheetEditorPage() {
                 label="Header title"
                 name="description"
                 required
+                error={fieldErrors.description}
                 className="sm:col-span-2"
                 value={headForm.description}
                 onChange={(e) => {
@@ -1296,8 +1366,10 @@ export function BalanceSheetEditorPage() {
             // the reload behind it would otherwise not reach the form's copy.
             if (confirming.after) confirming.after();
             else await load();
+            toast.success(confirming.done ?? 'Deleted successfully.', { title: 'Deleted' });
           } catch (err) {
             setError(err);
+            toast.error(err?.message ?? 'That could not be deleted. Please try again.');
           } finally {
             setBusy(false);
             setConfirming(null);

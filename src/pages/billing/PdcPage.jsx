@@ -3,10 +3,24 @@ import { pdc } from '@/api/onboarding';
 import { residents } from '@/api/masters';
 import useCrudResource from '../masters/useCrudResource';
 import DateRangeReport, { money, day } from '../DateRangeReport.jsx';
-import { ConfirmDialog, EmptyState, ErrorNotice, Field, Modal, Spinner } from '@/components/ui.jsx';
+import { ConfirmDialog, EmptyState, ErrorNotice, Field, Modal, Spinner, FormErrorSummary } from '@/components/ui.jsx';
 import ExportToolbar from '@/components/ExportToolbar.jsx';
+import { useToast } from '@/components/Toast.jsx';
+import {
+  countErrors,
+  validateFields,
+  focusFirstInvalid,
+} from '@/components/formValidation.js';
 
 const EMPTY = { ownerId: '', wingId: '', chequeNo: '', amount: '', chequeDate: '' };
+
+/* What Submit insists on, in the shape validateFields expects. */
+const PDC_FIELDS = [
+  { name: 'ownerId', label: 'Owner', type: 'select', required: true },
+  { name: 'chequeNo', label: 'Cheque number', required: true },
+  { name: 'amount', label: 'Amount', required: true },
+  { name: 'chequeDate', label: 'Cheque date', required: true },
+];
 
 /** What a cheque's status reads as, from the three flags. */
 const statusText = (r) =>
@@ -28,6 +42,8 @@ export function PdcPage() {
   const { items, loading, error, saving, create, update, remove, refresh, setError } =
     useCrudResource(pdc);
   const [editing, setEditing] = useState(null);
+  // name -> message, for the fields the last submit found empty.
+  const [fieldErrors, setFieldErrors] = useState({});
   const [confirming, setConfirming] = useState(null);
   const [search, setSearch] = useState('');
   const [ownerList, setOwnerList] = useState([]);
@@ -94,11 +110,21 @@ export function PdcPage() {
 
   const setField = (key) => (e) => {
     const { value } = e.target;
+    setFieldErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
     setEditing((prev) => ({ ...prev, form: { ...prev.form, [key]: value } }));
   };
 
   const onSubmit = async (event) => {
     event.preventDefault();
+
+    // The form carries noValidate, so nothing enforced the asterisks — a
+    // cheque with no number or date went straight to the API.
+    const missing = validateFields(PDC_FIELDS, editing.form);
+    setFieldErrors(missing);
+    if (Object.keys(missing).length) {
+      focusFirstInvalid(PDC_FIELDS, missing);
+      return;
+    }
     const body = {
       ...editing.form,
       ownerId: Number(editing.form.ownerId),
@@ -268,7 +294,8 @@ export function PdcPage() {
       >
         {editing ? (
           <form id="pdc-form" onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2" noValidate>
-            <Field label="Owner" required>
+            <FormErrorSummary count={countErrors(fieldErrors)} />
+            <Field label="Owner" required name="ownerId" error={fieldErrors.ownerId}>
               <select
                 className="field-input"
                 value={editing.form.ownerId}
@@ -318,13 +345,13 @@ export function PdcPage() {
               <input className="field-input" value={ownerDetails?.pre_add2 ?? ''} readOnly />
             </Field>
             </div>
-            <Field label="Cheque number" required>
+            <Field label="Cheque number" required name="chequeNo" error={fieldErrors.chequeNo}>
               <input className="field-input" value={editing.form.chequeNo} onChange={setField('chequeNo')} required />
             </Field>
-            <Field label="Amount" required>
+            <Field label="Amount" required name="amount" error={fieldErrors.amount}>
               <input className="field-input" type="number" step="0.01" value={editing.form.amount} onChange={setField('amount')} required />
             </Field>
-            <Field label="Cheque date" required>
+            <Field label="Cheque date" required name="chequeDate" error={fieldErrors.chequeDate}>
               <input className="field-input" type="date" value={editing.form.chequeDate} onChange={setField('chequeDate')} required />
             </Field>
             {/* GridView2 in the legacy modal: the cheques already on file for
@@ -430,6 +457,7 @@ export function PdcClearingPage() {
   const [busyId, setBusyId] = useState(null);
   const [confirmDeposit, setConfirmDeposit] = useState(null);
   const [clearError, setClearError] = useState(null);
+  const toast = useToast();
 
   /** Records the outcome. Depositing raises a receipt, so it is confirmed. */
   const applyState = async (row, key, reload) => {
@@ -444,8 +472,17 @@ export function PdcClearingPage() {
         confirm: key === 'deposited',
       });
       await reload();
+      // Depositing raises a receipt, so saying so matters more here than on an
+      // ordinary save — the operator needs to know the money side happened.
+      toast.success(
+        key === 'deposited'
+          ? `Cheque ${row.cheque_no} marked deposited. A receipt has been raised.`
+          : `Cheque ${row.cheque_no} marked ${key}.`,
+        { title: 'Updated' },
+      );
     } catch (err) {
       setClearError(err);
+      toast.error(err?.message ?? 'The cheque could not be updated. Please try again.');
     } finally {
       setBusyId(null);
     }

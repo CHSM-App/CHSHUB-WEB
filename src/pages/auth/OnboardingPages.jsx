@@ -4,10 +4,16 @@ import { onboarding } from '@/api/onboarding';
 import { lookups } from '@/api/modules';
 import { api } from '@/api/client';
 import { useAuth } from '@/auth/AuthContext.jsx';
-import { ErrorNotice, Field, Modal, Spinner } from '@/components/ui.jsx';
+import { ErrorNotice, Field, Modal, Spinner, FormErrorSummary } from '@/components/ui.jsx';
 import { PageHeader, TextField } from '@/components/FormControls.jsx';
 import { AuthLink, AuthSplitLayout, AuthSubmit, Glyph } from '@/components/AuthLayout.jsx';
 import ExcelImport from '@/pages/settings/ExcelImport.jsx';
+import { useToast } from '@/components/Toast.jsx';
+import {
+  countErrors,
+  validateFields,
+  focusFirstInvalid,
+} from '@/components/formValidation.js';
 
 /*
  * The boxes new_registration.aspx marked `required`. Its needs-validation
@@ -23,6 +29,29 @@ const REQUIRED_FIELDS = [
   ['password', 'Password'],
   ['confirm', 'Re-enter Password'],
 ];
+
+/*
+ * The format each of those boxes has to be in, on top of being filled. Keyed
+ * by name and merged below so the list above stays the single record of what
+ * is required, rather than becoming two lists to keep in step.
+ */
+const REGISTER_FORMATS = {
+  contactNo: { phone: true, digits: true, maxLength: 10 },
+  email: { type: 'email' },
+};
+
+/*
+ * The same list in the shape validateFields takes, derived rather than
+ * copied so the two cannot drift. The page used to report one combined
+ * sentence — 'Please fill in every required field' — which said nothing about
+ * which box was empty.
+ */
+const REGISTER_FIELDS = REQUIRED_FIELDS.map(([name, label]) => ({
+  name,
+  label,
+  required: true,
+  ...REGISTER_FORMATS[name],
+}));
 
 /** A confirmation panel — the outcome of a submitted form. */
 function SuccessNotice({ children }) {
@@ -63,6 +92,20 @@ function SuccessNotice({ children }) {
  * field for an OTP box and did nothing else. There is no verify endpoint behind
  * them here.
  */
+/*
+ * What each onboarding form insists on, in the shape validateFields
+ * expects — mirroring asterisks already on the inputs that nothing enforced,
+ * since every one of these forms carries noValidate.
+ */
+const FORGOT_FIELDS = [
+  { name: 'email', label: 'Email address', required: true, type: 'email' },
+];
+const SOCIETY_PROFILE_FIELDS = [{ name: 'name', label: 'Society name', required: true }];
+const PASSWORD_FIELDS = [
+  { name: 'newPassword', label: 'New password', required: true },
+  { name: 'confirm', label: 'Confirm password', required: true },
+];
+
 export function RegisterPage() {
   const navigate = useNavigate();
   const { adoptSession } = useAuth();
@@ -82,10 +125,15 @@ export function RegisterPage() {
   const [usernameEdited, setUsernameEdited] = useState(false);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  // name -> message, for the fields the last submit found empty.
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const setField = (key) => (e) => {
     const { value } = e.target;
     setForm((prev) => ({ ...prev, [key]: value }));
+    // The complaint goes as soon as it is being answered.
+    setFieldErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
   };
 
   const onEmailChange = (e) => {
@@ -109,8 +157,11 @@ export function RegisterPage() {
     // new_registration.aspx's needs-validation script rejected a required field
     // holding only whitespace ("Whitespace is not allowed") before any of the
     // format checks below ran.
-    if (REQUIRED_FIELDS.some(([key]) => form[key].trim() === '')) {
-      setError(new Error('Please fill in every required field.'));
+    const missing = validateFields(REGISTER_FIELDS, form);
+    setFieldErrors(missing);
+    if (Object.keys(missing).length) {
+      setError(null);
+      focusFirstInvalid(REGISTER_FIELDS, missing);
       return;
     }
 
@@ -151,6 +202,8 @@ export function RegisterPage() {
       navigate(form.type === 'Village' ? '/setup/village' : '/setup/society', { replace: true });
     } catch (err) {
       setError(err);
+      // Success navigates straight to setup, so only the failure needs saying.
+      toast.error(err?.message ?? 'The account could not be created. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -168,6 +221,7 @@ export function RegisterPage() {
       }
     >
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
+        <FormErrorSummary count={countErrors(fieldErrors)} />
         {/* The Society / Village radio pair the legacy page opened with. */}
         <fieldset className="flex items-center gap-5">
           <legend className="sr-only">Account type</legend>
@@ -189,7 +243,7 @@ export function RegisterPage() {
         {/* Fields follow new_registration.aspx's own order and placeholders:
             Name, Address, Contact No., Email, Username, Password,
             Re-enter Password. */}
-        <Field label="Name" required>
+        <Field label="Name" name="name" required error={fieldErrors.name}>
           <input
             className="field-input"
             placeholder="Enter Name"
@@ -285,15 +339,29 @@ export function ForgotPasswordPage() {
   const [form, setForm] = useState({ email: '', newPassword: '', confirm: '' });
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  // name -> message, for the fields the last submit found empty.
+  const [fieldErrors, setFieldErrors] = useState({});
   const [done, setDone] = useState(false);
 
   const setField = (key) => (e) => {
     const { value } = e.target;
     setForm((prev) => ({ ...prev, [key]: value }));
+    // The complaint goes as soon as it is being answered.
+    setFieldErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
   };
 
   const onSubmit = async (event) => {
     event.preventDefault();
+
+    const missing = validateFields(FORGOT_FIELDS, form);
+    setFieldErrors(missing);
+    if (Object.keys(missing).length) {
+      setError(null);
+      focusFirstInvalid(FORGOT_FIELDS, missing);
+      return;
+    }
+
     setError(null);
     if (form.newPassword !== form.confirm) {
       setError(new Error('Passwords do not match'));
@@ -305,6 +373,9 @@ export function ForgotPasswordPage() {
       setDone(true);
     } catch (err) {
       setError(err);
+      // A confirmation screen replaces the form on success; this is for the
+      // case where it does not.
+      toast.error(err?.message ?? 'The password could not be reset. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -323,7 +394,8 @@ export function ForgotPasswordPage() {
         </SuccessNotice>
       ) : (
         <form onSubmit={onSubmit} className="space-y-4" noValidate>
-          <Field label="Email address" required>
+          <FormErrorSummary count={countErrors(fieldErrors)} />
+          <Field label="Email address" name="email" required error={fieldErrors.email}>
             <input
               className="field-input"
               type="email"
@@ -372,6 +444,9 @@ export function SocietyProfilePage() {
   const [form, setForm] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  // name -> message, for the fields the last submit found empty.
+  const [fieldErrors, setFieldErrors] = useState({});
   const [saved, setSaved] = useState(false);
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState(false);
@@ -438,13 +513,24 @@ export function SocietyProfilePage() {
 
   const onSubmit = async (event) => {
     event.preventDefault();
+
+    const missing = validateFields(SOCIETY_PROFILE_FIELDS, form);
+    setFieldErrors(missing);
+    if (Object.keys(missing).length) {
+      setError(null);
+      focusFirstInvalid(SOCIETY_PROFILE_FIELDS, missing);
+      return;
+    }
+
     setBusy(true);
     setError(null);
     try {
       await onboarding.saveSociety(societyId, form);
       setSaved(true);
+      toast.success('Society profile saved successfully.', { title: 'Saved' });
     } catch (err) {
       setError(err);
+      toast.error(err?.message ?? 'The society profile could not be saved. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -541,8 +627,9 @@ export function SocietyProfilePage() {
         }
       >
       <form id="society-form" onSubmit={onSubmit} noValidate>
+        <FormErrorSummary count={countErrors(fieldErrors)} />
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Society name" required>
+          <Field label="Society name" name="name" required error={fieldErrors.name}>
             <input className="field-input" value={form.name} onChange={setField('name')} required />
           </Field>
           <Field label="Registration number">
@@ -658,6 +745,9 @@ export function ChangePasswordPage() {
   const [form, setForm] = useState({ newPassword: '', confirm: '' });
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  // name -> message, for the fields the last submit found empty.
+  const [fieldErrors, setFieldErrors] = useState({});
   const [saved, setSaved] = useState(false);
 
   const setField = (key) => (e) => {
@@ -668,6 +758,15 @@ export function ChangePasswordPage() {
 
   const onSubmit = async (event) => {
     event.preventDefault();
+
+    const missing = validateFields(PASSWORD_FIELDS, form);
+    setFieldErrors(missing);
+    if (Object.keys(missing).length) {
+      setError(null);
+      focusFirstInvalid(PASSWORD_FIELDS, missing);
+      return;
+    }
+
     setError(null);
     if (form.newPassword !== form.confirm) {
       setError(new Error('Passwords do not match'));
@@ -678,8 +777,10 @@ export function ChangePasswordPage() {
       await onboarding.changePassword({ newPassword: form.newPassword });
       setSaved(true);
       setForm({ newPassword: '', confirm: '' });
+      toast.success('Your password has been changed.', { title: 'Saved' });
     } catch (err) {
       setError(err);
+      toast.error(err?.message ?? 'The password could not be changed. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -691,6 +792,7 @@ export function ChangePasswordPage() {
         <h1 className="text-lg font-semibold text-slate-800">Change password</h1>
       </header>
       <form onSubmit={onSubmit} className="card space-y-4 p-5" noValidate>
+        <FormErrorSummary count={countErrors(fieldErrors)} />
         <Field label="New password" required hint="At least 8 characters">
           <input className="field-input" type="password" autoComplete="new-password" value={form.newPassword} onChange={setField('newPassword')} required />
         </Field>

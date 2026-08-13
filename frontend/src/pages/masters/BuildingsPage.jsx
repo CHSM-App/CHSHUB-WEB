@@ -141,7 +141,7 @@ export default function BuildingsPage() {
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full">
+            <table className="min-w-full stacked-table">
               <thead>
                 <tr>
                   <th className="table-head">Name</th>
@@ -154,13 +154,13 @@ export default function BuildingsPage() {
               <tbody>
                 {items.map((row) => (
                   <tr key={row.build_id} className="hover:bg-slate-50">
-                    <td className="table-cell font-medium text-slate-800">{row.name}</td>
-                    <td className="table-cell">
+                    <td className="table-cell font-medium text-slate-800" data-label="Name">{row.name}</td>
+                    <td className="table-cell" data-label="Address">
                       {[row.address1, row.address2].filter(Boolean).join(', ') || '—'}
                     </td>
-                    <td className="table-cell">{row.no_of_floore ?? '—'}</td>
-                    <td className="table-cell">{row.registration_no || '—'}</td>
-                    <td className="table-cell whitespace-nowrap text-right">
+                    <td className="table-cell" data-label="Floors">{row.no_of_floore ?? '—'}</td>
+                    <td className="table-cell" data-label="Registration no.">{row.registration_no || '—'}</td>
+                    <td className="table-cell whitespace-nowrap text-right" data-actions="">
                       <button type="button" className="btn-secondary mr-2" onClick={() => openEdit(row)}>
                         Edit
                       </button>

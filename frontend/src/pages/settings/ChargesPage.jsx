@@ -149,7 +149,7 @@ export default function ChargesPage() {
           <EmptyState title="No charges configured" hint="Add a charge head to include it in bills." />
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full">
+            <table className="min-w-full stacked-table">
               <thead>
                 <tr>
                   <th className="table-head">Nature of charge</th>
@@ -165,10 +165,10 @@ export default function ChargesPage() {
                   const isActive = row.status === true || Number(row.status) === 1;
                   return (
                     <tr key={row.charge_id} className="hover:bg-slate-50">
-                      <td className="table-cell font-medium text-slate-800">{row.NatureOfCharge}</td>
-                      <td className="table-cell">{TYPE_LABEL[typeOf(row)]}</td>
-                      <td className="table-cell">{Number(row.amount ?? 0).toFixed(2)}</td>
-                      <td className="table-cell">
+                      <td className="table-cell font-medium text-slate-800" data-label="Nature of charge">{row.NatureOfCharge}</td>
+                      <td className="table-cell" data-label="Type">{TYPE_LABEL[typeOf(row)]}</td>
+                      <td className="table-cell" data-label="Amount">{Number(row.amount ?? 0).toFixed(2)}</td>
+                      <td className="table-cell" data-label="Status">
                         <span
                           className={
                             isActive
@@ -179,8 +179,8 @@ export default function ChargesPage() {
                           {isActive ? 'Active' : 'Inactive'}
                         </span>
                       </td>
-                      <td className="table-cell">{row.Date || '—'}</td>
-                      <td className="table-cell whitespace-nowrap text-right">
+                      <td className="table-cell" data-label="Created">{row.Date || '—'}</td>
+                      <td className="table-cell whitespace-nowrap text-right" data-actions="">
                         <button type="button" className="btn-secondary mr-2" onClick={() => openEdit(row)}>
                           Edit
                         </button>

@@ -265,7 +265,7 @@ export default function HouseChargesPage() {
           </button>
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full">
+          <table className="min-w-full stacked-table">
             <thead>
               <tr>
                 <th className="table-head">Charge</th>
@@ -279,12 +279,12 @@ export default function HouseChargesPage() {
             <tbody>
               {chargeTypes.map((t) => (
                 <tr key={t.payment_type} className="hover:bg-slate-50">
-                  <td className="table-cell font-medium text-slate-800">{t.payment_type_name}</td>
-                  <td className="table-cell">{FREQUENCY_LABEL[t.frequency] ?? '—'}</td>
-                  <td className="table-cell">{BASIS_LABEL[t.basis] ?? '—'}</td>
-                  <td className="table-cell">{t.houses_charged}</td>
-                  <td className="table-cell">{t.bills_raised}</td>
-                  <td className="table-cell whitespace-nowrap text-right print:hidden">
+                  <td className="table-cell font-medium text-slate-800" data-label="Charge">{t.payment_type_name}</td>
+                  <td className="table-cell" data-label="Raised">{FREQUENCY_LABEL[t.frequency] ?? '—'}</td>
+                  <td className="table-cell" data-label="Amount is">{BASIS_LABEL[t.basis] ?? '—'}</td>
+                  <td className="table-cell" data-label="Houses">{t.houses_charged}</td>
+                  <td className="table-cell" data-label="Bills">{t.bills_raised}</td>
+                  <td className="table-cell whitespace-nowrap text-right print:hidden" data-actions="">
                     <div className="flex items-center justify-end gap-2">
                       <button
                         type="button"
@@ -329,7 +329,7 @@ export default function HouseChargesPage() {
           <EmptyState title="No houses found" hint="Houses added to this village appear here." />
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full">
+            <table className="min-w-full stacked-table">
               <thead>
                 <tr>
                   <th className="table-head">House</th>
@@ -348,9 +348,9 @@ export default function HouseChargesPage() {
               <tbody>
                 {visible.map((h) => (
                   <tr key={h.house_id} className="hover:bg-slate-50">
-                    <td className="table-cell font-medium text-slate-800">{h.house_no}</td>
-                    <td className="table-cell">{h.area ?? '—'}</td>
-                    <td className="table-cell">{h.no_of_tab ?? 0}</td>
+                    <td className="table-cell font-medium text-slate-800" data-label="House">{h.house_no}</td>
+                    <td className="table-cell" data-label="Area">{h.area ?? '—'}</td>
+                    <td className="table-cell" data-label="Taps">{h.no_of_tab ?? 0}</td>
                     {types.map((t) => {
                       const c = h.charges.get(t.payment_type) ?? { applies: false, amount: null };
                       const key = `${h.house_id}:${t.payment_type}`;
@@ -358,7 +358,7 @@ export default function HouseChargesPage() {
                       const isEditing = editing === key;
 
                       return (
-                        <td key={t.payment_type} className="table-cell">
+                        <td key={t.payment_type} className="table-cell" data-label="·">
                           <div className="flex items-center gap-2">
                             <input
                               type="checkbox"

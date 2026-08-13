@@ -113,7 +113,7 @@ export default function CashbookPage() {
               exportTitle="Cashbook"
             />
             <div className="overflow-x-auto">
-            <table className="min-w-full">
+            <table className="min-w-full stacked-table">
               <thead>
                 <tr>
                   <th className="table-head">Date</th>
@@ -128,10 +128,10 @@ export default function CashbookPage() {
                   const isBalance = Number(row.seq) !== 2;
                   return (
                     <tr key={i} className={isBalance ? 'bg-slate-50 font-medium' : 'hover:bg-slate-50'}>
-                      <td className="table-cell">{dayOf(row.Date)}</td>
-                      <td className="table-cell">{row.Particular}</td>
-                      <td className="table-cell text-right">{money(row.Debit)}</td>
-                      <td className="table-cell text-right">{money(row.Credit)}</td>
+                      <td className="table-cell" data-label="Date">{dayOf(row.Date)}</td>
+                      <td className="table-cell" data-label="Particular">{row.Particular}</td>
+                      <td className="table-cell text-right" data-label="Debit">{money(row.Debit)}</td>
+                      <td className="table-cell text-right" data-label="Credit">{money(row.Credit)}</td>
                     </tr>
                   );
                 })}

@@ -87,13 +87,28 @@ export default function HeaderIcons() {
         {open ? (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden="true" />
+            {/*
+              On a phone the panel is pinned to the viewport rather than hung
+              off the bell.
+
+              `absolute right-0` anchors it to the button, and the button sits
+              inset from the screen edge by the messages icon and the profile
+              control beside it — roughly 110px on a 360px handset. A 328px
+              panel measured leftward from there starts about 78px off the left
+              of the screen, so the alert titles and the whole left edge of the
+              panel were cut off. Clamping the width alone could not fix that:
+              the overflow came from where the panel was anchored, not from how
+              wide it was.
+
+              `fixed` with both insets set makes the viewport the containing
+              block, so the panel spans the screen with an even 12px margin
+              whatever the button's position. From `sm` up there is room to
+              hang it off the bell as before.
+            */}
             <div
               role="menu"
-              className="absolute right-0 z-50 mt-2 overflow-hidden bg-white"
+              className="fixed inset-x-3 top-[68px] z-50 overflow-hidden bg-white sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-[340px]"
               style={{
-                // Never wider than the viewport on a phone, where an absolutely
-                // positioned 340px panel would otherwise run off the edge.
-                width: 'min(340px, calc(100vw - 2rem))',
                 borderRadius: 14,
                 boxShadow: '0 12px 32px rgba(1,41,112,0.18)',
                 border: '1px solid #eef2f9',
@@ -114,7 +129,9 @@ export default function HeaderIcons() {
                 ) : null}
               </h6>
 
-              <div className="overflow-y-auto" style={{ maxHeight: 'min(440px, 60vh)' }}>
+              {/* 60vh of a phone screen leaves the list scrollable well clear
+                  of the bottom of the window, with the header above it. */}
+              <div className="overscroll-contain overflow-y-auto" style={{ maxHeight: 'min(440px, 60vh)' }}>
               {alerts.length === 0 ? (
                 <p className="px-4 py-6 text-center text-sm text-slate-500">No Notification Found</p>
               ) : (
@@ -140,7 +157,10 @@ export default function HeaderIcons() {
                           {row.timestamp}
                         </span>
                       </span>
-                      <span className="mt-0.5 block text-sm text-slate-800">{row.body}</span>
+                      {/* A notification can carry a reference number or a URL
+                          with no break opportunity in it. Without this the row
+                          sets its own width and the panel scrolls sideways. */}
+                      <span className="break-anywhere mt-0.5 block text-sm text-slate-800">{row.body}</span>
                     </span>
                   </button>
                 ))

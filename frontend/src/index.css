@@ -69,6 +69,21 @@
 @layer base {
   html {
     @apply antialiased;
+    /*
+     * Nothing may scroll the page sideways.
+     *
+     * Tables and dialogs each carry their own scroller, so a wide one is
+     * reachable within its own box. What this stops is the other case: one
+     * over-wide element — an unbreakable reference number, a fixed-width
+     * panel — dragging the entire page with it, which on a phone leaves every
+     * screen shifted and the right edge of the layout cut off.
+     *
+     * Set on <html> rather than <body>: `overflow-x` on the body makes it the
+     * scroll container in several browsers, which silently breaks the sticky
+     * topbar. On the root element the viewport stays the scroller and sticky
+     * keeps working. Only the horizontal axis is pinned.
+     */
+    overflow-x: hidden;
   }
   body {
     /*
@@ -470,6 +485,110 @@
   }
 
   /*
+   * Stacked table cards for phones.
+   *
+   * Most screens in this app render their own <table> rather than going
+   * through DataGrid, so they had no card view: a six- or eight-column grid
+   * stayed a grid on a 360px screen and everything past the second column sat
+   * off the side of the card. Rewriting forty tables as components would
+   * change a lot of working markup, and every one of them already shares the
+   * same .table-head / .table-cell structure — so the card view is built here
+   * instead, and a table opts in with `stacked-table`.
+   *
+   * Each row becomes a card and each cell a label/value line, with the label
+   * coming from the `data-label` the cell carries. Cells without one — the
+   * spanning "no records match" and totals rows — are left full-width, which
+   * is what those rows want anyway.
+   */
+  @media (max-width: 640px) {
+    .stacked-table,
+    .stacked-table tbody,
+    .stacked-table tr,
+    .stacked-table td {
+      display: block;
+      width: auto;
+    }
+
+    /* The header is what the per-cell labels replace. */
+    .stacked-table thead {
+      display: none;
+    }
+
+    .stacked-table tr {
+      border: 1px solid #e3e6f0;
+      border-radius: 10px;
+      margin: 0 0 10px;
+      padding: 4px 0;
+      background: #fff;
+    }
+
+    /* The row carries the card's border, so cells only need rules between
+       themselves — and the first one sits flush against the card's top. */
+    .stacked-table td {
+      border-top: 0;
+      border-bottom: 1px solid #f1f3f9;
+      padding: 8px 12px;
+      text-align: left;
+    }
+    .stacked-table tr td:last-child {
+      border-bottom: 0;
+    }
+
+    /*
+     * Label left, value right, on one line while they fit. The value is free
+     * to wrap and the label is not, so a long reference number breaks across
+     * lines instead of widening the card.
+     */
+    .stacked-table td[data-label] {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+    }
+    .stacked-table td[data-label]::before {
+      content: attr(data-label);
+      flex-shrink: 0;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+    .stacked-table td[data-label] {
+      overflow-wrap: anywhere;
+    }
+
+    /*
+     * The actions cell has no column heading to borrow — its <th> is sr-only —
+     * so it gets no label and its buttons lay out across the foot of the card.
+     */
+    .stacked-table td[data-actions] {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+      background: #fbfcfe;
+    }
+    /* Utility margins on the buttons fight the flex gap and push the last one
+       out of the card; the gap above already spaces them. */
+    .stacked-table td[data-actions] > * {
+      margin: 0;
+    }
+
+    /* A spanning row — totals, or "no records match" — stays a plain band
+       rather than pretending to be a labelled field. */
+    .stacked-table td[colspan] {
+      text-align: center;
+    }
+
+    /* The wrapper's horizontal scroller has nothing to scroll once the table
+       is stacked, and leaving it on lets a stray pixel drag the card. */
+    .stacked-table-wrap {
+      overflow-x: visible !important;
+    }
+  }
+
+  /*
    * Legacy sidebar colours: idle #374151, hover #e0f2ff/#2563eb, active
    * #dbeafe/#1d4ed8. Kept exactly — what is added is depth: the active row now
    * carries a gradient and a left accent bar rather than a flat tint block, and
@@ -622,6 +741,116 @@
       font-size: 13px;
     }
   }
+
+  /*
+   * Phone layout.
+   *
+   * The rules above only shrank the header. Everything below is about the
+   * controls the user actually touches, and each one fixes something that made
+   * a screen awkward or unusable on a handset rather than merely tight.
+   */
+  @media (max-width: 640px) {
+    /*
+     * iOS Safari zooms the whole page in when a focused control's text is
+     * under 16px, and it does not zoom back out on blur — the user is left
+     * panning a magnified layout for the rest of the form. Every control in
+     * this app sets 0.875rem (14px), so tapping any field triggered it.
+     *
+     * 16px is the threshold, not a preference: anything below it re-triggers.
+     * Desktop keeps 14px, which is why this sits inside the phone query.
+     */
+    .field-input,
+    select.field-input,
+    textarea.field-input {
+      font-size: 16px;
+    }
+
+    /*
+     * Touch targets. A 14px button at 0.375rem padding lands near 30px tall —
+     * well under the ~44px both Apple and Android ask for, and the row-action
+     * buttons in a grid sit side by side, so a miss hits the wrong action.
+     * Height is raised without changing the font, so nothing reflows.
+     */
+    .btn,
+    .btn-primary,
+    .btn-secondary,
+    .btn-danger,
+    .btn-success {
+      min-height: 44px;
+      padding: 0.5rem 0.875rem;
+    }
+
+    /*
+     * Grid rows carry buttons sized down with utilities (`px-3 py-1 text-xs`).
+     * Those win on padding, so the rule above cannot reach them; give them a
+     * floor that still reads as a compact button.
+     */
+    .table-cell .btn,
+    .table-cell .btn-primary,
+    .table-cell .btn-secondary,
+    .table-cell .btn-danger,
+    .table-cell .btn-success {
+      min-height: 36px;
+    }
+
+    /*
+     * Checkboxes in grids are h-4 w-4 (16px) — a hard tap target to hit, and
+     * the selection column is how bill runs and payments are driven. The box
+     * is left at its drawn size and the touch area grown around it.
+     */
+    input[type='checkbox'],
+    input[type='radio'] {
+      min-width: 20px;
+      min-height: 20px;
+    }
+
+    /* Dialogs use the full width of a phone; 1rem of surround is enough to
+       still read as a layer above the page. */
+    .modal-panel {
+      max-height: calc(100vh - 1rem);
+    }
+  }
+}
+
+/*
+ * Long unbroken strings — an email, a UPI reference, a registration number —
+ * have no break opportunity, so they set a minimum width the layout cannot go
+ * below and push the whole page into a horizontal scroll. Wrapping them is the
+ * one thing that keeps a phone layout inside the viewport.
+ */
+.break-anywhere {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/*
+ * ApexCharts sizes itself from the parent it measures at mount and writes that
+ * width onto its own wrapper and <svg> as inline styles. If the column is
+ * later narrower than that measurement — a phone, or a panel that shrank — the
+ * chart keeps the old width and pushes its whole column past the viewport.
+ *
+ * Inline styles are what has to be beaten here, hence !important: these cap
+ * the rendered chart at the width of whatever contains it, so a stale
+ * measurement can no longer drag the page sideways.
+ */
+.apexcharts-canvas,
+.apexcharts-canvas svg,
+.apexcharts-canvas foreignObject {
+  max-width: 100% !important;
+}
+
+.apexcharts-canvas {
+  /* The legend wraps to several rows on a phone; letting the canvas grow
+     downward keeps it from overlapping the plot. */
+  height: auto !important;
+}
+
+/*
+ * The panel a chart sits in. Without a floor of zero the chart's measured
+ * width becomes the panel's minimum and the grid track grows to match.
+ */
+.panel {
+  min-width: 0;
 }
 
 /*

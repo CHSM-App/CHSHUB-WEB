@@ -165,7 +165,10 @@ export default function OwnerDetailPanel({ resident, onClose }) {
                 {rows.length === 0 ? (
                   <EmptyState title="No family members recorded" />
                 ) : (
-                  <table className="min-w-full">
+                  /* Six columns inside a dialog — the narrowest place a table
+                     appears. Scrolls rather than crushing the columns. */
+                  <div className="overflow-x-auto">
+                  <table className="min-w-full stacked-table">
                     <thead>
                       <tr>
                         <th className="table-head">Name</th>
@@ -179,14 +182,14 @@ export default function OwnerDetailPanel({ resident, onClose }) {
                     <tbody>
                       {rows.map((r) => (
                         <tr key={r.o_ex_id}>
-                          <td className="table-cell font-medium text-slate-800">{r.f_name}</td>
-                          <td className="table-cell">{r.relation || '—'}</td>
-                          <td className="table-cell">{r.f_occu || '—'}</td>
-                          <td className="table-cell">
+                          <td className="table-cell font-medium text-slate-800" data-label="Name">{r.f_name}</td>
+                          <td className="table-cell" data-label="Relation">{r.relation || '—'}</td>
+                          <td className="table-cell" data-label="Occupation">{r.f_occu || '—'}</td>
+                          <td className="table-cell" data-label="Date of birth">
                             {r.f_dob ? new Date(r.f_dob).toLocaleDateString() : '—'}
                           </td>
-                          <td className="table-cell">{r.contactNo || '—'}</td>
-                          <td className="table-cell text-right">
+                          <td className="table-cell" data-label="Contact">{r.contactNo || '—'}</td>
+                          <td className="table-cell text-right" data-actions="">
                             <button
                               type="button"
                               className="btn-danger"
@@ -206,6 +209,7 @@ export default function OwnerDetailPanel({ resident, onClose }) {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 )}
                 <form
                   className="mt-4 grid gap-3 border-t border-slate-200 pt-4 sm:grid-cols-3 lg:grid-cols-6"
@@ -366,7 +370,8 @@ export default function OwnerDetailPanel({ resident, onClose }) {
                 {rows.length === 0 ? (
                   <EmptyState title="No vehicles recorded" />
                 ) : (
-                  <table className="min-w-full">
+                  <div className="overflow-x-auto">
+                  <table className="min-w-full stacked-table">
                     <thead>
                       <tr>
                         <th className="table-head">Vehicle no.</th>
@@ -379,13 +384,13 @@ export default function OwnerDetailPanel({ resident, onClose }) {
                     <tbody>
                       {rows.map((r) => (
                         <tr key={r.vehicle_id}>
-                          <td className="table-cell font-medium text-slate-800">{r.vehicle_no}</td>
-                          <td className="table-cell">{r.model_name || '—'}</td>
-                          <td className="table-cell">
+                          <td className="table-cell font-medium text-slate-800" data-label="Vehicle no.">{r.vehicle_no}</td>
+                          <td className="table-cell" data-label="Model">{r.model_name || '—'}</td>
+                          <td className="table-cell" data-label="Type">
                             {Number(r.vehicle_type) === 0 ? 'Two-wheeler' : 'Four-wheeler'}
                           </td>
-                          <td className="table-cell">{r.parking_status || 'Not allotted'}</td>
-                          <td className="table-cell text-right">
+                          <td className="table-cell" data-label="Parking">{r.parking_status || 'Not allotted'}</td>
+                          <td className="table-cell text-right" data-actions="">
                             <button
                               type="button"
                               className="btn-danger"
@@ -405,6 +410,7 @@ export default function OwnerDetailPanel({ resident, onClose }) {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 )}
                 <form
                   className="mt-4 grid gap-3 border-t border-slate-200 pt-4 sm:grid-cols-4"
@@ -475,7 +481,8 @@ export default function OwnerDetailPanel({ resident, onClose }) {
                 {rows.length === 0 ? (
                   <EmptyState title="No documents uploaded" />
                 ) : (
-                  <table className="min-w-full">
+                  <div className="overflow-x-auto">
+                  <table className="min-w-full stacked-table">
                     <thead>
                       <tr>
                         <th className="table-head">Document</th>
@@ -487,12 +494,12 @@ export default function OwnerDetailPanel({ resident, onClose }) {
                     <tbody>
                       {rows.map((r, i) => (
                         <tr key={`${r.document_id}-${i}`}>
-                          <td className="table-cell font-medium text-slate-800">{r.doc_name}</td>
-                          <td className="table-cell">{r.doc_type || '—'}</td>
-                          <td className="table-cell">
+                          <td className="table-cell font-medium text-slate-800" data-label="Document">{r.doc_name}</td>
+                          <td className="table-cell" data-label="Type">{r.doc_type || '—'}</td>
+                          <td className="table-cell" data-label="Uploaded">
                             {r.upload_date ? new Date(r.upload_date).toLocaleDateString() : '—'}
                           </td>
-                          <td className="table-cell text-right">
+                          <td className="table-cell text-right" data-actions="">
                             {/* document_id 0 means the row comes from an
                                 owner_master column, not owner_documents. */}
                             {Number(r.document_id) > 0 ? (
@@ -518,6 +525,7 @@ export default function OwnerDetailPanel({ resident, onClose }) {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 )}
                 <div className="mt-4 grid gap-3 border-t border-slate-200 pt-4 sm:grid-cols-2">
                   <TextField
@@ -552,7 +560,8 @@ export default function OwnerDetailPanel({ resident, onClose }) {
               rows.length === 0 ? (
                 <EmptyState title="No outstanding dues" />
               ) : (
-                <table className="min-w-full">
+                <div className="overflow-x-auto">
+                <table className="min-w-full stacked-table">
                   <thead>
                     <tr>
                       <th className="table-head">Month</th>
@@ -565,15 +574,16 @@ export default function OwnerDetailPanel({ resident, onClose }) {
                   <tbody>
                     {rows.map((r, i) => (
                       <tr key={i}>
-                        <td className="table-cell font-medium text-slate-800">{r.month}</td>
-                        <td className="table-cell">{r.year}</td>
-                        <td className="table-cell text-right">{money(r.amt_forward)}</td>
-                        <td className="table-cell text-right">{money(r.tax_interest_amt)}</td>
-                        <td className="table-cell text-right font-medium">{money(r.total)}</td>
+                        <td className="table-cell font-medium text-slate-800" data-label="Month">{r.month}</td>
+                        <td className="table-cell" data-label="Year">{r.year}</td>
+                        <td className="table-cell text-right" data-label="Amount">{money(r.amt_forward)}</td>
+                        <td className="table-cell text-right" data-label="Interest">{money(r.tax_interest_amt)}</td>
+                        <td className="table-cell text-right font-medium" data-label="Total">{money(r.total)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                </div>
               )
             ) : null}
 

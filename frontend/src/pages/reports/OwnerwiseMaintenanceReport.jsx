@@ -252,7 +252,7 @@ export default function OwnerwiseMaintenanceReport() {
             />
           </div>
           <div className="overflow-x-auto">
-            <table className="min-w-full">
+            <table className="min-w-full stacked-table">
               <thead>
                 <tr>
                   {columns.map((c) => (
@@ -267,13 +267,23 @@ export default function OwnerwiseMaintenanceReport() {
               </thead>
               <tbody>
                 {items.map((r, i) => (
+                  /*
+                    The labels come from `columns`, which is also what draws
+                    the headers above — the two cannot drift apart, and the
+                    phone card view names each line the same way the column
+                    is named on a wide screen.
+                  */
                   <tr key={i} className={ROW_STYLE[Number(r.seq)] ?? 'hover:bg-slate-50'}>
-                    <td className="table-cell">{day(r.date)}</td>
-                    <td className="table-cell">{r.Particular}</td>
+                    <td className="table-cell" data-label={columns[0].label}>{day(r.date)}</td>
+                    <td className="table-cell" data-label={columns[1].label}>{r.Particular}</td>
                     {/* Balance rows carry no reference — the SP sends NULL. */}
-                    <td className="table-cell">{r.ref || '—'}</td>
-                    <td className="table-cell text-right">{money(r.Maintenance)}</td>
-                    <td className="table-cell text-right">{money(r.Payment)}</td>
+                    <td className="table-cell" data-label={columns[2].label}>{r.ref || '—'}</td>
+                    <td className="table-cell text-right" data-label={columns[3].label}>
+                      {money(r.Maintenance)}
+                    </td>
+                    <td className="table-cell text-right" data-label={columns[4].label}>
+                      {money(r.Payment)}
+                    </td>
                   </tr>
                 ))}
               </tbody>

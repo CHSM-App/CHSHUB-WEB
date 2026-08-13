@@ -129,7 +129,7 @@ export default function WingsPage() {
           <EmptyState title="No wings found" hint="Wings belong to a building — add one to get started." />
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full">
+            <table className="min-w-full stacked-table">
               <thead>
                 <tr>
                   <th className="table-head">Wing</th>
@@ -140,9 +140,9 @@ export default function WingsPage() {
               <tbody>
                 {items.map((row) => (
                   <tr key={row.wing_id} className="hover:bg-slate-50">
-                    <td className="table-cell font-medium text-slate-800">{row.w_name}</td>
-                    <td className="table-cell">{row.name}</td>
-                    <td className="table-cell whitespace-nowrap text-right">
+                    <td className="table-cell font-medium text-slate-800" data-label="Wing">{row.w_name}</td>
+                    <td className="table-cell" data-label="Building">{row.name}</td>
+                    <td className="table-cell whitespace-nowrap text-right" data-actions="">
                       <button type="button" className="btn-secondary mr-2" onClick={() => openEdit(row)}>
                         Edit
                       </button>

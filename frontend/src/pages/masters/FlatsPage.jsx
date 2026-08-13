@@ -154,7 +154,7 @@ export default function FlatsPage() {
           <EmptyState title="No flats found" hint="Flats belong to a wing — add one to get started." />
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full">
+            <table className="min-w-full stacked-table">
               <thead>
                 <tr>
                   <th className="table-head">Flat no.</th>
@@ -168,12 +168,12 @@ export default function FlatsPage() {
               <tbody>
                 {items.map((row) => (
                   <tr key={row.flat_id} className="hover:bg-slate-50">
-                    <td className="table-cell font-medium text-slate-800">{row.flat_no}</td>
-                    <td className="table-cell">{row.build_wing}</td>
-                    <td className="table-cell">{row.flat_type}</td>
-                    <td className="table-cell">{row.bed}</td>
-                    <td className="table-cell">{row.sq_ft || '—'}</td>
-                    <td className="table-cell whitespace-nowrap text-right">
+                    <td className="table-cell font-medium text-slate-800" data-label="Flat no.">{row.flat_no}</td>
+                    <td className="table-cell" data-label="Building / wing">{row.build_wing}</td>
+                    <td className="table-cell" data-label="Type">{row.flat_type}</td>
+                    <td className="table-cell" data-label="Bedrooms">{row.bed}</td>
+                    <td className="table-cell" data-label="Sq. ft.">{row.sq_ft || '—'}</td>
+                    <td className="table-cell whitespace-nowrap text-right" data-actions="">
                       <button type="button" className="btn-secondary mr-2" onClick={() => openEdit(row)}>
                         Edit
                       </button>

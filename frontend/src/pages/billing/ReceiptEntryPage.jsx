@@ -495,7 +495,8 @@ export default function ReceiptEntryPage() {
                 {payableBills.length === 0 ? (
                   <p className="py-3 text-sm text-slate-500">No outstanding bills for this resident.</p>
                 ) : (
-                  <table className="min-w-full">
+                  <div className="overflow-x-auto">
+                  <table className="min-w-full stacked-table">
                     <thead>
                       <tr>
                         <th className="table-head w-10">Pay</th>
@@ -510,7 +511,7 @@ export default function ReceiptEntryPage() {
                         const key = billKey(b);
                         return (
                           <tr key={key}>
-                            <td className="table-cell">
+                            <td className="table-cell" data-label="Pay">
                               <input
                                 type="checkbox"
                                 className="h-4 w-4 rounded border-slate-300"
@@ -519,14 +520,14 @@ export default function ReceiptEntryPage() {
                                 aria-label={`Select bill ${b.BillNo}`}
                               />
                             </td>
-                            <td className="table-cell font-medium text-slate-800">
+                            <td className="table-cell font-medium text-slate-800" data-label="Bill no.">
                               {b.BillNo}
                               <span className="ml-2 text-xs font-normal text-slate-500">
                                 {Number(b.BillType) === REGULAR ? 'Regular' : 'Add-On'}
                               </span>
                             </td>
-                            <td className="table-cell">{day(b.DueDate)}</td>
-                            <td className="table-cell">
+                            <td className="table-cell" data-label="Due date">{day(b.DueDate)}</td>
+                            <td className="table-cell" data-label="Status">
                               <span
                                 className={`rounded px-2 py-0.5 text-xs ${
                                   b.Status === 'Overdue'
@@ -541,7 +542,7 @@ export default function ReceiptEntryPage() {
                                 is a running account total that rolls forward earlier arrears
                                 (amt_forward / interest_forward), not the value of this charge,
                                 so displaying it next to the bill would misread as its price. */}
-                            <td className="table-cell text-right">{money(b.Amount)}</td>
+                            <td className="table-cell text-right" data-label="Outstanding">{money(b.Amount)}</td>
                           </tr>
                         );
                       })}
@@ -554,10 +555,11 @@ export default function ReceiptEntryPage() {
                             </span>
                           ) : null}
                         </td>
-                        <td className="table-cell text-right">{money(selectedTotal)}</td>
+                        <td className="table-cell text-right" data-label="Total">{money(selectedTotal)}</td>
                       </tr>
                     </tbody>
                   </table>
+                  </div>
                 )}
                 {noteOnlyTotal > 0 ? (
                   <p className="mt-2 text-xs text-slate-500">
@@ -743,7 +745,7 @@ export default function ReceiptEntryPage() {
               </h4>
               {viewing.lines?.length ? (
                 <div className="overflow-x-auto rounded-md border border-slate-200">
-                  <table className="min-w-full">
+                  <table className="min-w-full stacked-table">
                     <thead>
                       <tr>
                         <th className="table-head">Bill no.</th>
@@ -755,12 +757,12 @@ export default function ReceiptEntryPage() {
                     <tbody>
                       {viewing.lines.map((l, i) => (
                         <tr key={`${l.Billno ?? l.bill_ref}-${i}`}>
-                          <td className="table-cell font-medium text-slate-800">
+                          <td className="table-cell font-medium text-slate-800" data-label="Bill no.">
                             {l.Billno ?? '—'}
                           </td>
-                          <td className="table-cell">{l.bill_ref ?? '—'}</td>
-                          <td className="table-cell">{l.gen_date ? day(l.gen_date) : '—'}</td>
-                          <td className="table-cell text-right">{money(l.amount)}</td>
+                          <td className="table-cell" data-label="Period">{l.bill_ref ?? '—'}</td>
+                          <td className="table-cell" data-label="Due date">{l.gen_date ? day(l.gen_date) : '—'}</td>
+                          <td className="table-cell text-right" data-label="Amount">{money(l.amount)}</td>
                         </tr>
                       ))}
                     </tbody>

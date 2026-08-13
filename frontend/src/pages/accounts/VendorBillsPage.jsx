@@ -1057,8 +1057,11 @@ export default function VendorBillsPage() {
                     {staffOptions.length === 0 ? (
                       <EmptyState title="No staff found for this role" />
                     ) : (
-                      <div className="max-h-64 overflow-y-auto">
-                        <table className="min-w-full">
+                      /* overflow-y alone still clipped the columns sideways:
+                         the picker is four columns wide inside a dialog, so it
+                         needs to scroll on both axes rather than just down. */
+                      <div className="max-h-64 overflow-auto">
+                        <table className="min-w-full stacked-table">
                           <thead>
                             <tr>
                               <th className="table-head w-10">Select</th>
@@ -1072,7 +1075,7 @@ export default function VendorBillsPage() {
                               const picked = s.staff_id in selectedStaff;
                               return (
                                 <tr key={s.staff_id}>
-                                  <td className="table-cell">
+                                  <td className="table-cell" data-label="Select">
                                     <input
                                       type="checkbox"
                                       className="h-4 w-4 rounded border-slate-300"
@@ -1081,9 +1084,9 @@ export default function VendorBillsPage() {
                                       aria-label={`Select ${s.name}`}
                                     />
                                   </td>
-                                  <td className="table-cell font-medium text-slate-800">{s.name}</td>
-                                  <td className="table-cell">{s.role}</td>
-                                  <td className="table-cell text-right">
+                                  <td className="table-cell font-medium text-slate-800" data-label="Staff name">{s.name}</td>
+                                  <td className="table-cell" data-label="Role">{s.role}</td>
+                                  <td className="table-cell text-right" data-label="Salary">
                                     <input
                                       className="field-input w-28 text-right"
                                       type="number"
@@ -1442,7 +1445,7 @@ export default function VendorBillsPage() {
                     screen owns and changes over time — a bill records what was
                     bought, and should keep reading the same later. */}
                 <div className="overflow-x-auto">
-                  <table className="min-w-full">
+                  <table className="min-w-full stacked-table">
                     <thead>
                       <tr>
                         <th className="table-head">Item</th>
@@ -1456,14 +1459,14 @@ export default function VendorBillsPage() {
                     <tbody>
                       {detail.items.map((it) => (
                         <tr key={it.item_id}>
-                          <td className="table-cell font-medium text-slate-800">{it.item_name}</td>
-                          <td className="table-cell text-right">{it.quantity}</td>
-                          <td className="table-cell text-right">{money(it.purchase_cost)}</td>
-                          <td className="table-cell text-right">{it.tax ?? '—'}</td>
-                          <td className="table-cell text-right">
+                          <td className="table-cell font-medium text-slate-800" data-label="Item">{it.item_name}</td>
+                          <td className="table-cell text-right" data-label="Qty">{it.quantity}</td>
+                          <td className="table-cell text-right" data-label="Unit price">{money(it.purchase_cost)}</td>
+                          <td className="table-cell text-right" data-label="Tax %">{it.tax ?? '—'}</td>
+                          <td className="table-cell text-right" data-label="Warranty">
                             {it.warranty ? `${it.warranty} mo` : '—'}
                           </td>
-                          <td className="table-cell text-right">{money(it.total_amount)}</td>
+                          <td className="table-cell text-right" data-label="Amount">{money(it.total_amount)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1475,7 +1478,8 @@ export default function VendorBillsPage() {
             <div>
               <h3 className="mb-2 text-sm font-semibold text-slate-800">Approvals</h3>
               {detail.approvals?.length ? (
-                <table className="min-w-full">
+                <div className="overflow-x-auto">
+                <table className="min-w-full stacked-table">
                   <thead>
                     <tr>
                       <th className="table-head">Approver</th>
@@ -1487,10 +1491,10 @@ export default function VendorBillsPage() {
                   <tbody>
                     {detail.approvals.map((a) => (
                       <tr key={a.approval_id}>
-                        <td className="table-cell font-medium text-slate-800">{a.name}</td>
-                        <td className="table-cell">{approvalLabel(a.approval_status)}</td>
-                        <td className="table-cell">{day(a.approval_date)}</td>
-                        <td className="table-cell text-right">
+                        <td className="table-cell font-medium text-slate-800" data-label="Approver">{a.name}</td>
+                        <td className="table-cell" data-label="Status">{approvalLabel(a.approval_status)}</td>
+                        <td className="table-cell" data-label="Date">{day(a.approval_date)}</td>
+                        <td className="table-cell text-right" data-actions="">
                           {Number(a.approval_status) === 1 ? (
                             <>
                               <button
@@ -1519,6 +1523,7 @@ export default function VendorBillsPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               ) : (
                 <p className="text-sm text-slate-500">No approvers assigned.</p>
               )}
@@ -1527,7 +1532,8 @@ export default function VendorBillsPage() {
             {detail.payments?.length ? (
               <div>
                 <h3 className="mb-2 text-sm font-semibold text-slate-800">Payments</h3>
-                <table className="min-w-full">
+                <div className="overflow-x-auto">
+                <table className="min-w-full stacked-table">
                   <thead>
                     <tr>
                       <th className="table-head">Payment no.</th>
@@ -1540,17 +1546,18 @@ export default function VendorBillsPage() {
                   <tbody>
                     {detail.payments.map((p) => (
                       <tr key={p.payment_id}>
-                        <td className="table-cell font-medium text-slate-800">{p.payment_no}</td>
-                        <td className="table-cell">{day(p.payment_date)}</td>
-                        <td className="table-cell">{p.pay_mode}</td>
+                        <td className="table-cell font-medium text-slate-800" data-label="Payment no.">{p.payment_no}</td>
+                        <td className="table-cell" data-label="Date">{day(p.payment_date)}</td>
+                        <td className="table-cell" data-label="Mode">{p.pay_mode}</td>
                         {/* Cheque number or transaction reference, whichever
                             the mode carries; cash has neither. */}
-                        <td className="table-cell">{p.cheque_no || p.transaction_ref || '—'}</td>
-                        <td className="table-cell text-right">{money(p.paid_amount)}</td>
+                        <td className="table-cell" data-label="Reference">{p.cheque_no || p.transaction_ref || '—'}</td>
+                        <td className="table-cell text-right" data-label="Amount">{money(p.paid_amount)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             ) : null}
 

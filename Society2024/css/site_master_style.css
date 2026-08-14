@@ -1,0 +1,706 @@
+﻿
+body {
+    /*    font-family: Arial, sans-serif;*/
+    font-family: "Open Sans", sans-serif;
+    color: red;
+    text-align: center;
+    margin-top: 50px;
+    background: #F6F9FF;
+}
+
+.profile-container {
+    position: relative;
+    width: 150px;
+    height: 150px;
+    margin: auto;
+}
+
+#profileImage {
+    width: 100%;
+    /*height: 100%;*/
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid #000;
+    cursor: pointer;
+}
+ 
+.overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: 0.3s;
+    cursor: pointer;
+}
+
+.profile-container:hover .overlay {
+    opacity: 1;
+}
+
+#cropModal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0,0,0,0.8);
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+}
+
+#cropBox {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+}
+
+#preview {
+    max-width: 300px;
+    max-height: 300px;
+}
+
+.btn-group {
+    margin-top: 10px;
+    display: flex;
+    justify-content: space-around;
+}
+
+button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.btn-upload {
+    background: #4CAF50;
+    color: white;
+}
+
+.btn-cancel {
+    background: #f44336;
+    color: white;
+}
+/* Default styling for collapse-inner links */
+.collapse-inner a {
+    color: #007bff;
+    font-weight: bold;
+}
+
+/* Optional hover effect for active links */
+.active-link:hover {
+   box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Modern Subtle Scrollbar for Accordion Sidebar */
+ul#accordionSidebar::-webkit-scrollbar {
+    width: 8px;
+}
+
+ul#accordionSidebar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+ul#accordionSidebar::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+    transition: background 0.3s ease;
+}
+
+    ul#accordionSidebar::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+
+/* Firefox Scrollbar Styling */
+ul#accordionSidebar {
+    scrollbar-color: #cbd5e1 transparent;
+    scrollbar-width: thin;
+}
+
+    /* Alternative: Sleeker version */
+    ul#accordionSidebar::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    ul#accordionSidebar::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    ul#accordionSidebar::-webkit-scrollbar-thumb {
+/*        background: linear-gradient(180deg, #e2e8f0 0%, #cbd5e1 100%);*/
+        border-radius: 3px;
+        box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.05);
+    }
+
+        ul#accordionSidebar::-webkit-scrollbar-thumb:hover {
+/*            background: linear-gradient(180deg, #cbd5e1 0%, #94a3b8 100%);*/
+            box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.1);
+        }
+/* General Reset */
+ul#accordionSidebar {
+    list-style: none;
+    padding: 16px;
+    margin: 0;
+    width: 260px;
+    height: 85vh;
+    /*            border-radius: 16px;*/
+    border-radius: .75rem;
+    font-family: 'Segoe UI', sans-serif;
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+    margin-left: 8px;
+    --start: #defffe;
+    --first: #edf4ff;
+    --end: #f6f9fd;
+    background:white;
+/*    background: radial-gradient(16rem 100% at 6.64% 0, var(--start) 0, var(--first) 42.5%, var(--end) 100%);*/
+    box-shadow: rgba(0, 0, 0, 0.15) 1.95px 1.95px
+}
+
+/* Sidebar Item Base */
+.sidebar-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 14px;
+    font-size: 14px;
+    color: #374151;
+    text-decoration: none;
+    border-radius: 8px;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+    .sidebar-item i {
+        margin-right: 12px;
+        font-size: 16px;
+        color: #6b7280;
+        min-width: 20px;
+    }
+
+    .sidebar-item:hover {
+        background-color: #e0f2ff;
+        color: #2563eb;
+    }
+
+        .sidebar-item:hover i {
+            color: #2563eb;
+        }
+
+    .sidebar-item.active {
+        background-color: #dbeafe;
+        font-weight: 600;
+        color: #1d4ed8;
+    }
+
+        .sidebar-item.active i {
+            color: #1d4ed8;
+        }
+
+/* Divider line */
+hr {
+    border: none;
+    border-top: 1px solid #e5e7eb;
+    margin: 16px 0;
+}
+
+/* Section Headings */
+.sidebar-heading {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: #6b7280;
+    margin: 8px 0;
+    padding: 0 14px;
+}
+
+/* Collapse inner content */
+.collapse-inner {
+    padding-left: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+    .collapse-inner a {
+        font-size: 13px;
+        color: #4b5563;
+        text-decoration: none;
+        padding: 6px 8px;
+        border-radius: 6px;
+        transition: background 0.2s ease, color 0.2s ease;
+    }
+
+        .collapse-inner a:hover {
+            background-color: #e0f2fe;
+            color: #1d4ed8;
+        }
+
+    .collapse-inner h6 {
+        margin: 4px 0 4px 0;
+        font-size: 12px;
+        font-weight: 600;
+        color: #6b7280;
+    }
+
+/* Make ASP LinkButton like other sidebar items */
+.sidebar-item[role="link"] {
+    cursor: pointer;
+}
+
+/* Remove default list styles from li */
+ul#accordionSidebar > li {
+    list-style: none;
+    margin-bottom: 4px;
+}
+
+/* Optional: For toggle chevron indicator */
+.sidebar-item.collapsed::after {
+    content: "\f078"; /* FontAwesome down arrow */
+    font-family: "Font Awesome 5 Free";
+    font-weight: 900;
+    margin-left: auto;
+    font-size: 10px;
+    color: #9ca3af;
+    transition: transform 0.3s;
+}
+
+.sidebar-item[aria-expanded="true"]::after {
+    transform: rotate(180deg);
+}
+
+/* Optional: Smooth collapse transition */
+.collapse {
+    display: none;
+}
+
+    .collapse.show {
+        display: block;
+    }
+
+.hover-underline {
+    position: relative;
+    border-radius: 30px;
+    display: inline-block;
+    color: white;
+    font-size: 18px;
+    cursor: pointer;
+    overflow: hidden;
+    font-family: sans-serif;
+    transition: transform 0.3s ease;
+}
+
+    .hover-underline::after,
+    .hover-underline::before {
+        content: '';
+        position: absolute;
+        width: 100%;
+        height: 6px; /* Increased for visible curve */
+        background: #7bb0ff9e;
+        border-radius: 30px;
+        transform: scaleX(0);
+        transition: transform 0.4s ease-out;
+        z-index: 0;
+    }
+
+    .hover-underline::after {
+        bottom: -4px;
+        left: 0;
+        transform-origin: right;
+    }
+
+    .hover-underline::before {
+        top: -4px;
+        left: 0;
+        transform-origin: left;
+    }
+
+    .hover-underline:hover::after,
+    .hover-underline:hover::before {
+        transform: scaleX(1);
+    }
+
+    .hover-underline:hover {
+        transform: scale(1.05);
+    }
+
+.user-info-model {
+    width: 500px;
+}
+
+.profile-card {
+    max-width: 800px;
+    margin: 50px auto;
+    background-color: #fff;
+    border-radius: 15px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    padding: 30px;
+}
+
+.cover-image {
+    background: linear-gradient(to left, #0d3fc7, #80a7ee);
+    height: 120px;
+    border-top-left-radius: 15px;
+    border-top-right-radius: 15px;
+    position: relative;
+}
+
+.profile-pic {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    border: 1px solid #25378d;
+    position: absolute;
+    bottom: -50px;
+    left: 50%;
+    transform: translateX(-50%);
+    object-fit: cover;
+}
+
+.user-info {
+    text-align: center;
+    margin-top: 60px;
+}
+
+.form-label {
+    font-weight: 500;
+}
+
+.save-btn {
+    background-color: #7f56d9;
+    color: #fff;
+}
+
+    .save-btn:hover {
+        background-color: #6f46c9;
+    }
+
+
+/*-------------------------------------------------------------------------------------*/
+.search-container {
+    position: relative;
+    width: 300px;
+    margin: 10px 0;
+}
+
+    .search-container .aspNetTextBox {
+        width: 100%;
+        padding: 7px 15px;
+        border-radius: 12px;
+        border: 1px solid #ccc;
+        outline: none;
+        font-weight: bold;
+    }
+
+/* Button container on right side of textbox */
+.input-buttons {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    right: 0px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+/* Calendar Icon */
+.calendar-icon {
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: none;
+    margin-left: 8px;
+    cursor: pointer;
+    margin-right: 12px;
+}
+
+/* Search Button */
+.search-button2 {
+    padding: 7px 9px;
+    background: #0d6efd;
+    border-radius: 0 14px 12px 0;
+    border: none;
+    cursor: pointer;
+    color: gray;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+    .search-button2 span {
+        color: white;
+    }
+
+/* Fix background of CalendarExtender popup */
+.ajax__calendar_container {
+    background-color: white !important;
+    z-index: 9999;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 4px;
+}
+
+.sidebar {
+    transition: all 0.3s ease-in-out;
+}
+
+/* Optional: if your body or content shifts on toggle */
+#content-wrapper {
+    transition: margin 0.3s ease-in-out;
+}
+
+.not-required {
+    display: block;
+    width: 100%;
+    height: calc(1.5em + .75rem + 2px);
+    padding: .375rem .75rem;
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.5;
+    color: #6e707e;
+    background-color: #fff;
+    background-clip: padding-box;
+    border: 1px solid #d1d3e2;
+    border-radius: .35rem;
+    transition: border-color .15s ease-in-out,box-shadow .15s ease-in-out
+}
+
+    .not-required:focus {
+        color: #6e707e;
+        background-color: #fff;
+        border-color: #bac8f3;
+        outline: 0;
+        box-shadow: 0 0 0 .2rem rgba(78,115,223,.25)
+    }
+
+.logout-button {
+    display: inline-block;
+    width: 200px;
+    background-color: transparent;
+    color: white !important;
+    font-size: 14px;
+    font-weight: bold;
+    text-decoration: none;
+    border-radius: 8px;
+    transition: background 0.3s ease-in-out, transform 0.2s;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.dropDown {
+    margin-right: 23px;
+}
+
+.logout-button:hover {
+    background-color: transparent;
+    transform: scale(1.05);
+}
+
+.logout-button:active {
+    background-color: transparent;
+    transform: scale(0.98);
+}
+
+.main-Content {
+    height: 100vh;
+}
+
+.auto-scroll {
+    height: 100vh;
+    overflow: auto;
+    overflow-x: hidden;
+}
+
+    .auto-scroll::-webkit-scrollbar {
+        display: none;
+    }
+
+.bg-gray-white {
+    /*                background: linear-gradient(to top, #b5b5b5, #ffffff);*/
+    background: linear-gradient(to bottom, white 0%, white 60%, #cecece 100%);
+}
+
+.zoom {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+    .zoom:hover {
+        transform: scale(1.01);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+    }
+
+.notify-div {
+    width: 245px;
+    height: 25px;
+    word-wrap: break-word;
+    overflow: hidden;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.capsule {
+    border: 1px solid #8080801c;
+    padding: 2px 15px;
+    border-radius: 50px;
+    font-size: 20px;
+    font-weight: bold;
+    color: #686868;
+    font-family: system-ui;
+    --start: #defffe;
+    --first: #edf4ff;
+    --end: #f6f9fd;
+        background: radial-gradient(16rem 100% at 6.64% 0, var(--start) 0, var(--first) 42.5%, var(--end) 100%);
+/*    background: radial-gradient( 16rem 100% at 6.64% 0, #FF9933 0%, #FFFFFF 42.5%, #138808 100% );*/
+}
+
+#addNoteBtn, #showNotesBtn {
+    background: #007bff;
+    color: white;
+    font-size: 22px;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    cursor: pointer;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+    transition: transform 0.2s ease;
+}
+
+    #addNoteBtn:hover, #showNotesBtn:hover {
+        transform: scale(1.1);
+    }
+
+#showNotesBtn {
+    display: none;
+    margin-left: 10px;
+}
+
+.note-notes-container {
+    margin-top: 25px;
+    display: none;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: flex-start;
+}
+
+.note-note {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    width: 220px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    position: relative;
+    transition: transform 0.2s ease;
+}
+
+    .note-note:hover {
+        transform: translateY(-5px);
+    }
+
+    .note-note h4 {
+        margin-bottom: 10px;
+        font-size: 18px;
+        color: #333;
+    }
+
+    .note-note p {
+        font-size: 14px;
+        color: #555;
+        word-wrap: break-word;
+    }
+
+    .note-note button {
+        position: absolute;
+        top: 10px;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+    }
+
+    .note-note .note-edit {
+        right: 40px;
+        color: #007bff;
+    }
+
+    .note-note .note-delete {
+        right: 10px;
+        color: #dc3545;
+    }
+
+.note-popup {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.4);
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.note-popup-content {
+    background: white;
+    padding: 25px;
+    border-radius: 10px;
+    width: 320px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+    .note-popup-content input,
+    .note-popup-content textarea {
+        width: 100%;
+        margin: 10px 0;
+        padding: 10px;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+        font-size: 14px;
+    }
+
+    .note-popup-content textarea {
+        resize: vertical;
+        min-height: 80px;
+    }
+
+.note-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+    .note-actions button {
+        padding: 6px 12px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+    }
+
+#saveNoteBtn {
+    background-color: #007bff;
+    color: white;
+}
+
+#cancelBtn {
+    background-color: #6c757d;
+    color: white;
+}
+
+

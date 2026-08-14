@@ -1,0 +1,102 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<xs:schema id="village_owner" targetNamespace="http://tempuri.org/village_owner.xsd" xmlns:mstns="http://tempuri.org/village_owner.xsd" xmlns="http://tempuri.org/village_owner.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata" xmlns:msprop="urn:schemas-microsoft-com:xml-msprop" attributeFormDefault="qualified" elementFormDefault="qualified">
+  <xs:annotation>
+    <xs:appinfo source="urn:schemas-microsoft-com:xml-msdatasource">
+      <DataSource DefaultConnectionIndex="0" FunctionsComponentName="QueriesTableAdapter" Modifier="AutoLayout, AnsiClass, Class, Public" SchemaSerializationMode="IncludeSchema" xmlns="urn:schemas-microsoft-com:xml-msdatasource">
+        <Connections>
+          <Connection AppSettingsObjectName="Web.config" AppSettingsPropertyName="DBCS1" ConnectionStringObject="" IsAppSettingsProperty="true" Modifier="Assembly" Name="DBCS1 (Web.config)" ParameterPrefix="@" PropertyReference="AppConfig.System.Configuration.ConfigurationManager.0.ConnectionStrings.DBCS1.ConnectionString" Provider="System.Data.SqlClient" />
+        </Connections>
+        <Tables>
+          <TableAdapter BaseClass="System.ComponentModel.Component" DataAccessorModifier="AutoLayout, AnsiClass, Class, Public" DataAccessorName="house_owner_vwTableAdapter" GeneratorDataComponentClassName="house_owner_vwTableAdapter" Name="house_owner_vw" UserDataComponentName="house_owner_vwTableAdapter">
+            <MainSource>
+              <DbSource ConnectionRef="DBCS1 (Web.config)" DbObjectName="society.dbo.house_owner_vw" DbObjectType="View" FillMethodModifier="Public" FillMethodName="Fill" GenerateMethods="Both" GenerateShortCommands="false" GeneratorGetMethodName="GetData" GeneratorSourceName="Fill" GetMethodModifier="Public" GetMethodName="GetData" QueryType="Rowset" ScalarCallRetval="System.Object, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" UseOptimisticConcurrency="false" UserGetMethodName="GetData" UserSourceName="Fill">
+                <SelectCommand>
+                  <DbCommand CommandType="Text" ModifiedByUser="false">
+                    <CommandText>SELECT village_id, name, house_no, sq_ft, contact_no, house_owner_name, house_type, village_address, address FROM dbo.house_owner_vw</CommandText>
+                    <Parameters />
+                  </DbCommand>
+                </SelectCommand>
+              </DbSource>
+            </MainSource>
+            <Mappings>
+              <Mapping SourceColumn="village_id" DataSetColumn="village_id" />
+              <Mapping SourceColumn="name" DataSetColumn="name" />
+              <Mapping SourceColumn="house_no" DataSetColumn="house_no" />
+              <Mapping SourceColumn="sq_ft" DataSetColumn="sq_ft" />
+              <Mapping SourceColumn="contact_no" DataSetColumn="contact_no" />
+              <Mapping SourceColumn="house_owner_name" DataSetColumn="house_owner_name" />
+              <Mapping SourceColumn="house_type" DataSetColumn="house_type" />
+              <Mapping SourceColumn="village_address" DataSetColumn="village_address" />
+              <Mapping SourceColumn="address" DataSetColumn="address" />
+            </Mappings>
+            <Sources />
+          </TableAdapter>
+        </Tables>
+        <Sources />
+      </DataSource>
+    </xs:appinfo>
+  </xs:annotation>
+  <xs:element name="village_owner" msdata:IsDataSet="true" msdata:UseCurrentLocale="true" msprop:EnableTableAdapterManager="True" msprop:Generator_DataSetName="village_owner" msprop:Generator_UserDSName="village_owner">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element name="house_owner_vw" msprop:Generator_TableClassName="house_owner_vwDataTable" msprop:Generator_TableVarName="tablehouse_owner_vw" msprop:Generator_TablePropName="house_owner_vw" msprop:Generator_RowDeletingName="house_owner_vwRowDeleting" msprop:Generator_RowChangingName="house_owner_vwRowChanging" msprop:Generator_RowEvHandlerName="house_owner_vwRowChangeEventHandler" msprop:Generator_RowDeletedName="house_owner_vwRowDeleted" msprop:Generator_UserTableName="house_owner_vw" msprop:Generator_RowChangedName="house_owner_vwRowChanged" msprop:Generator_RowEvArgName="house_owner_vwRowChangeEvent" msprop:Generator_RowClassName="house_owner_vwRow">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="village_id" msprop:Generator_ColumnVarNameInTable="columnvillage_id" msprop:Generator_ColumnPropNameInRow="village_id" msprop:Generator_ColumnPropNameInTable="village_idColumn" msprop:Generator_UserColumnName="village_id" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="10" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="name" msprop:Generator_ColumnVarNameInTable="columnname" msprop:Generator_ColumnPropNameInRow="name" msprop:Generator_ColumnPropNameInTable="nameColumn" msprop:Generator_UserColumnName="name" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="house_no" msprop:Generator_ColumnVarNameInTable="columnhouse_no" msprop:Generator_ColumnPropNameInRow="house_no" msprop:Generator_ColumnPropNameInTable="house_noColumn" msprop:Generator_UserColumnName="house_no" type="xs:int" minOccurs="0" />
+              <xs:element name="sq_ft" msprop:Generator_ColumnVarNameInTable="columnsq_ft" msprop:Generator_ColumnPropNameInRow="sq_ft" msprop:Generator_ColumnPropNameInTable="sq_ftColumn" msprop:Generator_UserColumnName="sq_ft" type="xs:decimal" minOccurs="0" />
+              <xs:element name="contact_no" msprop:Generator_ColumnVarNameInTable="columncontact_no" msprop:Generator_ColumnPropNameInRow="contact_no" msprop:Generator_ColumnPropNameInTable="contact_noColumn" msprop:Generator_UserColumnName="contact_no" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="house_owner_name" msprop:Generator_ColumnVarNameInTable="columnhouse_owner_name" msprop:Generator_ColumnPropNameInRow="house_owner_name" msprop:Generator_ColumnPropNameInTable="house_owner_nameColumn" msprop:Generator_UserColumnName="house_owner_name" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="house_type" msprop:Generator_ColumnVarNameInTable="columnhouse_type" msprop:Generator_ColumnPropNameInRow="house_type" msprop:Generator_ColumnPropNameInTable="house_typeColumn" msprop:Generator_UserColumnName="house_type" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="village_address" msdata:ReadOnly="true" msprop:Generator_ColumnVarNameInTable="columnvillage_address" msprop:Generator_ColumnPropNameInRow="village_address" msprop:Generator_ColumnPropNameInTable="village_addressColumn" msprop:Generator_UserColumnName="village_address" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="154" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="address" msprop:Generator_ColumnVarNameInTable="columnaddress" msprop:Generator_ColumnPropNameInRow="address" msprop:Generator_ColumnPropNameInTable="addressColumn" msprop:Generator_UserColumnName="address" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

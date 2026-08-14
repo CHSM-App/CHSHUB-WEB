@@ -1,0 +1,100 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<xs:schema id="unitwise_maintenance" targetNamespace="http://tempuri.org/unitwise_maintenance.xsd" xmlns:mstns="http://tempuri.org/unitwise_maintenance.xsd" xmlns="http://tempuri.org/unitwise_maintenance.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata" xmlns:msprop="urn:schemas-microsoft-com:xml-msprop" attributeFormDefault="qualified" elementFormDefault="qualified">
+  <xs:annotation>
+    <xs:appinfo source="urn:schemas-microsoft-com:xml-msdatasource">
+      <DataSource DefaultConnectionIndex="0" FunctionsComponentName="QueriesTableAdapter" Modifier="AutoLayout, AnsiClass, Class, Public" SchemaSerializationMode="IncludeSchema" xmlns="urn:schemas-microsoft-com:xml-msdatasource">
+        <Connections>
+          <Connection AppSettingsObjectName="Web.config" AppSettingsPropertyName="DBCS" ConnectionStringObject="" IsAppSettingsProperty="true" Modifier="Assembly" Name="DBCS (Web.config)" ParameterPrefix="@" PropertyReference="AppConfig.System.Configuration.ConfigurationManager.0.ConnectionStrings.DBCS.ConnectionString" Provider="System.Data.SqlClient" />
+        </Connections>
+        <Tables>
+          <TableAdapter BaseClass="System.ComponentModel.Component" DataAccessorModifier="AutoLayout, AnsiClass, Class, Public" DataAccessorName="unitwise_maintenance_vwTableAdapter" GeneratorDataComponentClassName="unitwise_maintenance_vwTableAdapter" Name="unitwise_maintenance_vw" UserDataComponentName="unitwise_maintenance_vwTableAdapter">
+            <MainSource>
+              <DbSource ConnectionRef="DBCS (Web.config)" DbObjectName="Society.dbo.unitwise_maintenance_vw" DbObjectType="View" FillMethodModifier="Public" FillMethodName="Fill" GenerateMethods="Both" GenerateShortCommands="false" GeneratorGetMethodName="GetData" GeneratorSourceName="Fill" GetMethodModifier="Public" GetMethodName="GetData" QueryType="Rowset" ScalarCallRetval="System.Object, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" UseOptimisticConcurrency="false" UserGetMethodName="GetData" UserSourceName="Fill">
+                <SelectCommand>
+                  <DbCommand CommandType="Text" ModifiedByUser="false">
+                    <CommandText>SELECT month_id, month_name, year, owner_name, flat_no, w_name, total_amount, amt_received, receivable_amt, balance, b_id, build_name, m_date, due FROM dbo.unitwise_maintenance_vw</CommandText>
+                    <Parameters />
+                  </DbCommand>
+                </SelectCommand>
+              </DbSource>
+            </MainSource>
+            <Mappings>
+              <Mapping SourceColumn="month_id" DataSetColumn="month_id" />
+              <Mapping SourceColumn="month_name" DataSetColumn="month_name" />
+              <Mapping SourceColumn="year" DataSetColumn="year" />
+              <Mapping SourceColumn="owner_name" DataSetColumn="owner_name" />
+              <Mapping SourceColumn="flat_no" DataSetColumn="flat_no" />
+              <Mapping SourceColumn="w_name" DataSetColumn="w_name" />
+              <Mapping SourceColumn="total_amount" DataSetColumn="total_amount" />
+              <Mapping SourceColumn="amt_received" DataSetColumn="amt_received" />
+              <Mapping SourceColumn="receivable_amt" DataSetColumn="receivable_amt" />
+              <Mapping SourceColumn="balance" DataSetColumn="balance" />
+              <Mapping SourceColumn="b_id" DataSetColumn="b_id" />
+              <Mapping SourceColumn="build_name" DataSetColumn="build_name" />
+              <Mapping SourceColumn="m_date" DataSetColumn="m_date" />
+              <Mapping SourceColumn="due" DataSetColumn="due" />
+            </Mappings>
+            <Sources />
+          </TableAdapter>
+        </Tables>
+        <Sources />
+      </DataSource>
+    </xs:appinfo>
+  </xs:annotation>
+  <xs:element name="unitwise_maintenance" msdata:IsDataSet="true" msdata:UseCurrentLocale="true" msprop:EnableTableAdapterManager="True" msprop:Generator_DataSetName="unitwise_maintenance" msprop:Generator_UserDSName="unitwise_maintenance">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element name="unitwise_maintenance_vw" msprop:Generator_TableClassName="unitwise_maintenance_vwDataTable" msprop:Generator_TableVarName="tableunitwise_maintenance_vw" msprop:Generator_TablePropName="unitwise_maintenance_vw" msprop:Generator_RowDeletingName="unitwise_maintenance_vwRowDeleting" msprop:Generator_RowChangingName="unitwise_maintenance_vwRowChanging" msprop:Generator_RowEvHandlerName="unitwise_maintenance_vwRowChangeEventHandler" msprop:Generator_RowDeletedName="unitwise_maintenance_vwRowDeleted" msprop:Generator_UserTableName="unitwise_maintenance_vw" msprop:Generator_RowChangedName="unitwise_maintenance_vwRowChanged" msprop:Generator_RowEvArgName="unitwise_maintenance_vwRowChangeEvent" msprop:Generator_RowClassName="unitwise_maintenance_vwRow">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="month_id" msdata:ReadOnly="true" msprop:Generator_ColumnVarNameInTable="columnmonth_id" msprop:Generator_ColumnPropNameInRow="month_id" msprop:Generator_ColumnPropNameInTable="month_idColumn" msprop:Generator_UserColumnName="month_id" type="xs:int" minOccurs="0" />
+              <xs:element name="month_name" msdata:ReadOnly="true" msprop:Generator_ColumnVarNameInTable="columnmonth_name" msprop:Generator_ColumnPropNameInRow="month_name" msprop:Generator_ColumnPropNameInTable="month_nameColumn" msprop:Generator_UserColumnName="month_name" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="30" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="year" msdata:ReadOnly="true" msprop:Generator_ColumnVarNameInTable="columnyear" msprop:Generator_ColumnPropNameInRow="year" msprop:Generator_ColumnPropNameInTable="yearColumn" msprop:Generator_UserColumnName="year" type="xs:int" minOccurs="0" />
+              <xs:element name="owner_name" msprop:Generator_ColumnVarNameInTable="columnowner_name" msprop:Generator_ColumnPropNameInRow="owner_name" msprop:Generator_ColumnPropNameInTable="owner_nameColumn" msprop:Generator_UserColumnName="owner_name" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="150" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="flat_no" msprop:Generator_ColumnVarNameInTable="columnflat_no" msprop:Generator_ColumnPropNameInRow="flat_no" msprop:Generator_ColumnPropNameInTable="flat_noColumn" msprop:Generator_UserColumnName="flat_no" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="10" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="w_name" msprop:Generator_ColumnVarNameInTable="columnw_name" msprop:Generator_ColumnPropNameInRow="w_name" msprop:Generator_ColumnPropNameInTable="w_nameColumn" msprop:Generator_UserColumnName="w_name" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="total_amount" msprop:Generator_ColumnVarNameInTable="columntotal_amount" msprop:Generator_ColumnPropNameInRow="total_amount" msprop:Generator_ColumnPropNameInTable="total_amountColumn" msprop:Generator_UserColumnName="total_amount" type="xs:decimal" minOccurs="0" />
+              <xs:element name="amt_received" msdata:ReadOnly="true" msprop:Generator_ColumnVarNameInTable="columnamt_received" msprop:Generator_ColumnPropNameInRow="amt_received" msprop:Generator_ColumnPropNameInTable="amt_receivedColumn" msprop:Generator_UserColumnName="amt_received" type="xs:double" minOccurs="0" />
+              <xs:element name="receivable_amt" msprop:Generator_ColumnVarNameInTable="columnreceivable_amt" msprop:Generator_ColumnPropNameInRow="receivable_amt" msprop:Generator_ColumnPropNameInTable="receivable_amtColumn" msprop:Generator_UserColumnName="receivable_amt" type="xs:decimal" minOccurs="0" />
+              <xs:element name="balance" msdata:ReadOnly="true" msprop:Generator_ColumnVarNameInTable="columnbalance" msprop:Generator_ColumnPropNameInRow="balance" msprop:Generator_ColumnPropNameInTable="balanceColumn" msprop:Generator_UserColumnName="balance" type="xs:double" minOccurs="0" />
+              <xs:element name="b_id" msprop:Generator_ColumnVarNameInTable="columnb_id" msprop:Generator_ColumnPropNameInRow="b_id" msprop:Generator_ColumnPropNameInTable="b_idColumn" msprop:Generator_UserColumnName="b_id" type="xs:int" minOccurs="0" />
+              <xs:element name="build_name" msprop:Generator_ColumnVarNameInTable="columnbuild_name" msprop:Generator_ColumnPropNameInRow="build_name" msprop:Generator_ColumnPropNameInTable="build_nameColumn" msprop:Generator_UserColumnName="build_name" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="m_date" msprop:Generator_ColumnVarNameInTable="columnm_date" msprop:Generator_ColumnPropNameInRow="m_date" msprop:Generator_ColumnPropNameInTable="m_dateColumn" msprop:Generator_UserColumnName="m_date" type="xs:dateTime" minOccurs="0" />
+              <xs:element name="due" msprop:Generator_ColumnVarNameInTable="columndue" msprop:Generator_ColumnPropNameInRow="due" msprop:Generator_ColumnPropNameInTable="dueColumn" msprop:Generator_UserColumnName="due" type="xs:decimal" minOccurs="0" />
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

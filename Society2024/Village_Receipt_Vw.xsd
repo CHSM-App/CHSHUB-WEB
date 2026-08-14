@@ -1,0 +1,114 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<xs:schema id="Village_Receipt_Vw" targetNamespace="http://tempuri.org/Village_Receipt_Vw.xsd" xmlns:mstns="http://tempuri.org/Village_Receipt_Vw.xsd" xmlns="http://tempuri.org/Village_Receipt_Vw.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata" xmlns:msprop="urn:schemas-microsoft-com:xml-msprop" attributeFormDefault="qualified" elementFormDefault="qualified">
+  <xs:annotation>
+    <xs:appinfo source="urn:schemas-microsoft-com:xml-msdatasource">
+      <DataSource DefaultConnectionIndex="0" FunctionsComponentName="QueriesTableAdapter" Modifier="AutoLayout, AnsiClass, Class, Public" SchemaSerializationMode="IncludeSchema" xmlns="urn:schemas-microsoft-com:xml-msdatasource">
+        <Connections>
+          <Connection AppSettingsObjectName="Web.config" AppSettingsPropertyName="DBCS1" ConnectionStringObject="" IsAppSettingsProperty="true" Modifier="Assembly" Name="DBCS1 (Web.config)" ParameterPrefix="@" PropertyReference="AppConfig.System.Configuration.ConfigurationManager.0.ConnectionStrings.DBCS1.ConnectionString" Provider="System.Data.SqlClient" />
+        </Connections>
+        <Tables>
+          <TableAdapter BaseClass="System.ComponentModel.Component" DataAccessorModifier="AutoLayout, AnsiClass, Class, Public" DataAccessorName="Village_ReceiptTableAdapter" GeneratorDataComponentClassName="Village_ReceiptTableAdapter" Name="Village_Receipt" UserDataComponentName="Village_ReceiptTableAdapter">
+            <MainSource>
+              <DbSource ConnectionRef="DBCS1 (Web.config)" DbObjectName="society.dbo.Village_Receipt" DbObjectType="View" FillMethodModifier="Public" FillMethodName="Fill" GenerateMethods="Both" GenerateShortCommands="false" GeneratorGetMethodName="GetData" GeneratorSourceName="Fill" GetMethodModifier="Public" GetMethodName="GetData" QueryType="Rowset" ScalarCallRetval="System.Object, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" UseOptimisticConcurrency="false" UserGetMethodName="GetData" UserSourceName="Fill">
+                <SelectCommand>
+                  <DbCommand CommandType="Text" ModifiedByUser="false">
+                    <CommandText>SELECT name, village_id, owner_name, state, district, division, house_tax_amount, paid_amount, pay_date, receipt_no, previous_amount, house_tax_bill_no, from_year, to_year, house_no FROM dbo.Village_Receipt</CommandText>
+                    <Parameters />
+                  </DbCommand>
+                </SelectCommand>
+              </DbSource>
+            </MainSource>
+            <Mappings>
+              <Mapping SourceColumn="name" DataSetColumn="name" />
+              <Mapping SourceColumn="village_id" DataSetColumn="village_id" />
+              <Mapping SourceColumn="owner_name" DataSetColumn="owner_name" />
+              <Mapping SourceColumn="state" DataSetColumn="state" />
+              <Mapping SourceColumn="district" DataSetColumn="district" />
+              <Mapping SourceColumn="division" DataSetColumn="division" />
+              <Mapping SourceColumn="house_tax_amount" DataSetColumn="house_tax_amount" />
+              <Mapping SourceColumn="paid_amount" DataSetColumn="paid_amount" />
+              <Mapping SourceColumn="pay_date" DataSetColumn="pay_date" />
+              <Mapping SourceColumn="receipt_no" DataSetColumn="receipt_no" />
+              <Mapping SourceColumn="previous_amount" DataSetColumn="previous_amount" />
+              <Mapping SourceColumn="house_tax_bill_no" DataSetColumn="house_tax_bill_no" />
+              <Mapping SourceColumn="from_year" DataSetColumn="from_year" />
+              <Mapping SourceColumn="to_year" DataSetColumn="to_year" />
+              <Mapping SourceColumn="house_no" DataSetColumn="house_no" />
+            </Mappings>
+            <Sources />
+          </TableAdapter>
+        </Tables>
+        <Sources />
+      </DataSource>
+    </xs:appinfo>
+  </xs:annotation>
+  <xs:element name="Village_Receipt_Vw" msdata:IsDataSet="true" msdata:UseCurrentLocale="true" msprop:EnableTableAdapterManager="True" msprop:Generator_DataSetName="Village_Receipt_Vw" msprop:Generator_UserDSName="Village_Receipt_Vw">
+    <xs:complexType>
+      <xs:choice minOccurs="0" maxOccurs="unbounded">
+        <xs:element name="Village_Receipt" msprop:Generator_TableClassName="Village_ReceiptDataTable" msprop:Generator_TableVarName="tableVillage_Receipt" msprop:Generator_TablePropName="Village_Receipt" msprop:Generator_RowDeletingName="Village_ReceiptRowDeleting" msprop:Generator_RowChangingName="Village_ReceiptRowChanging" msprop:Generator_RowEvHandlerName="Village_ReceiptRowChangeEventHandler" msprop:Generator_RowDeletedName="Village_ReceiptRowDeleted" msprop:Generator_UserTableName="Village_Receipt" msprop:Generator_RowChangedName="Village_ReceiptRowChanged" msprop:Generator_RowEvArgName="Village_ReceiptRowChangeEvent" msprop:Generator_RowClassName="Village_ReceiptRow">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="name" msprop:Generator_ColumnVarNameInTable="columnname" msprop:Generator_ColumnPropNameInRow="name" msprop:Generator_ColumnPropNameInTable="nameColumn" msprop:Generator_UserColumnName="name" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="village_id" msprop:Generator_ColumnVarNameInTable="columnvillage_id" msprop:Generator_ColumnPropNameInRow="village_id" msprop:Generator_ColumnPropNameInTable="village_idColumn" msprop:Generator_UserColumnName="village_id" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="10" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="owner_name" msprop:Generator_ColumnVarNameInTable="columnowner_name" msprop:Generator_ColumnPropNameInRow="owner_name" msprop:Generator_ColumnPropNameInTable="owner_nameColumn" msprop:Generator_UserColumnName="owner_name" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="state" msprop:Generator_ColumnVarNameInTable="columnstate" msprop:Generator_ColumnPropNameInRow="state" msprop:Generator_ColumnPropNameInTable="stateColumn" msprop:Generator_UserColumnName="state" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="district" msprop:Generator_ColumnVarNameInTable="columndistrict" msprop:Generator_ColumnPropNameInRow="district" msprop:Generator_ColumnPropNameInTable="districtColumn" msprop:Generator_UserColumnName="district" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="division" msprop:Generator_ColumnVarNameInTable="columndivision" msprop:Generator_ColumnPropNameInRow="division" msprop:Generator_ColumnPropNameInTable="divisionColumn" msprop:Generator_UserColumnName="division" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="house_tax_amount" msprop:Generator_ColumnVarNameInTable="columnhouse_tax_amount" msprop:Generator_ColumnPropNameInRow="house_tax_amount" msprop:Generator_ColumnPropNameInTable="house_tax_amountColumn" msprop:Generator_UserColumnName="house_tax_amount" type="xs:decimal" minOccurs="0" />
+              <xs:element name="paid_amount" msprop:Generator_ColumnVarNameInTable="columnpaid_amount" msprop:Generator_ColumnPropNameInRow="paid_amount" msprop:Generator_ColumnPropNameInTable="paid_amountColumn" msprop:Generator_UserColumnName="paid_amount" type="xs:decimal" minOccurs="0" />
+              <xs:element name="pay_date" msprop:Generator_ColumnVarNameInTable="columnpay_date" msprop:Generator_ColumnPropNameInRow="pay_date" msprop:Generator_ColumnPropNameInTable="pay_dateColumn" msprop:Generator_UserColumnName="pay_date" type="xs:dateTime" minOccurs="0" />
+              <xs:element name="receipt_no" msprop:Generator_ColumnVarNameInTable="columnreceipt_no" msprop:Generator_ColumnPropNameInRow="receipt_no" msprop:Generator_ColumnPropNameInTable="receipt_noColumn" msprop:Generator_UserColumnName="receipt_no" minOccurs="0">
+                <xs:simpleType>
+                  <xs:restriction base="xs:string">
+                    <xs:maxLength value="50" />
+                  </xs:restriction>
+                </xs:simpleType>
+              </xs:element>
+              <xs:element name="previous_amount" msprop:Generator_ColumnVarNameInTable="columnprevious_amount" msprop:Generator_ColumnPropNameInRow="previous_amount" msprop:Generator_ColumnPropNameInTable="previous_amountColumn" msprop:Generator_UserColumnName="previous_amount" type="xs:decimal" />
+              <xs:element name="house_tax_bill_no" msprop:Generator_ColumnVarNameInTable="columnhouse_tax_bill_no" msprop:Generator_ColumnPropNameInRow="house_tax_bill_no" msprop:Generator_ColumnPropNameInTable="house_tax_bill_noColumn" msprop:Generator_UserColumnName="house_tax_bill_no" type="xs:int" minOccurs="0" />
+              <xs:element name="from_year" msdata:ReadOnly="true" msprop:Generator_ColumnVarNameInTable="columnfrom_year" msprop:Generator_ColumnPropNameInRow="from_year" msprop:Generator_ColumnPropNameInTable="from_yearColumn" msprop:Generator_UserColumnName="from_year" type="xs:int" minOccurs="0" />
+              <xs:element name="to_year" msdata:ReadOnly="true" msprop:Generator_ColumnVarNameInTable="columnto_year" msprop:Generator_ColumnPropNameInRow="to_year" msprop:Generator_ColumnPropNameInTable="to_yearColumn" msprop:Generator_UserColumnName="to_year" type="xs:int" minOccurs="0" />
+              <xs:element name="house_no" msprop:Generator_ColumnVarNameInTable="columnhouse_no" msprop:Generator_ColumnPropNameInRow="house_no" msprop:Generator_ColumnPropNameInTable="house_noColumn" msprop:Generator_UserColumnName="house_no" type="xs:int" minOccurs="0" />
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:choice>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

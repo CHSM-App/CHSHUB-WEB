@@ -10,14 +10,16 @@ node_modules/
 dist/
 build/
 
-# .NET build output / IDE cruft (society2024DotNet)
+# .NET build output / IDE cruft (Society_dotNet)
 [Bb]in/
 [Oo]bj/
 packages/
 .vs/
 *.user
 *.suo
-society2024DotNet/.git_disabled/
+# Nested repo metadata, whatever directory it lives under — the packfile
+# inside exceeds GitHub's 100 MB limit and blocks pushes
+.git_disabled/
 
 # Archives / bundles — never commit (GitHub rejects files over 100 MB)
 *.zip

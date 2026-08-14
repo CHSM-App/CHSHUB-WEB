@@ -145,3 +145,78 @@ describe('mobile navigation drawer', () => {
     expect(aside.className).toContain('overflow-y-auto');
   });
 });
+
+/*
+ * The desktop rail and topbar stay put while the page scrolls.
+ *
+ * Both are `position: sticky`, which resolves against the nearest ancestor
+ * that scrolls. Any ancestor that clips overflow becomes that ancestor — and
+ * since the shell is only as tall as its content, a sticky child of it has
+ * nothing to stick to and scrolls away with the page.
+ *
+ * This has been broken once already, by adding `overflow-x-hidden` to the
+ * shell to stop a wide chart dragging the layout sideways. The page-level clip
+ * belongs on <html> (see index.css), where the viewport stays the scroller;
+ * `min-w-0` is what holds the width here and needs no clipping.
+ */
+describe('sticky shell chrome', () => {
+  const renderShell = () =>
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <Routes>
+          <Route element={<AppLayout />}>
+            <Route path="/dashboard" element={<p>Dashboard body</p>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+
+  /** Every ancestor of `el` up to the render root. */
+  const ancestorsOf = (el, root) => {
+    const chain = [];
+    for (let n = el.parentElement; n && n !== root; n = n.parentElement) chain.push(n);
+    return chain;
+  };
+
+  it('keeps the topbar and the rail sticky', () => {
+    const { container } = renderShell();
+
+    expect(container.querySelector('header').className).toContain('sticky');
+    // The rail is sticky from `lg` up; below that it is the drawer above.
+    expect(container.querySelector('aside').className).toContain('lg:sticky');
+  });
+
+  it('puts no overflow clip on any ancestor of the sticky topbar', () => {
+    const { container } = renderShell();
+    const header = container.querySelector('header');
+
+    const clipping = ancestorsOf(header, container).filter((n) =>
+      /overflow-(x-|y-)?(hidden|auto|scroll|clip)/.test(n.className),
+    );
+    expect(clipping.map((n) => n.className)).toEqual([]);
+  });
+
+  it('puts no overflow clip on any ancestor of the sticky rail', () => {
+    const { container } = renderShell();
+    const aside = container.querySelector('aside');
+
+    const clipping = ancestorsOf(aside, container).filter((n) =>
+      /overflow-(x-|y-)?(hidden|auto|scroll|clip)/.test(n.className),
+    );
+    expect(clipping.map((n) => n.className)).toEqual([]);
+  });
+
+  /*
+   * What replaced the clip. Without a zero minimum the widest thing on the
+   * page — the dashboard chart — sets the shell's floor and the layout grows
+   * past the viewport instead.
+   */
+  it('holds the shell width with min-w-0 rather than by clipping', () => {
+    const { container } = renderShell();
+    const shell = container.firstElementChild;
+
+    expect(shell.className).toContain('min-w-0');
+    expect(shell.className).not.toMatch(/overflow-x-(hidden|clip)/);
+    expect(container.querySelector('main').className).toContain('min-w-0');
+  });
+});

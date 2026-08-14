@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 export function Spinner({ label = 'Loading…' }) {
   return (
     <div className="flex items-center justify-center gap-3 py-10 text-sm text-slate-500" role="status">
-      <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+      <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-[#c94040]" />
       {label}
     </div>
   );
@@ -37,6 +37,12 @@ export function ErrorNotice({ error, onRetry }) {
  */
 export function InfoNotice({ message, tone = 'info', onDismiss }) {
   if (!message) return null;
+  /*
+   * The info tone stays blue rather than following the brand red. Red is now
+   * the accent AND (deeper) the danger colour, so a red-tinted notice reads as
+   * a failure — which is the opposite of what this component is for. Blue here
+   * is carrying meaning, not brand.
+   */
   const palette =
     tone === 'success'
       ? 'border-green-200 bg-green-50 text-green-800'
@@ -370,7 +376,7 @@ export function Modal({
             // Marks this as the exit, so the initial-focus pass above can skip
             // it without matching on the label text.
             data-modal-close=""
-            className="-mr-1 shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            className="-mr-1 shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c94040]"
           >
             <svg viewBox="0 0 16 16" className="h-4 w-4" aria-hidden="true">
               <path d="m4 4 8 8M12 4l-8 8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -499,7 +505,7 @@ const CONFIRM_TONES = {
     ),
   },
   info: {
-    accent: '#1d4ed8',
+    accent: '#a82a2a',
     tint: '#e6efff',
     button: 'btn-primary',
     icon: (

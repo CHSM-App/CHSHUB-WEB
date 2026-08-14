@@ -437,10 +437,10 @@ export default function HelpdeskPage() {
                       key={c.comment_id}
                       className={`max-w-[75%] ${fromResident ? '' : 'ml-auto'}`}
                     >
-                      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                      <div className="surface overflow-hidden rounded-2xl">
                         <div
                           className={`px-3 py-1.5 text-xs font-semibold ${
-                            fromResident ? 'bg-slate-200 text-slate-800' : 'bg-blue-100 text-blue-900'
+                            fromResident ? 'bg-slate-200 text-slate-800' : 'bg-[#fbe3e3] text-[#7d1a1a]'
                           }`}
                         >
                           {c.name}

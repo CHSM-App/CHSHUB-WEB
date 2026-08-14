@@ -248,7 +248,7 @@ export default function SocietySetupPage() {
               padding: '11px 16px',
               fontSize: '0.9375rem',
               fontWeight: 600,
-              boxShadow: '0 4px 12px -2px rgba(78,115,223,0.4)',
+              boxShadow: '0 4px 12px -2px rgba(201, 64, 64,0.4)',
             }}
             onClick={async () => {
               await logout();
@@ -283,7 +283,7 @@ export default function SocietySetupPage() {
                 style={{
                   background: stepDone || current ? 'var(--grad-accent)' : '#eef2f9',
                   color: stepDone || current ? '#fff' : '#9aa3b2',
-                  boxShadow: current ? '0 0 0 4px rgba(78,115,223,0.15)' : 'none',
+                  boxShadow: current ? '0 0 0 4px rgba(201, 64, 64,0.15)' : 'none',
                 }}
                 aria-current={current ? 'step' : undefined}
                 title={s.title}

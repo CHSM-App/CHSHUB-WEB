@@ -443,7 +443,7 @@ export default function ExcelImport({ onDone, defaultType = 'building' }) {
 
       {rows ? (
         <div>
-          <p className="mb-2 text-sm" style={{ color: '#012970' }}>
+          <p className="mb-2 text-sm" style={{ color: '#5c1414' }}>
             <strong>{rows.length}</strong> row(s) ready to import.
           </p>
           <div className="max-h-56 overflow-auto rounded border" style={{ borderColor: '#e3e6f0' }}>
@@ -481,7 +481,7 @@ export default function ExcelImport({ onDone, defaultType = 'building' }) {
       ) : null}
 
       {progress ? (
-        <p className="text-sm" style={{ color: '#012970' }}>
+        <p className="text-sm" style={{ color: '#5c1414' }}>
           Importing {progress.done + 1} of {progress.total}…
         </p>
       ) : null}

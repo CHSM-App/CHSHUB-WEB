@@ -228,7 +228,7 @@ export default function HouseChargesPage() {
     <section>
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="print:w-full print:text-center">
-          <h1 className="text-xl font-bold" style={{ color: '#012970' }}>
+          <h1 className="text-xl font-bold" style={{ color: '#5c1414' }}>
             Charges
           </h1>
           <p className="text-sm text-slate-500 print:hidden">
@@ -253,7 +253,7 @@ export default function HouseChargesPage() {
       */}
       <div className="card mb-4 overflow-hidden">
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2">
-          <h2 className="text-sm font-bold" style={{ color: '#012970' }}>
+          <h2 className="text-sm font-bold" style={{ color: '#5c1414' }}>
             Charges
           </h2>
           <button
@@ -320,7 +320,7 @@ export default function HouseChargesPage() {
         </div>
       </div>
 
-      <h2 className="mb-2 text-sm font-bold" style={{ color: '#012970' }}>
+      <h2 className="mb-2 text-sm font-bold" style={{ color: '#5c1414' }}>
         Which houses pay
       </h2>
 

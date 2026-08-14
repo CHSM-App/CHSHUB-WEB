@@ -110,13 +110,13 @@ export default function HeaderIcons() {
               className="fixed inset-x-3 top-[68px] z-50 overflow-hidden bg-white sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-[340px]"
               style={{
                 borderRadius: 14,
-                boxShadow: '0 12px 32px rgba(1,41,112,0.18)',
-                border: '1px solid #eef2f9',
+                boxShadow: '0 12px 32px rgba(120,126,138,0.22)',
+                border: '1px solid rgba(17,24,39,0.06)',
               }}
             >
               <h6
                 className="flex items-center justify-between px-4 py-3 text-xs font-bold uppercase tracking-wide text-white"
-                style={{ background: 'linear-gradient(120deg, #012970 0%, #1d4ed8 100%)' }}
+                style={{ background: 'linear-gradient(120deg, #5c1414 0%, #a82a2a 100%)' }}
               >
                 Alerts Center
                 {alerts.length ? (
@@ -196,7 +196,7 @@ export default function HeaderIcons() {
  */
 const BTN_CLASS =
   'relative flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-200 ' +
-  'hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ' +
+  'hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e08585] ' +
   'focus-visible:ring-offset-2';
 
 // The artwork is already solid blue, so the resting tile stays transparent and

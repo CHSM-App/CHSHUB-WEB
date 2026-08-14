@@ -89,7 +89,7 @@ export default function VillageSettingsPage() {
   return (
     <section className="max-w-4xl">
       <header className="mb-5">
-        <h1 className="text-xl font-bold" style={{ color: '#012970' }}>
+        <h1 className="text-xl font-bold" style={{ color: '#5c1414' }}>
           Village settings
         </h1>
         <p className="text-sm text-slate-500">How tax bills are raised, and what a late payment costs.</p>

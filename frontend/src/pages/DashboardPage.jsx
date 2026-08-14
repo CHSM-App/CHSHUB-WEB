@@ -88,11 +88,18 @@ function HeadlineTile({ label, value, icon, hint }) {
       style={{ '--tile-grad': g.grad }}
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-white/85">{label}</p>
-        {/* Glassy plate behind the glyph so it reads against either gradient. */}
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+        {/*
+          The tile is white now, so the glyph plate is what carries the tile's
+          colour: it is filled with the same --tile-grad the tile used to be
+          washed with, and the glyph on it stays white.
+        */}
         <span
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
-          style={{ background: 'rgba(255,255,255,0.2)' }}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+          style={{
+            background: g.grad,
+            boxShadow: '0 3px 8px -2px rgba(17,24,39,0.28), inset 0 1px 0 rgba(255,255,255,0.3)',
+          }}
           aria-hidden="true"
         >
           <svg
@@ -110,18 +117,27 @@ function HeadlineTile({ label, value, icon, hint }) {
         </span>
       </div>
       <div className="min-w-0">
-        <p className="truncate text-2xl font-bold leading-tight">{value}</p>
-        {hint ? <p className="mt-0.5 truncate text-[11px] text-white/70">{hint}</p> : null}
+        <p className="truncate text-2xl font-bold leading-tight" style={{ color: 'var(--ink)' }}>
+          {value}
+        </p>
+        {hint ? <p className="mt-0.5 truncate text-[11px] text-slate-500">{hint}</p> : null}
       </div>
     </div>
   );
 }
 
-/** Tone ramps for the charts — [top of gradient, base, soft tint]. */
+/*
+ * Tone ramps for the charts — [top of gradient, base, soft tint].
+ *
+ * `brand` is the default series, on the app accent. The expense chart asks for
+ * a tone that contrasts with it; that used to be red against a blue accent, but
+ * with the accent itself red the two series were near-identical. `amber` is the
+ * contrast tone now — it stays distinct from both the accent and the green.
+ */
 const CHART_TONES = {
-  blue: ['#7d97ea', '#4e73df', 'rgba(78,115,223,0.12)'],
+  brand: ['#e58a8a', '#c94040', 'rgba(201, 64, 64,0.12)'],
   green: ['#4ee0ae', '#1cc88a', 'rgba(28,200,138,0.12)'],
-  red: ['#ff8a7d', '#e74a3b', 'rgba(231,74,59,0.12)'],
+  amber: ['#ffd071', '#e8a021', 'rgba(232,160,33,0.12)'],
 };
 
 /** Axis ticks rounded up to a readable step, so the top gridline is a whole number. */
@@ -158,7 +174,7 @@ function AreaChart({ series, labelKey, valueKey, height = 350 }) {
   /*
    * dashboard.aspx's options object, carried over verbatim apart from the two
    * notes below. Apex reads `colors` positionally, so the series order above
-   * has to stay Due / Collection / Total to keep yellow / green / blue.
+   * has to stay Due / Collection / Total to keep yellow / green / red.
    */
   const options = {
     chart: {
@@ -259,11 +275,11 @@ function AreaChart({ series, labelKey, valueKey, height = 350 }) {
  * stretched the corner radii and stroke widths, so bars came out with skewed,
  * lopsided tops at wide sizes.
  */
-function BarChart({ data, labelKey, valueKey, height = 200, tone = 'blue' }) {
+function BarChart({ data, labelKey, valueKey, height = 200, tone = 'brand' }) {
   const [hover, setHover] = useState(null);
   if (!data?.length) return <EmptyState title="No data for this period" />;
 
-  const [light, base, tint] = CHART_TONES[tone] ?? CHART_TONES.blue;
+  const [light, base, tint] = CHART_TONES[tone] ?? CHART_TONES.brand;
   const gradId = `bar-${tone}`;
 
   const W = 1000;
@@ -389,9 +405,21 @@ function DonutChart({ segments, centerLabel = 'Total' }) {
   const circumference = 2 * Math.PI * R;
 
   return (
-    <div className="flex flex-wrap items-center gap-6">
+    /*
+     * Stacked on a phone, side by side once there is room.
+     *
+     * This was a single `flex-wrap` row, which never actually wrapped: the
+     * legend had `flex-1`, so instead of dropping below the 144px donut it
+     * shrank to whatever was left — about 120px inside the dashboard's narrow
+     * column — and the amounts were clipped mid-figure ("₹23…").
+     *
+     * A wrap only happens once an item cannot shrink any further, so the fix
+     * is to stop asking it to shrink: the two stack below `sm`, and the legend
+     * takes the full width of the card there.
+     */
+    <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center sm:gap-6">
       <div className="relative shrink-0">
-        <svg viewBox="0 0 42 42" className="h-36 w-36 -rotate-90" role="img" aria-label="Split chart">
+        <svg viewBox="0 0 42 42" className="h-32 w-32 -rotate-90 sm:h-36 sm:w-36" role="img" aria-label="Split chart">
           <circle cx="21" cy="21" r={R} fill="none" stroke="#eef1f7" strokeWidth="5" />
           {segments.map((s, i) => {
             const pct = (Number(s.value || 0) / total) * 100;
@@ -425,17 +453,25 @@ function DonutChart({ segments, centerLabel = 'Total' }) {
         </div>
       </div>
 
-      <ul className="min-w-0 flex-1 space-y-3">
+      <ul className="w-full min-w-0 space-y-3 sm:flex-1">
         {segments.map((s) => {
           const pct = Math.round((Number(s.value || 0) / total) * 100);
           return (
             <li key={s.label}>
               <div className="flex items-center justify-between gap-3 text-sm">
-                <span className="flex items-center gap-2 text-slate-600">
-                  <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />
-                  {s.label}
+                {/* The label gives way, not the figure: truncating "Collection"
+                    still reads, but a clipped amount is the wrong number. */}
+                <span className="flex min-w-0 items-center gap-2 text-slate-600">
+                  <span
+                    className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ background: s.color }}
+                  />
+                  <span className="truncate">{s.label}</span>
                 </span>
-                <span className="font-semibold" style={{ color: 'var(--ink)' }}>
+                <span
+                  className="shrink-0 whitespace-nowrap font-semibold"
+                  style={{ color: 'var(--ink)' }}
+                >
                   ₹{money(s.value)}
                 </span>
               </div>
@@ -797,8 +833,11 @@ function VillageHero({ name, collected, outstanding, houses, staff }) {
       style={{
         // Lighter and bluer than the sign-in panel's near-black start: at that
         // depth the village name sat dark-on-dark and barely read.
-        background: 'linear-gradient(120deg, #1e3a8a 0%, #2563eb 55%, #4f7df3 100%)',
-        boxShadow: 'var(--shadow-md)',
+        background: 'linear-gradient(120deg, #7d1a1a 0%, #c94040 55%, #e06060 100%)',
+        /* Coloured fill, so the tinted drop + lit rim the stat tiles use — the
+           shared pair's white light-shadow would halo against this red. */
+        boxShadow:
+          '6px 6px 16px rgba(120,60,60,0.28), -4px -4px 12px rgba(255,255,255,0.5), inset 0 1px 0 rgba(255,255,255,0.3)',
       }}
     >
       {/* Soft blooms so the fill is not a flat diagonal. */}
@@ -906,7 +945,7 @@ function VillageTrend({ trend }) {
                 height: `${Math.max(2, (m.collected / peak) * 100)}%`,
                 background:
                   m.collected > 0
-                    ? 'linear-gradient(180deg, #6f8ff5 0%, #4e73df 100%)'
+                    ? 'linear-gradient(180deg, #e06a6a 0%, #c94040 100%)'
                     : '#eef2f9',
               }}
               title={`${m.label}: ₹${money(m.collected)} from ${m.receipts} receipt(s)`}
@@ -1207,8 +1246,8 @@ function VillageDashboard() {
                   <span
                     className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] text-white transition-transform group-hover:scale-105"
                     style={{
-                      background: 'linear-gradient(135deg, #6f8ff5, #4e73df)',
-                      boxShadow: '0 4px 12px -2px rgba(78,115,223,0.45)',
+                      background: 'linear-gradient(135deg, #e06a6a, #c94040)',
+                      boxShadow: '0 4px 12px -2px rgba(201, 64, 64,0.45)',
                     }}
                     aria-hidden="true"
                   >
@@ -1547,16 +1586,19 @@ export default function DashboardPage() {
   const dues = due;
 
   /*
-   * The tracker's three series, in the legacy page's own order and colours
-   * (dashboard.aspx: colors: ['#ffc107', '#28a745', '#4154f1']). Every series
-   * shares the twelve months ExpenseChart returns, zero-filled — which is why
-   * the legacy chart runs flat along the axis for months with no bills rather
-   * than stopping early.
+   * The tracker's three series, in the legacy page's own order
+   * (dashboard.aspx: colors: ['#ffc107', '#28a745', '#4154f1']). Due and
+   * Collection keep the legacy amber and green — they read as status, not
+   * brand — while Total takes the brand red in place of the legacy #4154f1.
+   *
+   * Every series shares the twelve months ExpenseChart returns, zero-filled —
+   * which is why the chart runs flat along the axis for months with no bills
+   * rather than stopping early.
    */
   const trackerSeries = [
     { key: 'due', label: 'Due', color: '#ffc107', data: expenseChart },
     { key: 'collection', label: 'Collection', color: '#28a745', data: expenseChart },
-    { key: 'total', label: 'Total', color: '#4154f1', data: expenseChart },
+    { key: 'total', label: 'Total', color: '#c94040', data: expenseChart },
   ].map((s) => ({ ...s, valueKey: { due: 'Due', collection: 'Collection', total: 'expense' }[s.key] }));
 
   return (
@@ -1691,7 +1733,7 @@ export default function DashboardPage() {
                   </div>
                   <Link
                     to="/billing/pdc/clearing"
-                    className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-blue-600 hover:gap-2 hover:underline"
+                    className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-[#a82a2a] hover:gap-2 hover:underline"
                     style={{ transition: 'gap 0.15s ease' }}
                   >
                     Open <span aria-hidden="true">→</span>
@@ -1746,7 +1788,7 @@ export default function DashboardPage() {
                   </div>
                   <Link
                     to="/community/helpdesk"
-                    className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-blue-600 hover:gap-2 hover:underline"
+                    className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-[#a82a2a] hover:gap-2 hover:underline"
                     style={{ transition: 'gap 0.15s ease' }}
                   >
                     Open <span aria-hidden="true">→</span>
@@ -1768,7 +1810,7 @@ export default function DashboardPage() {
                       // GridView's inline Eval did: 0.00 => blue tools, else green tick.
                       const paid = Number(a.paid_amount || 0);
                       const isPayment = paid !== 0;
-                      const tone = isPayment ? '#1cc88a' : '#4e73df';
+                      const tone = isPayment ? '#1cc88a' : '#c94040';
                       return (
                         <li
                           key={i}
@@ -1803,7 +1845,7 @@ export default function DashboardPage() {
                 )}
                 <Link
                   to="/reports/activity"
-                  className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-blue-600 hover:gap-2 hover:underline"
+                  className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-[#a82a2a] hover:gap-2 hover:underline"
                   style={{ transition: 'gap 0.15s ease' }}
                 >
                   See All <span aria-hidden="true">→</span>
@@ -1834,7 +1876,13 @@ export default function DashboardPage() {
                         <div
                           role="menu"
                           className="absolute right-0 z-50 mt-1 bg-white py-1"
-                          style={{ width: 160, borderRadius: 12, boxShadow: 'var(--shadow-lg)' }}
+                          /* A floating menu, so a true drop shadow rather than
+                             the moulded pair — it is not resting on the page. */
+                          style={{
+                            width: 160,
+                            borderRadius: 14,
+                            boxShadow: '0 16px 36px -8px rgba(17,24,39,0.3)',
+                          }}
                         >
                           {INCOME_PERIODS.map((p) => (
                             <button
@@ -1843,7 +1891,7 @@ export default function DashboardPage() {
                               role="menuitem"
                               className="block w-full px-4 py-2 text-left text-sm hover:bg-slate-50"
                               style={{
-                                color: period === p.id ? '#1d4ed8' : '#012970',
+                                color: period === p.id ? '#a82a2a' : '#5c1414',
                                 fontWeight: period === p.id ? 600 : 400,
                               }}
                               onClick={() => {
@@ -1863,7 +1911,7 @@ export default function DashboardPage() {
                 <DonutChart
                   centerLabel="Total"
                   segments={[
-                    { label: 'Collection', value: collection, color: '#4e73df' },
+                    { label: 'Collection', value: collection, color: '#c94040' },
                     { label: 'Due', value: due, color: '#f6c23e' },
                   ]}
                 />
@@ -1913,7 +1961,7 @@ export default function DashboardPage() {
           </Panel>
 
           <Panel title="Expenses by month" className="lg:col-span-2">
-            <BarChart data={expenseChart} labelKey="expense_month" valueKey="expense" tone="red" height={240} />
+            <BarChart data={expenseChart} labelKey="expense_month" valueKey="expense" tone="amber" height={240} />
           </Panel>
         </div>
       ) : null}

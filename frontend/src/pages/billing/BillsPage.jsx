@@ -230,7 +230,7 @@ function BillSheet({ bill, columns }) {
               <td className="px-3 py-1.5 text-right">₹ {money(forward)}</td>
             </tr>
           ) : null}
-          <tr className="border-b border-slate-300 bg-blue-50">
+          <tr className="border-b border-slate-300 bg-[#fdf1f1]">
             <td className="px-3 py-1.5">
               <strong>Grand Total:</strong>
             </td>
@@ -692,7 +692,7 @@ export default function BillsPage() {
                         <span
                           className={
                             run.bill_type_label === 'Regular'
-                              ? 'rounded bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700'
+                              ? 'rounded bg-[#fdeeee] px-2 py-0.5 text-xs font-medium text-[#a82a2a]'
                               : 'rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700'
                           }
                         >
@@ -863,7 +863,7 @@ export default function BillsPage() {
                     ))}
                   </tbody>
                   <tfoot>
-                    <tr className="border-t-2 border-slate-300 bg-blue-50 font-semibold">
+                    <tr className="border-t-2 border-slate-300 bg-[#fdf1f1] font-semibold">
                       <td className="table-cell">Total amount</td>
                       <td className="table-cell text-right">
                         {money(charges.items.reduce((s, c) => s + Number(c.amount || 0), 0))}

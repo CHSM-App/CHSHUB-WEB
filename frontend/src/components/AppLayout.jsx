@@ -319,8 +319,21 @@ export default function AppLayout() {
     navigate('/login', { replace: true });
   };
 
+  /*
+   * No `overflow-x` on the shell below.
+   *
+   * An element that clips overflow becomes the scroll container for its
+   * descendants, and a sticky box positions against its nearest scrolling
+   * ancestor. Clipping here made this div that ancestor for both the topbar
+   * and the sidebar rail — and because it is only as tall as its content,
+   * neither had anything to stick to and both scrolled away with the page.
+   *
+   * The page-level clip lives on <html> in index.css, where the viewport stays
+   * the scroller and sticky keeps working. `min-w-0` is what actually stops
+   * the content forcing the shell wide, and it needs no clipping.
+   */
   return (
-    <div className="flex min-h-screen w-full min-w-0 flex-col overflow-x-hidden">
+    <div className="flex min-h-screen w-full min-w-0 flex-col">
       {/*
         Sticky white topbar with the CHS HUB mark on the left and the signed-in
         user on the right — the arrangement Site.Master used.
@@ -338,7 +351,10 @@ export default function AppLayout() {
           backdropFilter: 'saturate(180%) blur(12px)',
           WebkitBackdropFilter: 'saturate(180%) blur(12px)',
           borderBottom: '1px solid var(--shell-line)',
-          boxShadow: '0 1px 2px rgba(1,41,112,0.04), 0 8px 24px -12px rgba(1,41,112,0.18)',
+          /* Downward-only: the topbar spans the full width, so it has no left
+             or right edge to mould — a symmetric pair would put a light rim
+             against the viewport edge and read as a seam. */
+          boxShadow: '0 4px 12px rgba(174,179,189,0.28), inset 0 1px 0 rgba(255,255,255,0.9)',
         }}
       >
         {/* min-w-0 lets this cluster shrink; without it the pill's text sets a
@@ -385,22 +401,23 @@ export default function AppLayout() {
             </span>
           </Link>
 
-          {/* .society-name-pill — white rounded pill (Site.Master), given a
-              faint blue wash and a building glyph so it reads as "which society
-              am I in" rather than as an unlabelled piece of text. */}
+          {/* .society-name-pill — white rounded pill (Site.Master), moulded out
+              of the topbar and carrying a building glyph so it reads as "which
+              society am I in" rather than as an unlabelled piece of text. */}
           <div
             className="society-name-pill flex min-w-0 items-center gap-2"
             style={{
-              background: 'linear-gradient(135deg, #ffffff 0%, #f3f7ff 100%)',
+              background: '#fff',
               borderRadius: '20px',
-              boxShadow: '0 1px 2px rgba(1,41,112,0.05), 0 6px 16px -8px rgba(1,41,112,0.25)',
-              border: '1px solid rgba(29,78,216,0.14)',
+              boxShadow:
+                '-3px -3px 8px rgba(255,255,255,0.9), 3px 3px 9px rgba(174,179,189,0.32)',
+              border: '1px solid rgba(17,24,39,0.04)',
             }}
           >
-            <span className="shrink-0" style={{ color: '#1d4ed8' }} aria-hidden="true">
+            <span className="shrink-0" style={{ color: '#a82a2a' }} aria-hidden="true">
               <Icon name="building" />
             </span>
-            <p className="society-name-text truncate font-semibold" style={{ color: '#012970' }}>
+            <p className="society-name-text truncate font-semibold" style={{ color: '#5c1414' }}>
               {user?.society_name || user?.village_name || 'Society Management'}
             </p>
           </div>
@@ -415,11 +432,12 @@ export default function AppLayout() {
           <div className="relative">
           <button
             type="button"
-            className="flex items-center gap-2 rounded-full py-1 pl-1 pr-4 transition-shadow hover:shadow-md"
+            className="flex items-center gap-2 rounded-full py-1 pl-1 pr-4 transition-shadow"
             style={{
-              border: '1px solid rgba(29,78,216,0.14)',
-              background: 'linear-gradient(135deg, #ffffff 0%, #f3f7ff 100%)',
-              boxShadow: '0 1px 2px rgba(1,41,112,0.05), 0 6px 16px -8px rgba(1,41,112,0.25)',
+              border: '1px solid rgba(17,24,39,0.04)',
+              background: '#fff',
+              boxShadow:
+                '-3px -3px 8px rgba(255,255,255,0.9), 3px 3px 9px rgba(174,179,189,0.32)',
             }}
             aria-expanded={menuOpen}
             aria-haspopup="menu"
@@ -428,14 +446,14 @@ export default function AppLayout() {
             <span
               className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white"
               style={{
-                background: 'linear-gradient(135deg, #1d4ed8, #2563eb)',
-                boxShadow: '0 2px 6px rgba(29,78,216,0.4), inset 0 1px 0 rgba(255,255,255,0.25)',
+                background: 'linear-gradient(135deg, #a82a2a, #c94040)',
+                boxShadow: '0 2px 6px rgba(168, 42, 42,0.4), inset 0 1px 0 rgba(255,255,255,0.25)',
               }}
               aria-hidden="true"
             >
               {(user?.name || '?').trim().charAt(0).toUpperCase()}
             </span>
-            <span className="hidden text-sm font-medium sm:inline" style={{ color: '#012970' }}>
+            <span className="hidden text-sm font-medium sm:inline" style={{ color: '#5c1414' }}>
               Hello, {user?.name}
             </span>
           </button>
@@ -452,10 +470,10 @@ export default function AppLayout() {
                   // right-anchored menu cannot spill past a narrow viewport.
                   width: 'min(200px, calc(100vw - 2rem))',
                   borderRadius: 14,
-                  border: '1px solid #eef2f9',
+                  border: '1px solid rgba(17,24,39,0.06)',
                   // Matched to the alerts dropdown in HeaderIcons, so the two
                   // panels hanging off the same row read as one component.
-                  boxShadow: '0 12px 32px rgba(1,41,112,0.18)',
+                  boxShadow: '0 12px 32px rgba(120,126,138,0.22)',
                 }}
               >
                 {/* Each item carries the icon its Site.Master counterpart had:
@@ -464,7 +482,7 @@ export default function AppLayout() {
                   type="button"
                   role="menuitem"
                   className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-sm hover:bg-slate-50"
-                  style={{ color: '#012970' }}
+                  style={{ color: '#5c1414' }}
                   onClick={() => {
                     setMenuOpen(false);
                     setProfileOpen(true);
@@ -485,7 +503,7 @@ export default function AppLayout() {
                   to={isVillage ? '/village/settings' : '/settings/accounts'}
                   role="menuitem"
                   className="flex items-center gap-2.5 px-4 py-2 text-sm hover:bg-slate-50"
-                  style={{ color: '#012970' }}
+                  style={{ color: '#5c1414' }}
                   onClick={() => setMenuOpen(false)}
                 >
                   <span className="text-slate-400">
@@ -498,7 +516,7 @@ export default function AppLayout() {
                   type="button"
                   role="menuitem"
                   className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-sm hover:bg-slate-50"
-                  style={{ color: '#012970' }}
+                  style={{ color: '#5c1414' }}
                   onClick={handleLogout}
                 >
                   <span className="text-slate-400">
@@ -671,7 +689,10 @@ export default function AppLayout() {
           </nav>
         </aside>
 
-        <main className="w-full min-w-0 max-w-full flex-1 overflow-x-hidden p-4 lg:p-6">
+        {/* Also no `overflow-x` here: a page that wants a sticky heading of
+            its own would lose it for the same reason the shell's rail did.
+            min-w-0 and max-w-full already keep the column inside the row. */}
+        <main className="w-full min-w-0 max-w-full flex-1 p-4 lg:p-6">
           <Outlet />
         </main>
       </div>

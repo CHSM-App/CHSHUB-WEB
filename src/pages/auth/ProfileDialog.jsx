@@ -200,7 +200,7 @@ export default function ProfileDialog({ open, onClose }) {
               backgroundImage:
                 'radial-gradient(circle at 18% 120%, rgba(255,255,255,0.30), transparent 45%),' +
                 'radial-gradient(circle at 82% -20%, rgba(255,255,255,0.22), transparent 50%),' +
-                'linear-gradient(120deg, #012970 0%, #1d4ed8 55%, #4f8cf7 100%)',
+                'linear-gradient(120deg, #5c1414 0%, #a82a2a 55%, #e56b6b 100%)',
             }}
           >
             <span
@@ -219,7 +219,7 @@ export default function ProfileDialog({ open, onClose }) {
             <button
               type="button"
               className="group relative h-28 w-28 shrink-0 overflow-hidden rounded-full transition-transform duration-200 hover:scale-[1.03] focus-visible:scale-[1.03] focus-visible:outline-none sm:h-32 sm:w-32"
-              style={{ border: '4px solid #fff', boxShadow: '0 10px 26px rgba(1,41,112,0.28)' }}
+              style={{ border: '4px solid #fff', boxShadow: '0 10px 26px rgba(92, 20, 20,0.28)' }}
               onClick={() => fileRef.current?.click()}
               title="Change profile photo"
             >
@@ -228,7 +228,7 @@ export default function ProfileDialog({ open, onClose }) {
               ) : (
                 <span
                   className="flex h-full w-full items-center justify-center text-4xl font-bold text-white"
-                  style={{ background: 'linear-gradient(135deg, #1d4ed8, #4f8cf7)' }}
+                  style={{ background: 'linear-gradient(135deg, #a82a2a, #e56b6b)' }}
                 >
                   {initial}
                 </span>
@@ -243,7 +243,7 @@ export default function ProfileDialog({ open, onClose }) {
                   bonus rather than the only hint that this is clickable. */}
               <span
                 className="absolute bottom-1 right-1 flex h-7 w-7 items-center justify-center rounded-full text-xs text-white shadow-md"
-                style={{ background: '#1d4ed8', border: '2px solid #fff' }}
+                style={{ background: '#a82a2a', border: '2px solid #fff' }}
                 aria-hidden="true"
               >
                 ✎
@@ -252,14 +252,14 @@ export default function ProfileDialog({ open, onClose }) {
             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPickPhoto} />
 
             <div className="min-w-0 pb-1">
-              <p className="truncate text-xl font-bold" style={{ color: '#012970' }}>
+              <p className="truncate text-xl font-bold" style={{ color: '#5c1414' }}>
                 {[form.firstName, form.lastName].filter(Boolean).join(' ') || user?.name}
               </p>
               <div className="mt-1.5 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
                 {role ? (
                   <span
                     className="rounded-full px-3 py-1 text-xs font-semibold"
-                    style={{ background: '#e8effc', color: '#1d4ed8' }}
+                    style={{ background: '#fbeaea', color: '#a82a2a' }}
                   >
                     {role}
                   </span>
@@ -281,17 +281,17 @@ export default function ProfileDialog({ open, onClose }) {
             <SummaryTile icon="📞" label="Contact" value={form.contactNo} />
           </div>
 
-          <div className="mt-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="mt-5 surface rounded-2xl p-4 sm:p-5">
             <div className="mb-4 flex items-start gap-3">
               <span
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-base"
-                style={{ background: '#e8effc' }}
+                style={{ background: '#fbeaea' }}
                 aria-hidden="true"
               >
                 👤
               </span>
               <div>
-                <h3 className="text-sm font-semibold" style={{ color: '#012970' }}>
+                <h3 className="text-sm font-semibold" style={{ color: '#5c1414' }}>
                   Account Settings
                 </h3>
                 <p className="text-sm text-slate-500">Here you can change your account information</p>
@@ -349,7 +349,7 @@ export default function ProfileDialog({ open, onClose }) {
           </div>
 
           {/* Collapsed by default, exactly like showPasswordFields() in the modal. */}
-          <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="mt-4 surface rounded-2xl p-4 sm:p-5">
             <button
               type="button"
               className="flex w-full items-center gap-3 text-left"
@@ -358,13 +358,13 @@ export default function ProfileDialog({ open, onClose }) {
             >
               <span
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-base"
-                style={{ background: '#e8effc' }}
+                style={{ background: '#fbeaea' }}
                 aria-hidden="true"
               >
                 🔒
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold" style={{ color: '#012970' }}>
+                <span className="block text-sm font-semibold" style={{ color: '#5c1414' }}>
                   Change Password
                 </span>
                 <span className="block text-xs text-slate-500">
@@ -434,7 +434,7 @@ export default function ProfileDialog({ open, onClose }) {
 /** Read-only summary chip for the contact row under the hero. */
 function SummaryTile({ icon, label, value }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
+    <div className="surface flex items-center gap-3 rounded-2xl px-3 py-2.5">
       <span
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-base"
         style={{ background: '#f1f5f9' }}

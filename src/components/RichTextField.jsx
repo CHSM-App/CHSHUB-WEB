@@ -196,7 +196,7 @@ export default function RichTextField({
 
       <div
         className={`overflow-hidden rounded-lg border bg-white ${
-          over ? 'border-red-400' : focused ? 'border-blue-500' : 'border-slate-300'
+          over ? 'border-red-400' : focused ? 'border-[#c94040]' : 'border-slate-300'
         }`}
       >
         <div className="flex flex-wrap items-center gap-0.5 border-b border-slate-200 bg-slate-50 px-2 py-1">
@@ -269,7 +269,7 @@ export default function RichTextField({
           role="textbox"
           aria-multiline="true"
           aria-label={label}
-          className="min-h-[9rem] px-3 py-2 text-sm text-slate-800 focus:outline-none [&_a]:text-blue-600 [&_a]:underline [&_img]:max-w-full [&_ol]:list-decimal [&_ol]:pl-6 [&_ul]:list-disc [&_ul]:pl-6"
+          className="min-h-[9rem] px-3 py-2 text-sm text-slate-800 focus:outline-none [&_a]:text-[#a82a2a] [&_a]:underline [&_img]:max-w-full [&_ol]:list-decimal [&_ol]:pl-6 [&_ul]:list-disc [&_ul]:pl-6"
           onInput={(e) => onChange(clean(e.currentTarget.innerHTML))}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}

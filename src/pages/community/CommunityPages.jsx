@@ -633,7 +633,7 @@ function PollCard({ poll, onShowVotes, onDelete }) {
       style={{ breakInside: 'avoid', WebkitColumnBreakInside: 'avoid' }}
     >
       <div className="flex items-start justify-between gap-2">
-        <h3 className="text-sm font-bold" style={{ color: '#012970' }}>
+        <h3 className="text-sm font-bold" style={{ color: '#5c1414' }}>
           {poll.Topic}
         </h3>
         {/* .delete-btn — the legacy card's ✕ in the corner. */}
@@ -669,7 +669,7 @@ function PollCard({ poll, onShowVotes, onDelete }) {
                 style={{
                   // isSelected marks the option this user voted for; the legacy
                   // card highlighted it the same way.
-                  border: o.isSelected ? '1.5px solid #1d4ed8' : '1px solid #e2e8f0',
+                  border: o.isSelected ? '1.5px solid #a82a2a' : '1px solid #e2e8f0',
                   background: o.isSelected ? '#f4f7fe' : '#fff',
                   cursor: voting ? 'wait' : 'pointer',
                 }}
@@ -689,7 +689,7 @@ function PollCard({ poll, onShowVotes, onDelete }) {
                     className="h-full rounded-full transition-all duration-500"
                     style={{
                       width: `${pct}%`,
-                      background: 'linear-gradient(90deg, #1d4ed8, #4f8cf7)',
+                      background: 'linear-gradient(90deg, #a82a2a, #e56b6b)',
                     }}
                   />
                 </div>
@@ -711,7 +711,7 @@ function PollCard({ poll, onShowVotes, onDelete }) {
         <button
           type="button"
           className="text-xs font-semibold hover:underline"
-          style={{ color: '#1d4ed8' }}
+          style={{ color: '#a82a2a' }}
           onClick={onShowVotes}
           title="Show Poll"
         >
@@ -886,7 +886,7 @@ export function PollsPage() {
                       </span>
                     </div>
                     <div className="mt-1 h-2 rounded-full bg-slate-100">
-                      <div className="h-2 rounded-full bg-blue-600" style={{ width: `${pct}%` }} />
+                      <div className="h-2 rounded-full bg-[#c94040]" style={{ width: `${pct}%` }} />
                     </div>
                   </li>
                 );

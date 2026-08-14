@@ -457,9 +457,9 @@ export function AuditPage() {
                 // the same rearrangement jquery-ui's sortable performed.
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => dropOn(index, grouped)}
-                className="overflow-hidden rounded-lg border border-slate-200 transition hover:border-[#012970] hover:shadow-md print:border-slate-300 print:shadow-none"
+                className="overflow-hidden rounded-lg border border-slate-200 transition hover:border-[#5c1414] hover:shadow-md print:border-slate-300 print:shadow-none"
               >
-                <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-[#012970] to-[#024298] px-5 py-3 text-white">
+                <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-[#5c1414] to-[#8a1f1f] px-5 py-3 text-white">
                   {/* Only the handle starts a drag, so selecting the title
                       text still works — as with the legacy .drag-handle. */}
                   <span
@@ -469,7 +469,7 @@ export function AuditPage() {
                     }}
                     aria-hidden="true"
                     title="Drag to reorder"
-                    className="cursor-grab select-none rounded bg-white/90 px-2 py-0.5 text-lg leading-none text-[#012970] active:cursor-grabbing print:hidden"
+                    className="cursor-grab select-none rounded bg-white/90 px-2 py-0.5 text-lg leading-none text-[#5c1414] active:cursor-grabbing print:hidden"
                   >
                     ⇅
                   </span>
@@ -489,7 +489,7 @@ export function AuditPage() {
                   </button>
                   <button
                     type="button"
-                    className="shrink-0 rounded bg-white px-3 py-1 text-xs font-medium text-[#012970] hover:bg-slate-100 print:hidden"
+                    className="shrink-0 rounded bg-white px-3 py-1 text-xs font-medium text-[#5c1414] hover:bg-slate-100 print:hidden"
                     onClick={() => openHeaderEditor(section)}
                   >
                     ✏️ Edit
@@ -511,7 +511,7 @@ export function AuditPage() {
                           <p className="flex-1 pr-5 text-sm leading-relaxed text-slate-700">
                             <strong>{i + 1})</strong> {q.question_desc}
                           </p>
-                          <p className="rounded border-l-[3px] border-[#012970] bg-slate-50 px-4 py-2 text-sm text-slate-700 sm:w-[300px] sm:shrink-0">
+                          <p className="rounded border-l-[3px] border-[#5c1414] bg-slate-50 px-4 py-2 text-sm text-slate-700 sm:w-[300px] sm:shrink-0">
                             {q.answer_desc || '—'}
                           </p>
                           <div className="whitespace-nowrap print:hidden">
@@ -787,10 +787,10 @@ function HeadBlock({ head, index, onEdit, onDelete, onDragStart, onDrop }) {
       // rearrangement jquery-ui's connected sortables performed.
       onDragOver={(e) => e.preventDefault()}
       onDrop={() => onDrop(index)}
-      className="border-b-2 border-[#012970] bg-[#f0f4f8] last:border-b-0"
+      className="border-b-2 border-[#5c1414] bg-[#f0f4f8] last:border-b-0"
     >
       <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-5 py-3">
-        <h3 className="flex flex-1 items-center gap-2.5 text-[15px] font-semibold text-[#012970]">
+        <h3 className="flex flex-1 items-center gap-2.5 text-[15px] font-semibold text-[#5c1414]">
           {/* Only the handle starts a drag, so the title text stays
               selectable — as with the legacy .drag-handle. */}
           <span
@@ -822,7 +822,7 @@ function HeadBlock({ head, index, onEdit, onDelete, onDragStart, onDrop }) {
             🗑️
           </button>
         </h3>
-        <span className="text-[15px] font-semibold text-[#012970]">{money(head.amount)}</span>
+        <span className="text-[15px] font-semibold text-[#5c1414]">{money(head.amount)}</span>
       </div>
 
       <div className="bg-white">
@@ -835,7 +835,7 @@ function HeadBlock({ head, index, onEdit, onDelete, onDragStart, onDrop }) {
             <span className="min-w-20 text-right text-sm font-medium text-slate-600">{money(s.amount)}</span>
           </div>
         ))}
-        <div className="flex items-center justify-between border-t-2 border-[#012970] bg-slate-50 px-5 py-3 font-bold text-[#012970]">
+        <div className="flex items-center justify-between border-t-2 border-[#5c1414] bg-slate-50 px-5 py-3 font-bold text-[#5c1414]">
           <span className="text-[15px]">Total:</span>
           <span className="text-base">{money(total)}</span>
         </div>
@@ -1165,9 +1165,9 @@ export function BalanceSheetEditorPage() {
               return (
                 <div
                   key={column.compId}
-                  className="overflow-hidden rounded-lg border-2 border-[#012970] print:break-inside-avoid"
+                  className="overflow-hidden rounded-lg border-2 border-[#5c1414] print:break-inside-avoid"
                 >
-                  <div className="bg-gradient-to-r from-[#012970] to-[#024298] px-5 py-3.5 text-center text-lg font-bold text-white">
+                  <div className="bg-gradient-to-r from-[#5c1414] to-[#8a1f1f] px-5 py-3.5 text-center text-lg font-bold text-white">
                     {column.title}
                   </div>
                   <div
@@ -1197,7 +1197,7 @@ export function BalanceSheetEditorPage() {
                       ))
                     )}
                   </div>
-                  <div className="flex items-center justify-between bg-[#012970] px-5 py-3 font-bold text-white">
+                  <div className="flex items-center justify-between bg-[#5c1414] px-5 py-3 font-bold text-white">
                     <span>Grand total</span>
                     <span>{money(grandTotal(column.compId))}</span>
                   </div>
@@ -1253,8 +1253,8 @@ export function BalanceSheetEditorPage() {
                     onClick={() => setHeadForm((p) => ({ ...p, compId: column.compId }))}
                     className={`flex-1 rounded-lg border-2 p-4 text-center text-sm font-medium transition ${
                       selected
-                        ? 'border-[#012970] bg-[#012970] text-white'
-                        : 'border-slate-200 text-slate-700 hover:border-[#012970] hover:bg-[#f0f4f8]'
+                        ? 'border-[#5c1414] bg-[#5c1414] text-white'
+                        : 'border-slate-200 text-slate-700 hover:border-[#5c1414] hover:bg-[#f0f4f8]'
                     }`}
                   >
                     {column.title.replace(/s$/, '')}

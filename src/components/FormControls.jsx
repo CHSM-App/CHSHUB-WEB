@@ -177,15 +177,18 @@ export function ModeSwitch({ label, options, value, onChange, className = '' }) 
   return (
     <div className={className}>
       {label ? <span className="field-label">{label}</span> : null}
-      <div className="inline-flex flex-wrap gap-1 rounded-md border border-slate-300 bg-slate-50 p-1">
+      {/* The track is carved into the page and the selected option is raised
+          out of it — a segmented control is the one place neumorphism states
+          selection more clearly than a tint does. */}
+      <div className="surface-inset inline-flex flex-wrap gap-1 rounded-xl bg-slate-100 p-1">
         {options.map((o) => (
           <button
             key={o.value}
             type="button"
             onClick={() => onChange(o.value)}
-            className={`rounded px-3 py-1.5 text-sm transition-colors ${
+            className={`rounded-lg px-3 py-1.5 text-sm transition-all ${
               String(value) === String(o.value)
-                ? 'bg-white font-medium text-blue-700 shadow-sm'
+                ? 'surface bg-white font-medium text-[#a82a2a]'
                 : 'text-slate-600 hover:bg-white/60'
             }`}
             aria-pressed={String(value) === String(o.value)}
@@ -249,7 +252,7 @@ export function FileUploadField({
           multiple={multiple}
           onChange={onPick}
           disabled={busy}
-          className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-blue-700 hover:file:bg-blue-100"
+          className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-[#fdeeee] file:px-3 file:py-2 file:text-sm file:font-medium file:text-[#a82a2a] hover:file:bg-[#fbe3e3]"
         />
         {busy ? <span className="text-xs text-slate-500">Uploading…</span> : null}
       </div>
@@ -288,7 +291,7 @@ export function Tabs({ tabs, active, onChange, className = '' }) {
             onClick={() => onChange(t.id)}
             className={`whitespace-nowrap border-b-2 px-1 pb-2 text-sm transition-colors ${
               active === t.id
-                ? 'border-blue-600 font-medium text-blue-700'
+                ? 'border-[#c94040] font-medium text-[#a82a2a]'
                 : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
             }`}
             aria-current={active === t.id ? 'page' : undefined}
@@ -361,7 +364,7 @@ export function PageHeader({ title, subtitle, children }) {
  */
 export function StatCard({ label, value, hint, tone = 'default' }) {
   const tones = {
-    default: { text: 'text-slate-800', rule: 'linear-gradient(90deg, #6f8ff5, #4e73df)' },
+    default: { text: 'text-slate-800', rule: 'linear-gradient(90deg, #e06a6a, #c94040)' },
     positive: { text: 'text-green-700', rule: 'linear-gradient(90deg, #34e0a1, #1cc88a)' },
     negative: { text: 'text-red-700', rule: 'linear-gradient(90deg, #ff6b6b, #e74a3b)' },
     warning: { text: 'text-amber-700', rule: 'linear-gradient(90deg, #f8d476, #f6c23e)' },

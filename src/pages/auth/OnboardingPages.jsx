@@ -594,7 +594,7 @@ export function SocietyProfilePage() {
                 <td className="table-cell" data-label="Edit">
                   <button
                     type="button"
-                    className="text-blue-600 hover:underline"
+                    className="text-[#a82a2a] hover:underline"
                     aria-label="Edit society"
                     onClick={() => setEditing(true)}
                   >

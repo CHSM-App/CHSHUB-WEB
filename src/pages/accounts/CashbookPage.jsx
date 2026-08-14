@@ -139,7 +139,7 @@ export default function CashbookPage() {
               {/* The legacy page ended its grid with a totals row; without it
                   the debit and credit sides cannot be compared at a glance. */}
               <tfoot>
-                <tr className="border-t-2 border-slate-300 bg-blue-50 font-semibold">
+                <tr className="border-t-2 border-slate-300 bg-[#fdf1f1] font-semibold">
                   <td className="table-cell" colSpan={2}>
                     Total
                   </td>

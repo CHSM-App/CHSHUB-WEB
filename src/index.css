@@ -3,19 +3,27 @@
 @tailwind utilities;
 
 /*
- * Visual language carried over from the legacy WebForms app (Site.Master, which
- * used the SB Admin 2 Bootstrap theme). The values below are lifted from
- * Society2024/css/site_master_style.css so the migrated screens read as the same
- * product rather than a redesign:
+ * Visual language inherited from the legacy WebForms app (Site.Master, which
+ * used the SB Admin 2 Bootstrap theme), RECOLOURED to the CHS HUB brand red.
  *
- *   #012970  heading / body text        (Site.Master `*` rule)
- *   #2563eb  hover accent               (.sidebar-item:hover)
- *   #1d4ed8  active nav text            (.sidebar-item.active)
- *   #dbeafe  active nav background      (.sidebar-item.active)
- *   #e0f2ff  nav hover background       (.sidebar-item:hover)
- *   #374151  nav idle text              (.sidebar-item)
- *   #6b7280  muted text / icons         (.sidebar-heading)
- *   #007bff  sub-menu links             (.collapse-inner a)
+ * The structure — the nav's active/hover pairs, the elevation ramp, the type
+ * scale — is still sb-admin-2's, so the migrated screens keep the same shape as
+ * the legacy product. Only the hue moved: every #012970 navy and #4e73df blue
+ * has been mapped onto the mark's own #c94040 family, listed below with the
+ * legacy value each one replaced:
+ *
+ *   #5c1414  heading / body text        was #012970  (Site.Master `*` rule)
+ *   #c94040  accent / hover             was #2563eb  (.sidebar-item:hover)
+ *   #a82a2a  active nav text            was #1d4ed8  (.sidebar-item.active)
+ *   #fbe3e3  active nav background      was #dbeafe  (.sidebar-item.active)
+ *   #fdeeee  nav hover background       was #e0f2ff  (.sidebar-item:hover)
+ *   #374151  nav idle text              (unchanged — neutral)
+ *   #6b7280  muted text / icons         (unchanged — neutral)
+ *
+ * Greens (--success) and the amber --warning are left alone: they carry meaning
+ * rather than brand, and recolouring them would cost the status vocabulary.
+ * --danger moved DOWN to #a4161a so destructive actions stay distinguishable
+ * from an accent that is now itself red.
  *
  * The page itself is white: sb-admin-2's `body` rule sets colour and type but
  * no background.
@@ -25,33 +33,60 @@
  * an external host.
  */
 /*
- * Dashboard design tokens. The legacy palette above stays authoritative for
- * forms, tables and the nav — these only add the tints and elevations the
- * dashboard tiles need, derived from the same #012970 / #4e73df family so the
- * two halves of the app still read as one product.
+ * Dashboard design tokens, on the same #5c1414 / #c94040 family as the rules
+ * above so the two halves of the app read as one product.
  */
 :root {
-  --ink: #012970;
+  --ink: #5c1414;
   --ink-muted: #6b7280;
   --surface: #ffffff;
-  --page: #f4f7fb;
-  --line: #e3e6f0;
+  --page: #f9fafb;
+  --line: #e5e7eb;
 
-  --accent: #4e73df;
-  --accent-strong: #1d4ed8;
+  --accent: #c94040;
+  --accent-strong: #a82a2a;
   --success: #1cc88a;
-  --danger: #e74a3b;
+  /*
+   * Destructive states are deliberately DARKER and deeper than --accent now
+   * that the accent is itself red. At the old #e74a3b a delete button and an
+   * ordinary accented control were the same colour, which is exactly the
+   * confusion you do not want on an irreversible action.
+   */
+  --danger: #a4161a;
   --warning: #f6c23e;
 
   /* Two-stop gradients for the headline tiles. */
-  --grad-danger: linear-gradient(135deg, #ff6b6b 0%, #e74a3b 100%);
+  --grad-danger: linear-gradient(135deg, #d13a3e 0%, #a4161a 100%);
   --grad-success: linear-gradient(135deg, #34e0a1 0%, #1cc88a 100%);
-  --grad-accent: linear-gradient(135deg, #6f8ff5 0%, #4e73df 100%);
+  --grad-accent: linear-gradient(135deg, #e06a6a 0%, #c94040 100%);
 
-  /* Elevation ramp — resting, hover, floating. */
-  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
-  --shadow-md: 0 4px 6px -2px rgba(16, 24, 40, 0.03), 0 12px 16px -4px rgba(16, 24, 40, 0.08);
-  --shadow-lg: 0 8px 8px -4px rgba(16, 24, 40, 0.03), 0 20px 24px -4px rgba(16, 24, 40, 0.1);
+  /*
+   * Elevation ramp — resting, hover, floating.
+   *
+   * Neumorphic: each level is a PAIR of shadows, a light one up-left and a dark
+   * one down-right, so a surface reads as extruded from the page rather than
+   * floating above it. The light member is pure white and the dark member is
+   * the page tint driven down (#d9dce1 family) — that pairing is what produces
+   * the soft moulded edge.
+   *
+   * Cards keep their white fill rather than matching the page, which is the one
+   * departure from textbook neumorphism: a same-colour surface has no edge but
+   * its shadow, and this app is dense with tables and forms that need a
+   * legible boundary. White-on-grey keeps the contrast and still moulds.
+   */
+  --shadow-sm: -3px -3px 8px rgba(255, 255, 255, 0.9), 3px 3px 10px rgba(174, 179, 189, 0.28);
+  --shadow-md: -5px -5px 12px rgba(255, 255, 255, 0.95), 6px 6px 16px rgba(174, 179, 189, 0.38);
+  --shadow-lg: -7px -7px 18px rgba(255, 255, 255, 1), 9px 9px 24px rgba(174, 179, 189, 0.45);
+
+  /*
+   * Pressed / carved. The same pair turned inward, for surfaces that should
+   * read as recessed into the page: inputs at rest, buttons while held, the
+   * active nav row.
+   */
+  --shadow-inset: inset 2px 2px 5px rgba(174, 179, 189, 0.4),
+    inset -2px -2px 5px rgba(255, 255, 255, 0.9);
+  --shadow-inset-deep: inset 3px 3px 7px rgba(174, 179, 189, 0.5),
+    inset -3px -3px 7px rgba(255, 255, 255, 0.95);
 
   /*
    * Shell depth. The legacy app painted the page white and let the sidebar card
@@ -59,11 +94,25 @@
    * all sat on the same value. These give the shell a tinted ground so the
    * white surfaces on top of it actually read as raised.
    */
-  --page-tint-a: #eef3fb;
-  --page-tint-b: #f7f9fd;
-  --shell-line: rgba(1, 41, 112, 0.08);
-  --shell-shadow: 0 1px 2px rgba(1, 41, 112, 0.04), 0 8px 24px -8px rgba(1, 41, 112, 0.12);
-  --shell-shadow-lifted: 0 2px 4px rgba(1, 41, 112, 0.05), 0 16px 32px -12px rgba(1, 41, 112, 0.18);
+  /*
+   * Neutral grey ground (Tailwind's grey-50 family), not a red tint. The red is
+   * the accent; painting the page with it too left every screen washed pink and
+   * the white cards barely readable as separate surfaces. A neutral ground is
+   * what makes the white cards and the red accents both read cleanly.
+   */
+  --page-tint-a: #f3f4f6;
+  --page-tint-b: #f9fafb;
+  /*
+   * Hairlines go nearly invisible under neumorphism — the moulded edge is what
+   * separates a surface now, and a visible border on top of it reads as a
+   * drawn outline around a soft shape. Kept non-zero rather than removed so
+   * the boundary survives in forced-colours / high-contrast mode, where box
+   * shadows are dropped entirely.
+   */
+  --shell-line: rgba(17, 24, 39, 0.04);
+  --shell-shadow: -4px -4px 10px rgba(255, 255, 255, 0.9), 5px 5px 14px rgba(174, 179, 189, 0.3);
+  --shell-shadow-lifted: -6px -6px 16px rgba(255, 255, 255, 0.95),
+    8px 8px 22px rgba(174, 179, 189, 0.42);
 }
 
 @layer base {
@@ -87,7 +136,7 @@
   }
   body {
     /*
-     * A very soft blue-grey wash instead of flat white. Every surface in the
+     * A very soft neutral grey wash instead of flat white. Every surface in the
      * app — topbar, sidebar rail, cards, tables — is white, so on a white page
      * none of them read as surfaces at all. The tint is kept near-white
      * (roughly 3% off) so text contrast is untouched and printed pages, which
@@ -96,7 +145,7 @@
     background-color: var(--page-tint-b);
     background-image: linear-gradient(180deg, var(--page-tint-a) 0%, var(--page-tint-b) 420px);
     background-attachment: fixed;
-    color: #012970;
+    color: #5c1414;
     font-family: 'Open Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
     font-weight: 500;
   }
@@ -104,7 +153,7 @@
   h2,
   h3,
   h4 {
-    color: #012970;
+    color: #5c1414;
   }
 }
 
@@ -115,58 +164,107 @@
     display: none;
   }
 
-  /* Bootstrap .btn geometry: 0.375rem 0.75rem, 0.25rem radius, 1rem text. */
+  /*
+   * Bootstrap .btn geometry, rounded up for neumorphism: the 0.25rem corner is
+   * too tight for a soft shadow to wrap, so it goes to 10px. Transitions cover
+   * box-shadow and transform as well as colour now, because the press is an
+   * elevation change rather than only a tint change.
+   */
   .btn {
     /* no-underline because several of these are <a>/<Link> rather than
        <button> — a link styled as a button was keeping its underline and did
        not match the buttons beside it. */
     @apply inline-flex items-center justify-center gap-2 text-center align-middle
-           no-underline transition-colors disabled:cursor-not-allowed disabled:opacity-65;
+           no-underline disabled:cursor-not-allowed disabled:opacity-65;
     padding: 0.375rem 0.75rem;
-    border-radius: 0.25rem;
+    border-radius: 10px;
     font-size: 0.875rem;
     font-weight: 500;
     line-height: 1.5;
     border: 1px solid transparent;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease,
+      box-shadow 0.15s ease, transform 0.1s ease;
   }
-  /* SB Admin 2 primary — Bootstrap's #0d6efd, hover #0b5ed7. */
+  /*
+   * The press. Every button sinks toward the page and its extrusion inverts —
+   * the one interaction that makes a neumorphic surface feel physical. Applied
+   * on .btn so all four variants share it.
+   */
+  .btn:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+  /* A disabled button is not pressable, so it should not look extruded either
+     — it sits flat on the page. */
+  .btn:disabled {
+    box-shadow: none;
+  }
+  /*
+   * Bootstrap's primary geometry, on the brand red — was #0d6efd/#0b5ed7.
+   *
+   * A filled button is its own colour, so like .stat-tile it takes a tinted
+   * drop plus a lit top rim rather than the page's white/grey pair.
+   */
   .btn-primary {
     @apply btn text-white;
-    background-color: #0d6efd;
-    border-color: #0d6efd;
+    background-color: #c94040;
+    border-color: #c94040;
+    box-shadow: 3px 3px 8px rgba(120, 40, 40, 0.3), -2px -2px 6px rgba(255, 255, 255, 0.55),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25);
   }
   .btn-primary:hover:not(:disabled) {
-    background-color: #0b5ed7;
-    border-color: #0a58ca;
+    background-color: #a82a2a;
+    border-color: #9c2424;
+    box-shadow: 4px 4px 11px rgba(120, 40, 40, 0.36), -3px -3px 8px rgba(255, 255, 255, 0.6),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  }
+  .btn-primary:active:not(:disabled) {
+    box-shadow: inset 3px 3px 7px rgba(110, 30, 30, 0.5),
+      inset -2px -2px 5px rgba(255, 255, 255, 0.12);
   }
   .btn-secondary {
     @apply btn;
     background-color: #fff;
-    border-color: #d1d5db;
+    border-color: #e5e7eb;
     color: #374151;
+    box-shadow: var(--shadow-sm);
+  }
+  .btn-secondary:active:not(:disabled) {
+    box-shadow: var(--shadow-inset);
   }
   .btn-secondary:hover:not(:disabled) {
-    background-color: #e0f2ff;
-    border-color: #2563eb;
-    color: #2563eb;
+    background-color: #fdeeee;
+    border-color: #c94040;
+    color: #c94040;
   }
   .btn-danger {
     @apply btn text-white;
-    background-color: #dc3545;
-    border-color: #dc3545;
+    background-color: #a4161a;
+    border-color: #a4161a;
+    box-shadow: 3px 3px 8px rgba(100, 20, 20, 0.32), -2px -2px 6px rgba(255, 255, 255, 0.55),
+      inset 0 1px 0 rgba(255, 255, 255, 0.22);
   }
   .btn-danger:hover:not(:disabled) {
-    background-color: #bb2d3b;
-    border-color: #b02a37;
+    background-color: #8a1216;
+    border-color: #8a1216;
+  }
+  .btn-danger:active:not(:disabled) {
+    box-shadow: inset 3px 3px 7px rgba(80, 12, 12, 0.55),
+      inset -2px -2px 5px rgba(255, 255, 255, 0.1);
   }
   .btn-success {
     @apply btn text-white;
     background-color: #198754;
     border-color: #198754;
+    box-shadow: 3px 3px 8px rgba(20, 90, 60, 0.3), -2px -2px 6px rgba(255, 255, 255, 0.55),
+      inset 0 1px 0 rgba(255, 255, 255, 0.22);
   }
   .btn-success:hover:not(:disabled) {
     background-color: #157347;
     border-color: #146c43;
+  }
+  .btn-success:active:not(:disabled) {
+    box-shadow: inset 3px 3px 7px rgba(15, 70, 45, 0.5),
+      inset -2px -2px 5px rgba(255, 255, 255, 0.1);
   }
 
   /* Bootstrap .form-label / .form-control. */
@@ -174,26 +272,39 @@
     @apply mb-1 block;
     font-size: 0.875rem;
     font-weight: 600;
-    color: #012970;
+    color: #5c1414;
   }
+  /*
+   * Inputs read as carved INTO the page rather than drawn on it: a soft inset
+   * pair, a near-flat fill and only a whisper of a border.
+   *
+   * The focus state deliberately keeps a solid accent ring on top of the inset.
+   * A purely neumorphic focus — deepening the carve — is far too subtle to see,
+   * and focus is the one state that must be unmissable for keyboard users. So
+   * the resting state is the soft treatment and the focus state is explicit.
+   */
   .field-input {
     @apply w-full;
-    padding: 0.375rem 0.75rem;
+    padding: 0.5rem 0.75rem;
     font-size: 0.875rem;
     line-height: 1.5;
     color: #212529;
-    background-color: #fff;
-    border: 1px solid #ced4da;
-    border-radius: 0.25rem;
-    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    background-color: #f7f8fa;
+    border: 1px solid rgba(17, 24, 39, 0.05);
+    border-radius: 10px;
+    box-shadow: var(--shadow-inset);
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out,
+      background-color 0.15s ease-in-out;
   }
   .field-input:focus {
     outline: 0;
-    border-color: #86b7fe;
-    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    background-color: #fff;
+    border-color: #c94040;
+    box-shadow: var(--shadow-inset), 0 0 0 3px rgba(201, 64, 64, 0.22);
   }
   .field-input:disabled {
-    background-color: #e9ecef;
+    background-color: #eceef1;
+    box-shadow: none;
   }
 
   /*
@@ -203,18 +314,24 @@
    * add a class to its own input.
    *
    * :focus still wins on border-color further down, deliberately: while the
-   * user is fixing the field the blue ring tells them where they are, and the
-   * red returns the moment they leave it still empty.
+   * user is fixing the field the focus ring tells them where they are, and the
+   * invalid state returns the moment they leave it still empty.
+   *
+   * The invalid colour is --danger's deep #a4161a, not Bootstrap's #dc3545:
+   * against a #c94040 accent the lighter red was nearly the accent itself, so
+   * a rejected field looked merely focused. It also keeps the carved inset, or
+   * an invalid input would pop out of the page while its neighbours stay in it.
    */
   [data-invalid] .field-input,
   .field-input.is-invalid {
-    border-color: #dc3545;
-    background-color: #fffafa;
+    border-color: #a4161a;
+    background-color: #fdf3f3;
+    box-shadow: var(--shadow-inset);
   }
   [data-invalid] .field-input:focus,
   .field-input.is-invalid:focus {
-    border-color: #dc3545;
-    box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.2);
+    border-color: #a4161a;
+    box-shadow: var(--shadow-inset), 0 0 0 3px rgba(164, 22, 26, 0.25);
   }
 
   /*
@@ -264,16 +381,38 @@
   }
 
   /*
-   * SB Admin 2 .card. The legacy 1.75rem grey blur read as haze rather than
-   * elevation, especially now that the page carries a tint; this keeps the
-   * white surface and the border but swaps in the shell's ambient shadow and a
-   * slightly softer radius so cards, the nav rail and the topbar agree.
+   * SB Admin 2 .card, moulded rather than floated. The white fill and the
+   * hairline stay; the shadow is now the neumorphic pair, and the radius is
+   * larger because a soft shadow needs a generous corner to wrap around — at
+   * 12px the light and dark members meet too sharply and read as a bevel.
    */
   .card {
     background-color: #fff;
     border: 1px solid var(--shell-line);
-    border-radius: 12px;
+    border-radius: 16px;
     box-shadow: var(--shell-shadow);
+  }
+
+  /*
+   * The moulded treatment as a standalone utility.
+   *
+   * Several pages build a surface inline — `rounded-xl border bg-white
+   * shadow-sm` — rather than reaching for .card, usually because they are a
+   * sub-panel inside a card and did not want the full card geometry. Tailwind's
+   * shadow-sm is a flat downward drop, which beside a moulded card reads as a
+   * sticker pasted on top of it. These give those places the shared shadow
+   * without inheriting .card's radius and padding.
+   *
+   * .surface = raised, .surface-inset = carved. Use in place of shadow-sm.
+   */
+  .surface {
+    background-color: #fff;
+    border: 1px solid var(--shell-line);
+    box-shadow: var(--shadow-sm);
+  }
+  .surface-inset {
+    border: 1px solid var(--shell-line);
+    box-shadow: var(--shadow-inset);
   }
 
   /*
@@ -283,8 +422,8 @@
    */
   .panel {
     background-color: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 16px;
+    border: 1px solid var(--shell-line);
+    border-radius: 20px;
     box-shadow: var(--shadow-sm);
     transition: box-shadow 0.2s ease, transform 0.2s ease;
   }
@@ -315,18 +454,52 @@
    * Headline tile — gradient wash, oversized glyph bled into the corner.
    * The gradient is set per-tile via --tile-grad.
    */
+  /*
+   * The headline tiles carry a saturated gradient, so they cannot use the
+   * shared pair: a white light-shadow against a red fill reads as a halo, not
+   * as a moulded edge. They get a tinted drop instead, plus an inset white
+   * top-edge highlight — which is what gives an extruded object its lit rim
+   * and keeps the tiles in the same visual language as the moulded cards.
+   */
+  /*
+   * White, like every other card on the page.
+   *
+   * These used to be filled with --tile-grad and set white text on top. Three
+   * saturated blocks in a row fought the moulded white surfaces around them,
+   * and a coloured fill cannot take the neumorphic pair at all — its white
+   * light-shadow halos rather than moulding.
+   *
+   * The tile's colour now lives in its glyph and its figure instead. The
+   * gradient it was filled with is still passed in as --tile-grad, and the
+   * accent bar below spends it, so each tile keeps its own identity — danger
+   * red for Due Payments, green for Defaulters, brand red for Total Members.
+   */
   .stat-tile {
     position: relative;
     overflow: hidden;
-    border-radius: 16px;
+    border-radius: 20px;
     padding: 20px;
-    color: #fff;
-    background: var(--tile-grad, var(--grad-accent));
-    box-shadow: var(--shadow-md);
+    background: #fff;
+    border: 1px solid var(--shell-line);
+    color: var(--ink);
+    box-shadow: var(--shadow-sm);
     transition: box-shadow 0.2s ease, transform 0.2s ease;
   }
+  /* The one piece of the old fill that survives: a bar down the left edge in
+     the tile's own gradient, so the three are still distinguishable at a
+     glance without three blocks of colour competing for attention. */
+  .stat-tile::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: var(--tile-grad, var(--grad-accent));
+    pointer-events: none;
+  }
   .stat-tile:hover {
-    box-shadow: var(--shadow-lg);
+    box-shadow: var(--shadow-md);
     transform: translateY(-3px);
   }
   /* Tile for the narrow left column. Trimmed from the full-width original so
@@ -337,8 +510,12 @@
     border-radius: 14px;
     min-height: 104px;
   }
-  /* Soft highlight blooming from the top-right, so the fill is not a flat
-     diagonal. Sits under the content via the stacking context below. */
+  /*
+   * The top-right bloom was a white circle lightening a coloured fill. On a
+   * white tile it is invisible, so it now carries the tile's own gradient at
+   * low opacity instead — the same softening, in the only direction that
+   * still shows.
+   */
   .stat-tile::after {
     content: '';
     position: absolute;
@@ -347,7 +524,8 @@
     width: 260px;
     height: 260px;
     border-radius: 9999px;
-    background: rgba(255, 255, 255, 0.14);
+    background: var(--tile-grad, var(--grad-accent));
+    opacity: 0.07;
     pointer-events: none;
   }
   .stat-tile > * {
@@ -355,17 +533,20 @@
     z-index: 1;
   }
 
-  /* Tint chips behind the small figures (helpdesk counters, PDC count). */
+  /* Tint chips behind the small figures (helpdesk counters, PDC count).
+     Carved rather than raised: these sit INSIDE a panel, and a second extruded
+     surface on top of an extruded card flattens both. */
   .stat-chip {
-    border-radius: 12px;
+    border-radius: 14px;
     padding: 14px 16px;
-    background: var(--chip-bg, #f1f5fd);
+    background: var(--chip-bg, #f3f4f6);
     border: 1px solid var(--chip-border, transparent);
+    box-shadow: var(--shadow-inset);
   }
 
   /* Skeleton shimmer used while the dashboard payload is in flight. */
   .skeleton {
-    background: linear-gradient(90deg, #eef2f7 25%, #f8fafc 37%, #eef2f7 63%);
+    background: linear-gradient(90deg, #eceef1 25%, #f9fafb 37%, #eceef1 63%);
     background-size: 400% 100%;
     animation: skeleton-sweep 1.4s ease infinite;
     border-radius: 8px;
@@ -388,8 +569,17 @@
   .modal-backdrop {
     animation: modal-backdrop-in 180ms ease-out;
   }
+  /*
+   * A dialog floats over a backdrop rather than resting on the page, so it is
+   * the one surface that does NOT get moulded — an extruded edge implies the
+   * thing is part of the sheet behind it, and this one is deliberately not.
+   * It overrides .card's shadow with a true elevation drop.
+   */
   .modal-panel {
     animation: modal-panel-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
+    border-radius: 18px;
+    box-shadow: 0 24px 56px -12px rgba(17, 24, 39, 0.32),
+      0 8px 20px -8px rgba(17, 24, 39, 0.2);
   }
   @keyframes modal-backdrop-in {
     from {
@@ -468,20 +658,26 @@
     }
   }
 
-  /* Bootstrap .table with .thead-light. */
+  /*
+   * Bootstrap .table with .thead-light, on the neutral grey ground. The header
+   * band is the page tint rather than the old blue-grey #eaecf4, so a table
+   * inside a white card reads as recessed into it — the same carved logic as
+   * the inputs, done with tone instead of a shadow. A real inset here would
+   * fight the row borders at every scroll position.
+   */
   .table-head {
     @apply px-3 py-2 text-left;
-    background-color: #eaecf4;
+    background-color: #f3f4f6;
     font-size: 0.8125rem;
     font-weight: 700;
-    color: #012970;
-    border-bottom: 2px solid #dddfeb;
+    color: #5c1414;
+    border-bottom: 2px solid #e5e7eb;
   }
   .table-cell {
     @apply px-3 py-2;
     font-size: 0.875rem;
-    color: #012970;
-    border-top: 1px solid #e3e6f0;
+    color: #5c1414;
+    border-top: 1px solid #eceef1;
   }
 
   /*
@@ -514,12 +710,16 @@
       display: none;
     }
 
+    /* Each row is a card on a phone, so it is moulded like every other card
+       rather than outlined — with the gap widened, since two moulded surfaces
+       need room between them for the shadows not to overlap. */
     .stacked-table tr {
-      border: 1px solid #e3e6f0;
-      border-radius: 10px;
-      margin: 0 0 10px;
+      border: 1px solid var(--shell-line);
+      border-radius: 14px;
+      margin: 0 0 14px;
       padding: 4px 0;
       background: #fff;
+      box-shadow: var(--shadow-sm);
     }
 
     /* The row carries the card's border, so cells only need rules between
@@ -589,10 +789,11 @@
   }
 
   /*
-   * Legacy sidebar colours: idle #374151, hover #e0f2ff/#2563eb, active
-   * #dbeafe/#1d4ed8. Kept exactly — what is added is depth: the active row now
-   * carries a gradient and a left accent bar rather than a flat tint block, and
-   * icons dim when idle so the active one leads the eye.
+   * Sidebar colours, the legacy structure recoloured: idle stays neutral
+   * #374151, hover #fdeeee/#c94040, active #fbe3e3/#a82a2a. The depth is the
+   * part that is not legacy — the active row carries a gradient and a left
+   * accent bar rather than a flat tint block, and icons dim when idle so the
+   * active one leads the eye.
    */
   .sidebar-item {
     @apply relative flex items-center;
@@ -622,26 +823,34 @@
     transition: color 0.2s ease;
   }
   .sidebar-item:hover {
-    background-color: #e0f2ff;
-    color: #2563eb;
+    background-color: #fdeeee;
+    color: #c94040;
   }
   .sidebar-item:hover::before {
     transform: translateY(-50%) scaleY(0.6);
   }
   .sidebar-item:hover svg {
-    color: #2563eb;
+    color: #c94040;
   }
+  /*
+   * The current page is PRESSED INTO the rail rather than tinted on top of it.
+   * That is the neumorphic way to say "you are here": a selected surface sinks,
+   * an unselected one is flush. The tint and the accent bar stay as the
+   * redundant cue — the carve alone is too quiet to rely on, and it disappears
+   * entirely in forced-colours mode.
+   */
   .sidebar-item.active {
-    background-image: linear-gradient(100deg, #dbeafe 0%, #eaf2ff 100%);
+    background-image: linear-gradient(100deg, #fbe3e3 0%, #fdf1f1 100%);
     font-weight: 600;
-    color: #1d4ed8;
-    box-shadow: inset 0 0 0 1px rgba(29, 78, 216, 0.1);
+    color: #a82a2a;
+    box-shadow: inset 2px 2px 5px rgba(174, 179, 189, 0.45),
+      inset -2px -2px 5px rgba(255, 255, 255, 0.85);
   }
   .sidebar-item.active::before {
     transform: translateY(-50%) scaleY(1);
   }
   .sidebar-item.active svg {
-    color: #1d4ed8;
+    color: #a82a2a;
   }
   .sidebar-heading {
     font-size: 11px;
@@ -681,16 +890,16 @@
     transition: background 0.15s ease, color 0.15s ease;
   }
   .collapse-inner a:hover {
-    background: #f0f6ff;
-    color: #0b5ed7;
+    background: #fdf1f1;
+    color: #a82a2a;
     text-decoration: none;
   }
-  /* #accordionSidebar .collapse-inner a.active in the legacy stylesheet — the
-     colour is kept, and the row now also carries a dot on the rail so the
+  /* #accordionSidebar .collapse-inner a.active in the legacy stylesheet,
+     recoloured to the brand red — the row also carries a dot on the rail so the
      current page is findable without reading every label. */
   .collapse-inner a.active {
-    background: #eaf2ff;
-    color: #007bff;
+    background: #fbe3e3;
+    color: #c94040;
     font-weight: 700;
   }
   .collapse-inner a.active::before {
@@ -701,7 +910,7 @@
     width: 7px;
     height: 7px;
     border-radius: 9999px;
-    background: #007bff;
+    background: #c94040;
     transform: translateY(-50%);
     box-shadow: 0 0 0 3px #fff;
   }
@@ -808,6 +1017,562 @@
        still read as a layer above the page. */
     .modal-panel {
       max-height: calc(100vh - 1rem);
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Signed-out screens (AuthLayout)                                     */
+  /* ------------------------------------------------------------------ */
+
+  /*
+   * The drifting colour blooms behind the brand panel. Two layers share this
+   * rule at different durations and directions so they cross rather than move
+   * as one block, which is what keeps the panel from looking like a single
+   * sliding gradient.
+   */
+  .auth-aurora {
+    animation: auth-aurora-drift 18s ease-in-out infinite alternate;
+    will-change: transform;
+  }
+  .auth-aurora--slow {
+    animation-duration: 26s;
+    animation-direction: alternate-reverse;
+  }
+
+  @keyframes auth-aurora-drift {
+    from {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    to {
+      transform: translate3d(40px, -30px, 0) scale(1.12);
+    }
+  }
+
+  /*
+   * The form fields on these screens are the one thing the page exists for, so
+   * they are taller and rounder than the compact .field-input the data tables
+   * use, and the focus ring is the app accent rather than Bootstrap's blue.
+   */
+  .auth-field .field-input {
+    padding: 0.625rem 0.875rem;
+    font-size: 0.9375rem;
+    border-radius: 8px;
+    background-color: #fbfcfe;
+  }
+  .auth-field .field-input:focus {
+    border-color: var(--accent-strong);
+    background-color: #fff;
+    box-shadow: 0 0 0 3px rgba(201, 64, 64, 0.18);
+  }
+
+  /*
+   * Inputs that carry a leading glyph. The wrapper the input sits in becomes
+   * the positioning context — Field renders a <label> around it and TextField a
+   * <div>, and in both the element directly holding the input is the last child
+   * of .auth-field--icon — so the glyph is centred on the input regardless of
+   * how tall the label above it turned out.
+   */
+  .auth-field--icon {
+    position: relative;
+  }
+  .auth-field--icon .field-input {
+    padding-left: 2.5rem;
+  }
+  .auth-field__icon {
+    position: absolute;
+    left: 0.875rem;
+    /* Offset from the bottom, not the top: the input is the last thing in the
+       box, so its own height is the only measurement this depends on. */
+    bottom: 0;
+    height: 2.625rem;
+    display: flex;
+    align-items: center;
+    z-index: 1;
+    color: #94a3b8;
+    pointer-events: none;
+  }
+  /* When a field is showing an error message, that message sits below the
+     input and pushes the bottom edge down past it. */
+  .auth-field--icon:has(.field-error) .auth-field__icon,
+  .auth-field--icon[data-invalid] .auth-field__icon {
+    bottom: auto;
+    top: 1.625rem;
+  }
+
+  /* The submit button lifts slightly on hover. Transform rather than a colour
+     change, because the fill is already a gradient set inline. */
+  .auth-submit {
+    transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+  }
+  .auth-submit:hover:not(:disabled) {
+    transform: translateY(-1px);
+    filter: saturate(1.08);
+    box-shadow: 0 8px 20px -4px rgba(201, 64, 64, 0.5);
+  }
+  .auth-submit:active:not(:disabled) {
+    transform: translateY(0);
+  }
+  .auth-submit:disabled {
+    opacity: 0.55;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Sign-in screen (AuthShowcaseLayout)                                 */
+  /* ------------------------------------------------------------------ */
+
+  /*
+   * The blue half's flat fill. It is a ::before rather than the element's own
+   * background so it can sit BELOW the sphere layer while the half's text sits
+   * above it — the spheres have to overlap the seam onto the white, which they
+   * cannot do from inside the half, and cannot be painted under its background
+   * if that background is on the element itself.
+   */
+  /*
+   * The page sits inside a white frame: a margin of white on all four sides
+   * with the whole composition rounded off inside it. The reference is a
+   * screenshot of exactly that — the artwork does not reach the viewport edge,
+   * and the rounded corners are what make it read as one panel rather than as
+   * a full-bleed background.
+   *
+   * Below `lg` the frame goes away: on a phone, giving up margin on both sides
+   * of an already-narrow column costs more than the framing is worth.
+   */
+  .auth-showcase-page {
+    background-color: #fff;
+  }
+  @media (min-width: 1024px) {
+    .auth-showcase-page {
+      /* The frame is the page's own padding; .auth-showcase-frame inside it
+         carries the rounding and the clip. */
+      padding: clamp(14px, 1.6vw, 30px);
+    }
+  }
+
+  /*
+   * The rounded, clipped stage. Everything — both halves and every sphere —
+   * lives inside this, so the artwork is cut to the rounded rectangle instead
+   * of running to the viewport edge.
+   */
+  .auth-showcase-frame {
+    position: relative;
+    display: grid;
+    min-height: 100vh;
+    background-color: #fff;
+  }
+  @media (min-width: 1024px) {
+    .auth-showcase-frame {
+      grid-template-columns: 1fr 1fr;
+      min-height: calc(100vh - 2 * clamp(14px, 1.6vw, 30px));
+      overflow: hidden;
+      border-radius: clamp(10px, 1.1vw, 20px);
+    }
+  }
+
+  /*
+   * The red half carries its own fill and CLIPS its artwork, which is what
+   * keeps its own edge intact while the spill layer crosses it.
+   *
+   * The spheres that cross onto the white in the reference are not drawn here
+   * — they are a separate page-level layer (.auth-showcase-spill) that is not
+   * clipped. Splitting them this way is what gives both halves of the effect
+   * at once; a single layer can be clipped or can cross, never both.
+   */
+  /*
+   * Light at the BOTTOM-LEFT running to deep red at the top-right. The
+   * reference lights the panel from its lower-left corner, which is what keeps
+   * the deepest red behind "WELCOME" at the top and lets the pale corner read
+   * against the circles stacked over it.
+   *
+   * The ramp is the brand mark's #c94040 → #e85555 family carried down to panel
+   * depth. Its luminance profile matches the blue it replaced stop for stop, so
+   * the white headline keeps the same contrast it was designed against.
+   */
+  /*
+   * The sign-in screen's own two shades. The app accent is red everywhere now,
+   * so these no longer override it — they only carry the deeper values this
+   * screen wants: its artwork is saturated red, so the form's accents and its
+   * submit sit below --accent to stay legible against it.
+   */
+  .auth-showcase-page {
+    --login-accent: #c02f2f;
+    --login-accent-deep: #8f1f1f;
+  }
+
+  .auth-showcase-half {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(28deg, #ef6a6a 0%, #d43b3b 38%, #b62727 68%, #8f1b1b 100%);
+  }
+  @media (min-width: 1024px) {
+    /*
+     * The bulge has to escape this element, so the panel cannot clip from `lg`.
+     * Its own spheres stay contained because .auth-showcase-art clips them
+     * instead, and the frame clips everything to the rounded rectangle.
+     */
+    .auth-showcase-half {
+      overflow: visible;
+    }
+  }
+  /*
+   * The greeting, the mark and the copyright ride above the spill layer, so
+   * the pair of circles passes BEHIND the text rather than over it. Without
+   * this the copyright line is overdrawn by the lower-left disc.
+   */
+  .auth-showcase-half > .relative {
+    z-index: 2;
+  }
+
+  /*
+   * The right edge is not a straight seam: it bulges CONVEX into the white
+   * around the vertical middle, so the blue reaches furthest right at roughly
+   * the headline's height and pulls back at the top and bottom. That bulge is
+   * the reference's defining shape.
+   *
+   * An ellipse at `right` in a radial-gradient mask does exactly this and, unlike
+   * clip-path: path(), takes percentages — so the curve tracks a fluid column
+   * width instead of breaking at one viewport size.
+   *
+   * Only from `lg`. Below it the halves stack, and a curve on the right edge
+   * would slice the corner off the greeting instead of shaping a seam.
+   */
+  @media (min-width: 1024px) {
+    /*
+     * The bulge is NOT a mask on this element.
+     *
+     * A radial-gradient mask cuts the panel back to the INSIDE of an ellipse,
+     * which rounds its corners — the edge bows the wrong way and the panel
+     * loses its full-height straight run. The reference's edge instead runs
+     * straight top and bottom with blue pushing OUT past the seam in the
+     * middle, which is material added beyond the box, not removed from it.
+     *
+     * So the panel keeps a straight edge and the bulge is its own ellipse
+     * (::after) sitting astride that edge, filled with the same gradient.
+     * Adding a shape is what a mask cannot do.
+     */
+    .auth-showcase-half::after {
+      content: '';
+      position: absolute;
+      /*
+       * Half of it overhangs the seam; the other half sits on the panel and
+       * disappears into the identical fill, so the two read as one form.
+       *
+       * Much taller than the panel (230%) and centred on it, so only the
+       * ellipse's flattest middle band crosses the seam. Two things go wrong
+       * if it is shorter: the arc curves back in near the top and bottom and
+       * leaves white notches at the panel's corners, and the curve gets tight
+       * enough to read as a band drawn down the panel rather than as the
+       * panel's own edge bowing outward. The arc has to be far longer than the
+       * edge it bulges out of.
+       *
+       * Width stays modest (17%) because that is the bulge's DEPTH past the
+       * seam; the reference's edge pushes out gently, not into a lobe.
+       */
+      top: 50%;
+      right: 0;
+      width: 17%;
+      height: 230%;
+      transform: translate(50%, -50%);
+      border-radius: 50%;
+      /*
+       * Inherits the panel's own painted gradient rather than restating it.
+       *
+       * Two separate gradients cannot be made to agree here: this element is a
+       * tall narrow sliver and the panel is a wide box, so the same angle and
+       * stops resolve to different colours at the point they meet, and the
+       * mismatch shows as a vertical seam line down the middle of the panel.
+       *
+       * `background: inherit` takes the parent's computed background image and
+       * paints it over THIS element's box, which still differs. The fix that
+       * works is painting the panel's gradient at the panel's own size and
+       * origin: a fixed background-size tied to the parent's box, positioned so
+       * the sliver samples the same ramp the panel does at that x.
+       */
+      background-image: linear-gradient(
+        28deg,
+        #ef6a6a 0%,
+        #d43b3b 38%,
+        #b62727 68%,
+        #8f1b1b 100%
+      );
+      /* Roughly the panel's box (its width is ~1/0.17 of this sliver's), so the
+         ramp runs at the panel's scale instead of compressing into the sliver
+         and darkening it relative to the fill it abuts. */
+      background-size: 590% 100%;
+      background-position: 88% center;
+      background-repeat: no-repeat;
+      pointer-events: none;
+    }
+  }
+
+  /*
+   * Clips its own spheres to the panel's box. It has to do this itself: the
+   * half sets `overflow: visible` from `lg` so the bulge can escape, and
+   * without a clip here the panel's spheres would escape with it.
+   *
+   * Sits under the half's text, which is `relative` and therefore paints later
+   * in the same stacking context, and under the ::after bulge.
+   */
+  .auth-showcase-art {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  /*
+   * The unclipped layer, spanning the whole frame. Its spheres are anchored
+   * near the seam so they overlap it onto the white. It sits above the blue
+   * half but below the form column, which is `relative` and comes later in
+   * document order.
+   *
+   * `grid-area: 1 / 1 / -1 / -1` rather than plain `inset: 0`: this is a child
+   * of the two-column grid, and an absolutely positioned grid child without an
+   * explicit area is contained by its auto-placed CELL, not by the grid. That
+   * confined the spheres to the right-hand column and clipped the pair at the
+   * seam. Spanning every column is what lets them cross it.
+   *
+   * No `overflow: hidden` here — .auth-showcase-frame already clips to the
+   * rounded rectangle, and a second clip on this layer would cut the spheres
+   * back to the frame's straight edges before the rounding applied.
+   */
+  .auth-showcase-spill {
+    position: absolute;
+    grid-area: 1 / 1 / -1 / -1;
+    inset: 0;
+    pointer-events: none;
+    /*
+     * Above the panel and its ::after bulge, below the form column. The panel
+     * creates a stacking context, so document order alone is not enough to
+     * lift these over the bulge — the pair has to sit ON the bulge where it
+     * crosses the seam.
+     */
+    z-index: 1;
+  }
+
+  /*
+   * The sign-in boxes are filled rather than outlined and carry no visible
+   * label, so the fill itself is what marks where the field starts and ends.
+   * That makes the resting state do more work than a bordered input does: the
+   * grey has to be dark enough to be seen as a control on white, and the focus
+   * state has to change more than a border colour to be noticed.
+   */
+  .login-field {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background-color: #f1f3f7;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    /* Carved, like .field-input — the sign-in boxes were already filled rather
+       than outlined, so they take the inset naturally. */
+    box-shadow: var(--shadow-inset);
+    transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .login-field:focus-within {
+    background-color: #fff;
+    border-color: var(--login-accent);
+    box-shadow: var(--shadow-inset), 0 0 0 3px rgba(201, 64, 64, 0.18);
+  }
+
+  .login-field__input {
+    flex: 1 1 auto;
+    /* min-width:0 rather than the flex default of auto: without it a long
+       placeholder sets the input's minimum and the row overflows the card. */
+    min-width: 0;
+    padding: 0.75rem 0.875rem 0.75rem 2.75rem;
+    background: transparent;
+    border: 0;
+    font-size: 0.9375rem;
+    color: var(--ink);
+    border-radius: inherit;
+  }
+  .login-field__input:focus {
+    outline: none;
+  }
+  .login-field__input::placeholder {
+    color: #97a0b0;
+  }
+  .login-field__input:disabled {
+    opacity: 0.6;
+  }
+  /* An input with a trailing action must stop before it, or long text runs
+     underneath the SHOW toggle. */
+  .login-field:has(.login-field__action) .login-field__input {
+    padding-right: 4rem;
+  }
+
+  .login-field__icon {
+    position: absolute;
+    left: 0.9375rem;
+    display: flex;
+    align-items: center;
+    color: #7c8798;
+    pointer-events: none;
+  }
+
+  /*
+   * Edge and IE add their own password-reveal eye inside the input. This field
+   * already has a SHOW toggle, so the native one is a second control doing the
+   * same job — and it sits under ours, which reads as a rendering fault.
+   */
+  .login-field__input::-ms-reveal,
+  .login-field__input::-ms-clear {
+    display: none;
+  }
+
+  .login-field__action {
+    display: flex;
+    align-items: center;
+    padding-right: 0.875rem;
+  }
+  .login-field__reveal {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--login-accent);
+  }
+  .login-field__reveal:hover {
+    text-decoration: underline;
+  }
+
+  /* Sized up from the 16px default: this is a phone-first login screen and the
+     checkbox is the only thing on it a thumb has to hit precisely. */
+  .login-checkbox {
+    width: 1.05rem;
+    height: 1.05rem;
+    accent-color: var(--login-accent);
+    cursor: pointer;
+  }
+
+  /* Rules either side of the word, drawn with a flex row so the word keeps its
+     own width and the rules take whatever is left. */
+  .login-divider {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    margin: 0.875rem 0;
+    color: #97a0b0;
+    font-size: 0.75rem;
+  }
+  .login-divider::before,
+  .login-divider::after {
+    content: '';
+    flex: 1 1 auto;
+    height: 1px;
+    background-color: #e2e6ee;
+  }
+
+  /*
+   * The sign-in screen's submit is a solid deep red, not the lighter
+   * --grad-accent wash the other signed-out screens use. AuthSubmit sets its
+   * fill inline, so this has to out-specify a style attribute — hence the
+   * !important. It is scoped to this one screen and overrides nothing else.
+   *
+   * Deeper than the panel's mid-tones so the button still reads as the one
+   * action on the page rather than dissolving into the artwork beside it.
+   */
+  .login-submit.auth-submit {
+    background: var(--login-accent-deep) !important;
+    border-color: var(--login-accent-deep) !important;
+    padding-top: 0.8125rem !important;
+    padding-bottom: 0.8125rem !important;
+    box-shadow: 0 4px 14px -4px rgba(143, 31, 31, 0.5) !important;
+  }
+  .login-submit.auth-submit:hover:not(:disabled) {
+    background: #a82a2a !important;
+  }
+  .login-submit.auth-submit:active:not(:disabled) {
+    box-shadow: inset 3px 3px 8px rgba(70, 12, 12, 0.55),
+      inset -2px -2px 6px rgba(255, 255, 255, 0.12) !important;
+    transform: translateY(1px);
+  }
+
+  /* The outlined counterpart to .auth-submit — same height and radius, so the
+     two stack as a pair rather than as a button and a link. */
+  .login-alt-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 0.6875rem 1rem;
+    border: 1px solid #d5dae4;
+    border-radius: 8px;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--ink);
+    box-shadow: var(--shadow-sm);
+    transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .login-alt-action:active {
+    box-shadow: var(--shadow-inset);
+  }
+  .login-alt-action:hover {
+    border-color: var(--login-accent);
+    background-color: #fdf6f6;
+  }
+
+  /* Motion here is decoration only — none of it carries meaning, so it all
+     goes away rather than being slowed down. */
+  @media (prefers-reduced-motion: reduce) {
+    .auth-aurora {
+      animation: none;
+    }
+    .auth-submit {
+      transition: none;
+    }
+    .auth-submit:hover:not(:disabled) {
+      transform: none;
+    }
+    .login-field,
+    .login-alt-action {
+      transition: none;
+    }
+    /*
+     * The press keeps its shadow inversion — that is the state change, and it
+     * has to stay visible — but loses the 1px travel, which is pure motion.
+     */
+    .btn,
+    .panel {
+      transition: none;
+    }
+    .btn:active:not(:disabled),
+    .login-submit.auth-submit:active:not(:disabled) {
+      transform: none;
+    }
+    .panel-interactive:hover,
+    .stat-tile:hover {
+      transform: none;
+    }
+  }
+
+  /*
+   * Neumorphism's fallback.
+   *
+   * The whole style rests on box-shadow: surfaces are separated by a moulded
+   * edge rather than by a border. Windows High Contrast and forced-colours mode
+   * DROP box-shadow entirely, which would leave every card, input and button as
+   * an unbounded rectangle — the page would collapse into one flat sheet.
+   *
+   * So in that mode the borders come back. Same rule for prefers-contrast:
+   * more, where a user has asked for firmer edges than a soft shadow gives.
+   */
+  @media (forced-colors: active), (prefers-contrast: more) {
+    .card,
+    .panel,
+    .stat-tile,
+    .stat-chip,
+    .field-input,
+    .btn,
+    .app-sidebar,
+    .society-name-pill {
+      border: 1px solid currentColor;
+      box-shadow: none;
+    }
+    /* The carve is what marks the current page; with shadows gone it needs a
+       real border to stay findable. */
+    .sidebar-item.active {
+      border: 2px solid currentColor;
+      box-shadow: none;
     }
   }
 }

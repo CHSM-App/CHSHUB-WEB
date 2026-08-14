@@ -148,7 +148,7 @@ export default function VillageSetupPage() {
               padding: '11px 16px',
               fontSize: '0.9375rem',
               fontWeight: 600,
-              boxShadow: '0 4px 12px -2px rgba(78,115,223,0.4)',
+              boxShadow: '0 4px 12px -2px rgba(201, 64, 64,0.4)',
             }}
             onClick={async () => {
               await logout();

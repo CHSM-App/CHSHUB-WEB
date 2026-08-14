@@ -123,16 +123,21 @@ const TONES = {
     defaultTitle: 'Success',
   },
   error: {
-    accent: '#e74a3b',
-    ring: 'rgba(231, 74, 59, 0.18)',
+    accent: '#a4161a',
+    ring: 'rgba(164, 22, 26, 0.18)',
     icon: (
       <path d="M8 4.5v4.25M8 11.4h.01" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     ),
     defaultTitle: 'Something went wrong',
   },
+  /*
+   * Slate, not the brand red. With a red accent an "info" toast tinted red was
+   * indistinguishable from the error one beside it, and a neutral note must not
+   * read as a failure.
+   */
   info: {
-    accent: '#4e73df',
-    ring: 'rgba(78, 115, 223, 0.18)',
+    accent: '#475569',
+    ring: 'rgba(71, 85, 105, 0.18)',
     icon: (
       <path d="M8 7.25v4.25M8 4.6h.01" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     ),
@@ -190,10 +195,12 @@ function ToastCard({ toast, onDismiss, onPause, onResume }) {
       role={tone === 'error' ? 'alert' : 'status'}
       onMouseEnter={onPause}
       onMouseLeave={onResume}
-      className={`toast-card pointer-events-auto w-full max-w-sm overflow-hidden rounded-xl border border-slate-200 bg-white transition-all duration-200 ease-out ${
+      className={`toast-card pointer-events-auto w-full max-w-sm overflow-hidden rounded-2xl border border-slate-200 bg-white transition-all duration-200 ease-out ${
         visible ? 'translate-y-0 scale-100 opacity-100' : '-translate-y-2 scale-95 opacity-0'
       }`}
-      style={{ boxShadow: 'var(--shadow-lg, 0 20px 24px -4px rgba(16,24,40,0.1))' }}
+      /* Floats over the page rather than resting on it, so a true drop shadow
+         rather than the moulded pair — same reasoning as the modal panel. */
+      style={{ boxShadow: '0 18px 40px -10px rgba(17,24,39,0.3)' }}
     >
       <div className="flex items-start gap-3 p-3.5">
         <span

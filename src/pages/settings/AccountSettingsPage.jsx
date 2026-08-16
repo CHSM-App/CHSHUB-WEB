@@ -103,7 +103,7 @@ export default function AccountSettingsPage() {
   return (
     <section className="max-w-4xl">
       <header className="mb-5">
-        <h1 className="text-xl font-bold" style={{ color: '#5c1414' }}>
+        <h1 className="text-xl font-bold" style={{ color: '#1f2937' }}>
           Account settings
         </h1>
         <p className="text-sm text-slate-500">Rates and options used when generating bills.</p>
@@ -240,7 +240,7 @@ export function SettingsCard({ icon, title, subtitle, children }) {
           {icon}
         </span>
         <div>
-          <h2 className="text-sm font-bold" style={{ color: '#5c1414' }}>
+          <h2 className="text-sm font-bold" style={{ color: '#1f2937' }}>
             {title}
           </h2>
           {subtitle ? <p className="text-sm text-slate-500">{subtitle}</p> : null}
@@ -272,7 +272,7 @@ export function ToggleRow({ label, checked, onChange }) {
           <input type="checkbox" className="peer sr-only" checked={checked} onChange={onChange} />
           <span
             className="block h-6 w-11 rounded-full transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-[#e08585] peer-focus-visible:ring-offset-2"
-            style={{ background: checked ? '#a82a2a' : '#cbd5e1' }}
+            style={{ background: checked ? '#b91c1c' : '#cbd5e1' }}
           />
           <span
             className="pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform"

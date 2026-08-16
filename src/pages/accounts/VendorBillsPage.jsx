@@ -196,7 +196,7 @@ function printBill(detail) {
   win.document.write(`<!doctype html><html><head><title>Bill ${esc(bill.bill_number)}</title>
 <style>
   body { font-family: system-ui, sans-serif; color: #1a1a1a; padding: 32px; }
-  h1 { color: #5c1414; font-size: 20px; margin: 0 0 20px; }
+  h1 { color: #1f2937; font-size: 20px; margin: 0 0 20px; }
   h2 { font-size: 14px; margin: 24px 0 8px; }
   table { border-collapse: collapse; width: 100%; }
   th, td { border: 1px solid #e3e6f0; padding: 6px 10px; text-align: left; font-size: 13px; }
@@ -969,7 +969,7 @@ export default function VendorBillsPage() {
                         this for staff runs only. */}
                     <button
                       type="button"
-                      className="mt-1 text-xs text-[#a82a2a] hover:underline"
+                      className="mt-1 text-xs text-[#b91c1c] hover:underline"
                       onClick={() =>
                         setForm((p) => ({
                           ...p,
@@ -1018,7 +1018,7 @@ export default function VendorBillsPage() {
                       />
                       <button
                         type="button"
-                        className="mt-1 text-xs text-[#a82a2a] hover:underline"
+                        className="mt-1 text-xs text-[#b91c1c] hover:underline"
                         onClick={openVendorForm}
                       >
                         Add vendor

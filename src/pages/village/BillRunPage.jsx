@@ -129,7 +129,7 @@ export default function BillRunPage() {
   return (
     <section>
       <header className="mb-4 print:w-full print:text-center">
-        <h1 className="text-xl font-bold" style={{ color: '#5c1414' }}>
+        <h1 className="text-xl font-bold" style={{ color: '#1f2937' }}>
           Generate bills
         </h1>
         <p className="text-sm text-slate-500 print:hidden">

@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { useAuth } from '@/auth/AuthContext.jsx';
 import ProfileDialog from '@/pages/auth/ProfileDialog.jsx';
 import HeaderIcons from '@/components/HeaderIcons.jsx';
+import { ConfirmDialog } from '@/components/ui.jsx';
 
 /*
  * Navigation reproduces Site.Master's accordion exactly — the same two
@@ -256,6 +257,10 @@ export default function AppLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
   // The Profile dialog, opened from the header dropdown as Site.Master did.
   const [profileOpen, setProfileOpen] = useState(false);
+  // The log-out confirmation. `signingOut` keeps the dialog's buttons disabled
+  // while the token is being revoked, so a second click cannot fire it twice.
+  const [logoutOpen, setLogoutOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   /*
    * The two menus are mutually exclusive, as they were in the legacy shell:
@@ -291,6 +296,38 @@ export default function AppLayout() {
   const navRef = useRef(null);
   const navScroll = useRef(0);
 
+  /*
+   * Publish the topbar's REAL height as --topbar-h.
+   *
+   * The sidebar sticks under the topbar and sizes itself against it. Both used
+   * hardcoded pixels (top: 84px, height: calc(100vh - 100px)), which are only
+   * correct at one zoom level and one font size: the bar's actual height moves
+   * with browser zoom, with a longer society name wrapping the pill, and with
+   * the OS text-size setting. When it did, the rail either floated away from
+   * the bar or was pinned shorter than its own menu and grew a second scrollbar
+   * inside the page's — the "sidebar scrolls on its own" case.
+   *
+   * A ResizeObserver keeps the variable in step with whatever the bar actually
+   * measures, so the two can never drift again.
+   */
+  const topbarRef = useRef(null);
+
+  useLayoutEffect(() => {
+    const el = topbarRef.current;
+    if (!el) return undefined;
+    const apply = () => {
+      document.documentElement.style.setProperty(
+        '--topbar-h',
+        `${Math.round(el.getBoundingClientRect().height)}px`,
+      );
+    };
+    apply();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   useLayoutEffect(() => {
     const el = navRef.current;
     if (el) el.scrollTop = navScroll.current;
@@ -310,13 +347,27 @@ export default function AppLayout() {
     }
   }, [location.pathname, expanded]);
 
-  const handleLogout = async () => {
-    // Site.Master guarded this with a confirm; keep it so a stray click on the
-    // menu does not end the session.
-    if (!window.confirm('Are you sure you want to log out?')) return;
+  // Site.Master guarded this with a confirm; keep the guard so a stray click on
+  // the menu does not end the session — but as the app's own dialog rather than
+  // window.confirm, whose browser-chrome styling ignores the theme and reads as
+  // a page from a different site.
+  const handleLogout = () => {
     setMenuOpen(false);
-    await logout();
-    navigate('/login', { replace: true });
+    setLogoutOpen(true);
+  };
+
+  const confirmLogout = async () => {
+    setSigningOut(true);
+    try {
+      await logout();
+      navigate('/login', { replace: true });
+    } finally {
+      // The route change unmounts this shell, so in the success path nothing
+      // reads these again; they matter when logout throws and the dialog has
+      // to become usable once more.
+      setSigningOut(false);
+      setLogoutOpen(false);
+    }
   };
 
   /*
@@ -345,6 +396,7 @@ export default function AppLayout() {
           content scrolls under it, which is what tells the eye the bar is a
           layer above the page instead of part of it. */}
       <header
+        ref={topbarRef}
         className="app-topbar sticky top-0 z-50 flex items-center justify-between gap-2 px-3 py-3 sm:px-6"
         style={{
           background: 'rgba(255,255,255,0.85)',
@@ -378,7 +430,7 @@ export default function AppLayout() {
             className="chs-logo shrink-0"
             aria-label="CHS HUB — go to dashboard"
             style={{
-              background: 'linear-gradient(135deg, #c94040 0%, #e85555 100%)',
+              background: 'linear-gradient(135deg, #e31b23 0%, #e31b23 100%)',
               borderRadius: '12px',
               // Two shadows plus an inset highlight: the mark reads as a solid
               // object catching light rather than a flat red rectangle.
@@ -414,10 +466,10 @@ export default function AppLayout() {
               border: '1px solid rgba(17,24,39,0.04)',
             }}
           >
-            <span className="shrink-0" style={{ color: '#a82a2a' }} aria-hidden="true">
+            <span className="shrink-0" style={{ color: '#b91c1c' }} aria-hidden="true">
               <Icon name="building" />
             </span>
-            <p className="society-name-text truncate font-semibold" style={{ color: '#5c1414' }}>
+            <p className="society-name-text truncate font-semibold" style={{ color: '#1f2937' }}>
               {user?.society_name || user?.village_name || 'Society Management'}
             </p>
           </div>
@@ -446,14 +498,14 @@ export default function AppLayout() {
             <span
               className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white"
               style={{
-                background: 'linear-gradient(135deg, #a82a2a, #c94040)',
+                background: 'linear-gradient(135deg, #b91c1c, #e31b23)',
                 boxShadow: '0 2px 6px rgba(168, 42, 42,0.4), inset 0 1px 0 rgba(255,255,255,0.25)',
               }}
               aria-hidden="true"
             >
               {(user?.name || '?').trim().charAt(0).toUpperCase()}
             </span>
-            <span className="hidden text-sm font-medium sm:inline" style={{ color: '#5c1414' }}>
+            <span className="hidden text-sm font-medium sm:inline" style={{ color: '#1f2937' }}>
               Hello, {user?.name}
             </span>
           </button>
@@ -482,7 +534,7 @@ export default function AppLayout() {
                   type="button"
                   role="menuitem"
                   className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-sm hover:bg-slate-50"
-                  style={{ color: '#5c1414' }}
+                  style={{ color: '#1f2937' }}
                   onClick={() => {
                     setMenuOpen(false);
                     setProfileOpen(true);
@@ -503,7 +555,7 @@ export default function AppLayout() {
                   to={isVillage ? '/village/settings' : '/settings/accounts'}
                   role="menuitem"
                   className="flex items-center gap-2.5 px-4 py-2 text-sm hover:bg-slate-50"
-                  style={{ color: '#5c1414' }}
+                  style={{ color: '#1f2937' }}
                   onClick={() => setMenuOpen(false)}
                 >
                   <span className="text-slate-400">
@@ -516,7 +568,7 @@ export default function AppLayout() {
                   type="button"
                   role="menuitem"
                   className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-sm hover:bg-slate-50"
-                  style={{ color: '#5c1414' }}
+                  style={{ color: '#1f2937' }}
                   onClick={handleLogout}
                 >
                   <span className="text-slate-400">
@@ -577,9 +629,9 @@ export default function AppLayout() {
         <aside
           className={`${
             navOpen
-              ? 'fixed inset-y-0 left-0 top-[64px] z-40 w-[min(82vw,300px)] overflow-y-auto overscroll-contain'
+              ? 'fixed inset-y-0 left-0 top-[var(--topbar-h)] z-40 w-[min(82vw,300px)] overflow-y-auto overscroll-contain'
               : 'hidden'
-          } lg:sticky lg:inset-auto lg:top-[84px] lg:z-auto lg:block lg:w-auto lg:overflow-visible lg:shrink-0`}
+          } app-sidebar-rail lg:fixed lg:bottom-0 lg:left-0 lg:top-[var(--topbar-h)] lg:z-30 lg:flex lg:w-[276px] lg:flex-col lg:overflow-visible`}
           style={{ padding: '8px' }}
         >
           {/*
@@ -599,7 +651,43 @@ export default function AppLayout() {
             onScroll={(e) => {
               navScroll.current = e.currentTarget.scrollTop;
             }}
-            className="app-sidebar min-h-full overscroll-contain rounded-2xl bg-white lg:h-[calc(100vh-100px)] lg:min-h-0 lg:w-[260px] lg:overflow-y-auto"
+            /*
+             * `max-h`, not `h`.
+             *
+             * A fixed `h-[calc(100vh-100px)]` is a height the rail must be,
+             * whether or not the menu needs it — so at browser zoom, where the
+             * CSS viewport shrinks but the menu does not, the rail was pinned
+             * SHORTER than its own contents and grew a second scrollbar inside
+             * the page's. That is the "sidebar scrolls on its own" the user hit
+             * at 150%: 600px viewport, 500px rail, 533px of menu.
+             *
+             * A maximum lets it be exactly as tall as the menu when that fits,
+             * and only becomes a scroller when the menu genuinely cannot — so
+             * the rail can stay stuck under the topbar at every height without
+             * ever being forced shorter than its contents.
+             *
+             * The offsets are computed from --topbar-h rather than the old
+             * hardcoded 84/100px, so the rail stays glued under the topbar
+             * instead of drifting as the bar's real height changes with zoom.
+             */
+            /*
+             * The subtractions are what the rail must clear to fit in the strip
+             * under the sticky topbar: the bar's own height, and the <aside>'s
+             * 8px padding top and bottom. Leave any of it out and the rail is
+             * taller than the space it is stuck in — at which point sticky has
+             * nothing to hold and the menu scrolls off with the page, which is
+             * the bug this whole block exists to prevent.
+             */
+            /*
+             * `min-h-0` is the load-bearing part. A flex child's automatic
+             * minimum is its content, so without it the nav refuses to be
+             * shorter than the whole menu and pushes the <aside> past the
+             * bottom of the screen.
+             *
+             * With it, the fixed <aside> owns the height and the nav shrinks to
+             * fit, scrolling internally only when the menu genuinely cannot.
+             */
+            className="app-sidebar max-lg:min-h-full overscroll-contain rounded-2xl bg-white lg:min-h-0 lg:w-full lg:flex-1 lg:overflow-y-auto"
             style={{
               padding: '14px',
               border: '1px solid var(--shell-line)',
@@ -692,7 +780,10 @@ export default function AppLayout() {
         {/* Also no `overflow-x` here: a page that wants a sticky heading of
             its own would lose it for the same reason the shell's rail did.
             min-w-0 and max-w-full already keep the column inside the row. */}
-        <main className="w-full min-w-0 max-w-full flex-1 p-4 lg:p-6">
+        {/* `lg:ml-[276px]` reserves the column the fixed rail occupies. The
+            rail is out of the flow now, so without this the content would run
+            underneath it. */}
+        <main className="w-full min-w-0 max-w-full flex-1 p-4 lg:ml-[276px] lg:p-6">
           <Outlet />
         </main>
       </div>
@@ -715,6 +806,22 @@ export default function AppLayout() {
       </footer>
 
       <ProfileDialog open={profileOpen} onClose={() => setProfileOpen(false)} />
+
+      {/*
+        'warning' rather than 'danger': signing out destroys nothing and is
+        undone by logging back in, so the red delete treatment would overstate
+        it — but it does end the session, which is worth a stop-and-think.
+      */}
+      <ConfirmDialog
+        open={logoutOpen}
+        tone="warning"
+        title="Log out"
+        message="Are you sure you want to log out?"
+        confirmLabel="Log Out"
+        onConfirm={confirmLogout}
+        onCancel={() => setLogoutOpen(false)}
+        busy={signingOut}
+      />
     </div>
   );
 }

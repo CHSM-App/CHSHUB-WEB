@@ -188,7 +188,7 @@ export function ModeSwitch({ label, options, value, onChange, className = '' }) 
             onClick={() => onChange(o.value)}
             className={`rounded-lg px-3 py-1.5 text-sm transition-all ${
               String(value) === String(o.value)
-                ? 'surface bg-white font-medium text-[#a82a2a]'
+                ? 'surface bg-white font-medium text-[#b91c1c]'
                 : 'text-slate-600 hover:bg-white/60'
             }`}
             aria-pressed={String(value) === String(o.value)}
@@ -252,7 +252,7 @@ export function FileUploadField({
           multiple={multiple}
           onChange={onPick}
           disabled={busy}
-          className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-[#fdeeee] file:px-3 file:py-2 file:text-sm file:font-medium file:text-[#a82a2a] hover:file:bg-[#fbe3e3]"
+          className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-[#fef2f2] file:px-3 file:py-2 file:text-sm file:font-medium file:text-[#b91c1c] hover:file:bg-[#fee2e2]"
         />
         {busy ? <span className="text-xs text-slate-500">Uploading…</span> : null}
       </div>
@@ -291,7 +291,7 @@ export function Tabs({ tabs, active, onChange, className = '' }) {
             onClick={() => onChange(t.id)}
             className={`whitespace-nowrap border-b-2 px-1 pb-2 text-sm transition-colors ${
               active === t.id
-                ? 'border-[#c94040] font-medium text-[#a82a2a]'
+                ? 'border-[#e31b23] font-medium text-[#b91c1c]'
                 : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
             }`}
             aria-current={active === t.id ? 'page' : undefined}
@@ -338,18 +338,29 @@ export function PageHeader({ title, subtitle, children }) {
 
       <header className="mb-4 flex flex-wrap items-start justify-between gap-3 print:hidden">
         {/*
-          min-w-0 lets the title block shrink. A flex item's default minimum is
-          its content, so a long title — "Assistant|Technician|Supplier" — set a
-          floor wider than a phone and pushed the whole header off the screen
-          rather than wrapping inside it.
+          `basis-full` until `sm`: the title takes its own row on a phone and
+          the actions drop below it.
+
+          Without it the title and the action cluster shared one row. The
+          actions here are a search box and a button, neither of which shrinks
+          much, so on a narrow screen the title was squeezed to a couple of
+          characters wide — and `break-anywhere` then did exactly what it is
+          told and split the word down the middle, stacking "Society" as
+          "So / cie / ty". The fix is to stop the squeeze, not to forbid the
+          break: `break-anywhere` still earns its place on a genuinely long
+          unbroken title once the row is full width.
+
+          min-w-0 stays for that full-width row — a flex item's default minimum
+          is its content, so a long title would otherwise set a floor wider than
+          the phone and push the header off screen instead of wrapping.
         */}
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 basis-full sm:flex-1 sm:basis-0">
           <h1 className="break-anywhere text-xl font-bold tracking-tight" style={{ color: 'var(--ink)' }}>
             {title}
           </h1>
           {subtitle ? <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p> : null}
         </div>
-        {children ? <div className="flex flex-wrap items-center gap-2 print:hidden">{children}</div> : null}
+        {children ? <div className="flex min-w-0 flex-wrap items-center gap-2 print:hidden">{children}</div> : null}
       </header>
     </>
   );
@@ -364,9 +375,9 @@ export function PageHeader({ title, subtitle, children }) {
  */
 export function StatCard({ label, value, hint, tone = 'default' }) {
   const tones = {
-    default: { text: 'text-slate-800', rule: 'linear-gradient(90deg, #e06a6a, #c94040)' },
+    default: { text: 'text-slate-800', rule: 'linear-gradient(90deg, #e31b23, #e31b23)' },
     positive: { text: 'text-green-700', rule: 'linear-gradient(90deg, #34e0a1, #1cc88a)' },
-    negative: { text: 'text-red-700', rule: 'linear-gradient(90deg, #ff6b6b, #e74a3b)' },
+    negative: { text: 'text-red-700', rule: 'linear-gradient(90deg, #ef4444, #991b1b)' },
     warning: { text: 'text-amber-700', rule: 'linear-gradient(90deg, #f8d476, #f6c23e)' },
   };
   const t = tones[tone] ?? tones.default;

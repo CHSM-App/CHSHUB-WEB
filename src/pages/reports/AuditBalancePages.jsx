@@ -383,7 +383,10 @@ export function AuditPage() {
   return (
     <section>
       <PageHeader
-        title="Audit questionnaire"
+        // "Audit Q&A", matching the sidebar link that leads here — the page and
+        // the menu item naming the same screen two different things is a small
+        // thing that makes an app feel unfinished.
+        title="Audit Q&A"
         // Counted off the sections rather than the raw question list, so the
         // figure matches what is on screen. A question whose header belongs to
         // another society is not shown, and must not be counted either.
@@ -445,7 +448,7 @@ export function AuditPage() {
       {grouped.length === 0 ? (
         <EmptyState title="No audit questions configured" hint="Add a section, then questions under it." />
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-3">
           {/* Collapsible sections, as on the legacy page: the .qa-header bar
               toggles its .qa-body, which starts closed (display:none). */}
           {grouped.map((section, index) => {
@@ -457,9 +460,21 @@ export function AuditPage() {
                 // the same rearrangement jquery-ui's sortable performed.
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => dropOn(index, grouped)}
-                className="overflow-hidden rounded-lg border border-slate-200 transition hover:border-[#5c1414] hover:shadow-md print:border-slate-300 print:shadow-none"
+                className="card overflow-hidden transition hover:border-[#e31b23] hover:shadow-md print:border-slate-300 print:shadow-none"
               >
-                <div className="flex items-center justify-between gap-3 bg-gradient-to-r from-[#5c1414] to-[#8a1f1f] px-5 py-3 text-white">
+                {/*
+                  A white header carrying a numbered badge, not the
+                  charcoal-to-maroon gradient this used to be.
+
+                  Four full-width dark bars stacked down the page read as the
+                  loudest thing on the screen, which they are not: they are
+                  section labels and the questions under them are the content.
+                  The badge gives each section an identity and a position, the
+                  count sits in a quiet pill, and the whole row weighs what a
+                  label should — the same treatment the cards and tables on
+                  every other screen get.
+                */}
+                <div className="flex items-center gap-3 border-b border-slate-100 bg-white px-4 py-3 sm:px-5">
                   {/* Only the handle starts a drag, so selecting the title
                       text still works — as with the legacy .drag-handle. */}
                   <span
@@ -469,30 +484,49 @@ export function AuditPage() {
                     }}
                     aria-hidden="true"
                     title="Drag to reorder"
-                    className="cursor-grab select-none rounded bg-white/90 px-2 py-0.5 text-lg leading-none text-[#5c1414] active:cursor-grabbing print:hidden"
+                    className="shrink-0 cursor-grab select-none rounded-md px-1.5 py-1 text-base leading-none text-slate-300 transition hover:bg-slate-100 hover:text-slate-500 active:cursor-grabbing print:hidden"
                   >
                     ⇅
                   </span>
+
+                  {/* The section's number. It is what makes a list of four
+                      similarly-named sections navigable at a glance, and it
+                      updates as they are reordered. */}
+                  <span
+                    aria-hidden="true"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#fef2f2] text-sm font-bold text-[#e31b23]"
+                  >
+                    {index + 1}
+                  </span>
+
                   <button
                     type="button"
                     onClick={() => toggleSection(section.audt_header_id)}
                     aria-expanded={open}
-                    className="flex flex-1 items-center gap-3 text-left text-sm font-semibold"
+                    className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
                   >
-                    <span aria-hidden="true" className="text-xs">
-                      {open ? '▾' : '▸'}
+                    <span className="truncate text-sm font-semibold text-[#1f2937]">
+                      {section.audt_header_desc}
                     </span>
-                    {section.audt_header_desc}
-                    <span className="text-xs font-normal text-white/70">
-                      ({section.questions.length})
+                    <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
+                      {section.questions.length}
+                    </span>
+                    {/* The chevron rotates rather than swapping glyphs, so the
+                        row does not reflow by a pixel as it opens. */}
+                    <span
+                      aria-hidden="true"
+                      className={`ml-auto shrink-0 text-slate-400 transition-transform ${open ? 'rotate-90' : ''}`}
+                    >
+                      ›
                     </span>
                   </button>
+
                   <button
                     type="button"
-                    className="shrink-0 rounded bg-white px-3 py-1 text-xs font-medium text-[#5c1414] hover:bg-slate-100 print:hidden"
+                    className="btn-secondary shrink-0 print:hidden"
                     onClick={() => openHeaderEditor(section)}
                   >
-                    ✏️ Edit
+                    Edit
                   </button>
                 </div>
 
@@ -511,7 +545,7 @@ export function AuditPage() {
                           <p className="flex-1 pr-5 text-sm leading-relaxed text-slate-700">
                             <strong>{i + 1})</strong> {q.question_desc}
                           </p>
-                          <p className="rounded border-l-[3px] border-[#5c1414] bg-slate-50 px-4 py-2 text-sm text-slate-700 sm:w-[300px] sm:shrink-0">
+                          <p className="rounded border-l-[3px] border-[#e31b23] bg-slate-50 px-4 py-2 text-sm text-slate-700 sm:w-[300px] sm:shrink-0">
                             {q.answer_desc || '—'}
                           </p>
                           <div className="whitespace-nowrap print:hidden">
@@ -787,10 +821,10 @@ function HeadBlock({ head, index, onEdit, onDelete, onDragStart, onDrop }) {
       // rearrangement jquery-ui's connected sortables performed.
       onDragOver={(e) => e.preventDefault()}
       onDrop={() => onDrop(index)}
-      className="border-b-2 border-[#5c1414] bg-[#f0f4f8] last:border-b-0"
+      className="border-b-2 border-[#1f2937] bg-[#f0f4f8] last:border-b-0"
     >
       <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-5 py-3">
-        <h3 className="flex flex-1 items-center gap-2.5 text-[15px] font-semibold text-[#5c1414]">
+        <h3 className="flex flex-1 items-center gap-2.5 text-[15px] font-semibold text-[#1f2937]">
           {/* Only the handle starts a drag, so the title text stays
               selectable — as with the legacy .drag-handle. */}
           <span
@@ -822,7 +856,7 @@ function HeadBlock({ head, index, onEdit, onDelete, onDragStart, onDrop }) {
             🗑️
           </button>
         </h3>
-        <span className="text-[15px] font-semibold text-[#5c1414]">{money(head.amount)}</span>
+        <span className="text-[15px] font-semibold text-[#1f2937]">{money(head.amount)}</span>
       </div>
 
       <div className="bg-white">
@@ -835,7 +869,7 @@ function HeadBlock({ head, index, onEdit, onDelete, onDragStart, onDrop }) {
             <span className="min-w-20 text-right text-sm font-medium text-slate-600">{money(s.amount)}</span>
           </div>
         ))}
-        <div className="flex items-center justify-between border-t-2 border-[#5c1414] bg-slate-50 px-5 py-3 font-bold text-[#5c1414]">
+        <div className="flex items-center justify-between border-t-2 border-[#1f2937] bg-slate-50 px-5 py-3 font-bold text-[#1f2937]">
           <span className="text-[15px]">Total:</span>
           <span className="text-base">{money(total)}</span>
         </div>
@@ -1165,9 +1199,9 @@ export function BalanceSheetEditorPage() {
               return (
                 <div
                   key={column.compId}
-                  className="overflow-hidden rounded-lg border-2 border-[#5c1414] print:break-inside-avoid"
+                  className="overflow-hidden rounded-lg border-2 border-[#1f2937] print:break-inside-avoid"
                 >
-                  <div className="bg-gradient-to-r from-[#5c1414] to-[#8a1f1f] px-5 py-3.5 text-center text-lg font-bold text-white">
+                  <div className="bg-gradient-to-r from-[#1f2937] to-[#8a1f1f] px-5 py-3.5 text-center text-lg font-bold text-white">
                     {column.title}
                   </div>
                   <div
@@ -1197,7 +1231,7 @@ export function BalanceSheetEditorPage() {
                       ))
                     )}
                   </div>
-                  <div className="flex items-center justify-between bg-[#5c1414] px-5 py-3 font-bold text-white">
+                  <div className="flex items-center justify-between bg-[#1f2937] px-5 py-3 font-bold text-white">
                     <span>Grand total</span>
                     <span>{money(grandTotal(column.compId))}</span>
                   </div>
@@ -1253,8 +1287,8 @@ export function BalanceSheetEditorPage() {
                     onClick={() => setHeadForm((p) => ({ ...p, compId: column.compId }))}
                     className={`flex-1 rounded-lg border-2 p-4 text-center text-sm font-medium transition ${
                       selected
-                        ? 'border-[#5c1414] bg-[#5c1414] text-white'
-                        : 'border-slate-200 text-slate-700 hover:border-[#5c1414] hover:bg-[#f0f4f8]'
+                        ? 'border-[#1f2937] bg-[#1f2937] text-white'
+                        : 'border-slate-200 text-slate-700 hover:border-[#1f2937] hover:bg-[#f0f4f8]'
                     }`}
                   >
                     {column.title.replace(/s$/, '')}

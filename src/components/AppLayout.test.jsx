@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, NavLink, Route, Routes } from 'react-router-dom';
 
@@ -8,10 +8,12 @@ import { MemoryRouter, NavLink, Route, Routes } from 'react-router-dom';
  * a real login: what these tests cover is the shell's own layout behaviour,
  * and a login flow would only add a second thing that can fail.
  */
+const logout = vi.fn().mockResolvedValue(undefined);
+
 vi.mock('@/auth/AuthContext.jsx', () => ({
   useAuth: () => ({
     user: { name: 'Admin User', society_name: 'Test Society' },
-    logout: vi.fn(),
+    logout,
     villageId: null,
   }),
   useOptionalUser: () => ({ name: 'Admin User', society_name: 'Test Society' }),
@@ -147,6 +149,67 @@ describe('mobile navigation drawer', () => {
 });
 
 /*
+ * Logging out.
+ *
+ * The guard used to be window.confirm, which jsdom stubs and a browser draws in
+ * its own chrome — an unstyled grey box on a themed page. It is the app's own
+ * ConfirmDialog now, so these assert on rendered elements: a native confirm
+ * would put nothing in the tree to find.
+ */
+describe('log out', () => {
+  const renderShell = () =>
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <Routes>
+          <Route element={<AppLayout />}>
+            <Route path="/dashboard" element={<p>Dashboard body</p>} />
+            <Route path="/login" element={<p>Login body</p>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+
+  const openLogout = async () => {
+    await userEvent.click(screen.getByRole('button', { name: /hello, admin user/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /log out/i }));
+  };
+
+  beforeEach(() => logout.mockClear());
+
+  it('asks in the app’s own dialog rather than a native confirm', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm');
+    renderShell();
+    await openLogout();
+
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toHaveTextContent(/are you sure you want to log out\?/i);
+    confirmSpy.mockRestore();
+  });
+
+  it('keeps the session when the prompt is dismissed', async () => {
+    renderShell();
+    await openLogout();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(logout).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('signs out and leaves for the login page once confirmed', async () => {
+    renderShell();
+    await openLogout();
+
+    // The menu item and the dialog's confirm share a label, so this is scoped
+    // to the dialog rather than matching whichever came first in the tree.
+    const dialog = screen.getByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: /log out/i }));
+
+    expect(logout).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText('Login body')).toBeInTheDocument();
+  });
+});
+
+/*
  * The desktop rail and topbar stay put while the page scrolls.
  *
  * Both are `position: sticky`, which resolves against the nearest ancestor
@@ -178,12 +241,32 @@ describe('sticky shell chrome', () => {
     return chain;
   };
 
-  it('keeps the topbar and the rail sticky', () => {
+  /*
+   * The rail is FIXED from `lg` up, not sticky.
+   *
+   * Sticky can only hold a box that is shorter than the strip it sticks in, so
+   * on a short viewport — a small laptop, or any laptop past 150% browser zoom
+   * — the menu outgrew that strip and scrolled away with the page. Fixed has no
+   * such condition: the rail stays under the topbar at every height, and the
+   * menu scrolls inside it when it cannot fit.
+   *
+   * Below `lg` the aside is the drawer instead, which is fixed too.
+   */
+  it('keeps the topbar sticky and pins the rail', () => {
     const { container } = renderShell();
 
     expect(container.querySelector('header').className).toContain('sticky');
-    // The rail is sticky from `lg` up; below that it is the drawer above.
-    expect(container.querySelector('aside').className).toContain('lg:sticky');
+    expect(container.querySelector('aside').className).toContain('lg:fixed');
+  });
+
+  /*
+   * A fixed rail is out of the flow, so the content must reserve its column
+   * explicitly — without this the page renders underneath the menu.
+   */
+  it('reserves the fixed rail’s column on the content area', () => {
+    const { container } = renderShell();
+
+    expect(container.querySelector('main').className).toContain('lg:ml-[276px]');
   });
 
   it('puts no overflow clip on any ancestor of the sticky topbar', () => {

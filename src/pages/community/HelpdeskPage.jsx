@@ -440,7 +440,7 @@ export default function HelpdeskPage() {
                       <div className="surface overflow-hidden rounded-2xl">
                         <div
                           className={`px-3 py-1.5 text-xs font-semibold ${
-                            fromResident ? 'bg-slate-200 text-slate-800' : 'bg-[#fbe3e3] text-[#7d1a1a]'
+                            fromResident ? 'bg-slate-200 text-slate-800' : 'bg-[#fee2e2] text-[#7d1a1a]'
                           }`}
                         >
                           {c.name}

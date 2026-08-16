@@ -1,4 +1,4 @@
-import { BrandWordmark, BuildingMark, Glyph } from '@/components/AuthLayout.jsx';
+import { BrandWordmark, ChsHubMark, Glyph } from '@/components/AuthLayout.jsx';
 /*
  * The JPEG rather than the source Building_image.png beside it: this is a
  * photograph, so PNG buys it nothing — no transparency, no flat colour to
@@ -196,9 +196,14 @@ export default function AuthShowcaseLayout({
             <div className="auth-showcase-card__head">
               {/* The mark in its own tinted disc, as in the reference — the
                   logo reads as a badge above the form rather than as a tile
-                  stuck to its top edge. */}
+                  stuck to its top edge.
+
+                  The CHS HUB tile rather than BuildingMark: this is the badge
+                  directly above the sign-in box, so it should be the mark the
+                  app itself wears in the topbar. The building glyph stays on
+                  the showcase panel beside it. */}
               <span className="auth-showcase-card__badge">
-                <BuildingMark size={68} />
+                <ChsHubMark />
               </span>
               <h1 className="auth-showcase-title">{title}</h1>
               {subtitle ? <p className="auth-showcase-subtitle">{subtitle}</p> : null}

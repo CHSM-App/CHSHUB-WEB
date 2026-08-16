@@ -9,56 +9,85 @@
  * The structure — the nav's active/hover pairs, the elevation ramp, the type
  * scale — is still sb-admin-2's, so the migrated screens keep the same shape as
  * the legacy product. Only the hue moved: every #012970 navy and #4e73df blue
- * has been mapped onto the mark's own #c94040 family, listed below with the
- * legacy value each one replaced:
+ * was mapped onto the brand red.
  *
- *   #5c1414  heading / body text        was #012970  (Site.Master `*` rule)
- *   #c94040  accent / hover             was #2563eb  (.sidebar-item:hover)
- *   #a82a2a  active nav text            was #1d4ed8  (.sidebar-item.active)
- *   #fbe3e3  active nav background      was #dbeafe  (.sidebar-item.active)
- *   #fdeeee  nav hover background       was #e0f2ff  (.sidebar-item:hover)
+ * That red is the SIGN-IN SCREEN's, and this is the second pass. The app first
+ * ran a muted #c94040 family while the sign-in screen ran a saturated #e31b23 —
+ * so the first screen a user saw and every screen after it were two different
+ * products. The whole app now takes the sign-in values:
+ *
+ *   #1f2937  heading / body text        was #5c1414 (a dark red), #012970
+ *   #e31b23  accent / hover             was #c94040, #2563eb
+ *   #b91c1c  active nav text            was #a82a2a, #1d4ed8
+ *   #fee2e2  active nav background      was #fbe3e3, #dbeafe
+ *   #fef2f2  nav hover background       was #fdeeee, #e0f2ff
  *   #374151  nav idle text              (unchanged — neutral)
  *   #6b7280  muted text / icons         (unchanged — neutral)
  *
+ * Body text moved off red entirely. #5c1414 was a dark red standing in for
+ * black, which tinted every heading and table cell in the product; the sign-in
+ * screen used a neutral charcoal and read cleaner for it.
+ *
  * Greens (--success) and the amber --warning are left alone: they carry meaning
  * rather than brand, and recolouring them would cost the status vocabulary.
- * --danger moved DOWN to #a4161a so destructive actions stay distinguishable
- * from an accent that is now itself red.
- *
- * The page itself is white: sb-admin-2's `body` rule sets colour and type but
- * no background.
+ * --danger IS the accent: a delete button in a different red read as a second
+ * brand colour rather than as a graver one. --invalid keeps the deeper red,
+ * because a rejected field does clash with the accent focus ring.
  *
  * Open Sans is the legacy body face; Segoe UI was used for the sidebar. Both are
  * requested with system fallbacks — no webfont is fetched, so nothing depends on
  * an external host.
  */
-/*
- * Dashboard design tokens, on the same #5c1414 / #c94040 family as the rules
- * above so the two halves of the app read as one product.
- */
 :root {
-  --ink: #5c1414;
+  /*
+   * One palette for the whole product, taken from the sign-in screen.
+   *
+   * The app used to run a muted #e31b23 while the sign-in screen ran a
+   * saturated #e31b23 — the first and last thing a user saw were two different
+   * reds. These are now the sign-in values, so the screen someone lands on and
+   * the screens they work in are the same product.
+   */
+  --ink: #1f2937;
   --ink-muted: #6b7280;
   --surface: #ffffff;
-  --page: #f9fafb;
+  --page: #f8f9fa;
   --line: #e5e7eb;
 
-  --accent: #c94040;
-  --accent-strong: #a82a2a;
+  --accent: #e31b23;
+  --accent-strong: #b91c1c;
+  /* The pale wash behind accented glyph wells, chips and hovers. */
+  --accent-tint: #fef2f2;
   --success: #1cc88a;
   /*
-   * Destructive states are deliberately DARKER and deeper than --accent now
-   * that the accent is itself red. At the old #e74a3b a delete button and an
-   * ordinary accented control were the same colour, which is exactly the
-   * confusion you do not want on an irreversible action.
+   * The SAME red as the accent.
+   *
+   * It used to be a much deeper #991b1b, on the reasoning that a delete button
+   * must not look like an ordinary accented one. In practice that read as a
+   * different colour rather than a graver one — a near-maroon button sitting
+   * beside the brand red, which made the product look like two products.
+   *
+   * The distinction is carried by the words and by the confirm dialog every
+   * destructive action already goes through, which is where it belongs: a
+   * shade of red is not what stops someone deleting a building by mistake.
    */
-  --danger: #a4161a;
+  --danger: #e31b23;
+  /* One step deeper, for the pressed and hovered states only. */
+  --danger-strong: #b91c1c;
+  /*
+   * A REJECTED FIELD is the one place that still needs a red of its own.
+   *
+   * A field's focus ring is the accent, so an invalid field drawn in the same
+   * red looks merely focused — the complaint disappears at exactly the moment
+   * it has to be read. Buttons have no such clash, which is why they went back
+   * to the accent and this did not.
+   */
+  --invalid: #991b1b;
   --warning: #f6c23e;
 
   /* Two-stop gradients for the headline tiles. */
-  --grad-danger: linear-gradient(135deg, #d13a3e 0%, #a4161a 100%);
+  --grad-danger: linear-gradient(135deg, #e31b23 0%, #b91c1c 100%);
   --grad-success: linear-gradient(135deg, #34e0a1 0%, #1cc88a 100%);
-  --grad-accent: linear-gradient(135deg, #e06a6a 0%, #c94040 100%);
+  --grad-accent: linear-gradient(135deg, #e31b23 0%, #b91c1c 100%);
 
   /*
    * Elevation ramp — resting, hover, floating.
@@ -114,6 +143,14 @@
    * reasoning goes with it: the border IS the edge now, and a 4%-alpha line
    * leaves every card and table looking like it has no boundary at all.
    */
+  /*
+   * The topbar's height, remeasured by AppLayout on every resize. The value
+   * here is only the fallback for the first paint, before the observer runs —
+   * everything that depends on it (the sticky sidebar's offset and its maximum
+   * height) reads the live value.
+   */
+  --topbar-h: 68px;
+
   --shell-line: #e5e7eb;
   --shell-shadow: 0 1px 2px rgba(23, 31, 43, 0.06), 0 4px 12px -2px rgba(23, 31, 43, 0.08);
   --shell-shadow-lifted: 0 2px 4px rgba(23, 31, 43, 0.06),
@@ -150,7 +187,7 @@
     background-color: var(--page-tint-b);
     background-image: linear-gradient(180deg, var(--page-tint-a) 0%, var(--page-tint-b) 420px);
     background-attachment: fixed;
-    color: #5c1414;
+    color: #1f2937;
     font-family: 'Open Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
     font-weight: 500;
   }
@@ -158,7 +195,30 @@
   h2,
   h3,
   h4 {
-    color: #5c1414;
+    color: #1f2937;
+  }
+
+  /*
+   * Grid and flex items may shrink below their content.
+   *
+   * By default a grid track and a flex item both take an automatic MINIMUM from
+   * what is inside them — `min-width: auto`. So one long word, a wide toolbar,
+   * or an uppercase label that cannot wrap sets a floor the container is not
+   * allowed to go under, and the box grows past its parent instead. At browser
+   * zoom (which is just a narrower CSS viewport) that is what pushed the
+   * dashboard's tiles off their column and clipped their right-hand edge.
+   *
+   * Overriding the minimum makes the CONTAINER decide the width and the content
+   * fit inside it — which is what the truncate/ellipsis and the per-table
+   * scrollers below already assume.
+   *
+   * Scoped to direct children of a grid or flex box, so it only touches the
+   * items whose minimum is actually in play. Anything that genuinely must not
+   * shrink says so with `shrink-0` or its own `min-width`, and both still win:
+   * this is a `min-width: 0`, the weakest possible floor, not a width.
+   */
+  :where(.grid, .flex) > * {
+    min-width: 0;
   }
 }
 
@@ -205,25 +265,24 @@
   /*
    * Bootstrap's primary geometry, on the brand red — was #0d6efd/#0b5ed7.
    *
-   * A filled button is its own colour, so like .stat-tile it takes a tinted
-   * drop plus a lit top rim rather than the page's white/grey pair.
+   * A filled button casts a drop tinted to its OWN colour rather than the
+   * page's neutral grey — a red button throwing a grey shadow reads as a
+   * sticker laid on the page. The white up-left glow the neumorphic ramp used
+   * is gone with the rest of that style.
    */
   .btn-primary {
     @apply btn text-white;
-    background-color: #c94040;
-    border-color: #c94040;
-    box-shadow: 3px 3px 8px rgba(120, 40, 40, 0.3), -2px -2px 6px rgba(255, 255, 255, 0.55),
-      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    background-color: #e31b23;
+    border-color: #e31b23;
+    box-shadow: 0 4px 10px -3px rgba(227, 27, 35, 0.45);
   }
   .btn-primary:hover:not(:disabled) {
-    background-color: #a82a2a;
-    border-color: #9c2424;
-    box-shadow: 4px 4px 11px rgba(120, 40, 40, 0.36), -3px -3px 8px rgba(255, 255, 255, 0.6),
-      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    background-color: #b91c1c;
+    border-color: #b91c1c;
+    box-shadow: 0 6px 14px -4px rgba(227, 27, 35, 0.5);
   }
   .btn-primary:active:not(:disabled) {
-    box-shadow: inset 3px 3px 7px rgba(110, 30, 30, 0.5),
-      inset -2px -2px 5px rgba(255, 255, 255, 0.12);
+    box-shadow: inset 0 2px 6px rgba(90, 12, 16, 0.4);
   }
   .btn-secondary {
     @apply btn;
@@ -236,39 +295,35 @@
     box-shadow: var(--shadow-inset);
   }
   .btn-secondary:hover:not(:disabled) {
-    background-color: #fdeeee;
-    border-color: #c94040;
-    color: #c94040;
+    background-color: #fef2f2;
+    border-color: #e31b23;
+    color: #e31b23;
   }
   .btn-danger {
     @apply btn text-white;
-    background-color: #a4161a;
-    border-color: #a4161a;
-    box-shadow: 3px 3px 8px rgba(100, 20, 20, 0.32), -2px -2px 6px rgba(255, 255, 255, 0.55),
-      inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    background-color: var(--danger);
+    border-color: var(--danger);
+    box-shadow: 0 4px 10px -3px rgba(227, 27, 35, 0.45);
   }
   .btn-danger:hover:not(:disabled) {
-    background-color: #8a1216;
-    border-color: #8a1216;
+    background-color: var(--danger-strong);
+    border-color: var(--danger-strong);
   }
   .btn-danger:active:not(:disabled) {
-    box-shadow: inset 3px 3px 7px rgba(80, 12, 12, 0.55),
-      inset -2px -2px 5px rgba(255, 255, 255, 0.1);
+    box-shadow: inset 0 2px 6px rgba(90, 12, 16, 0.4);
   }
   .btn-success {
     @apply btn text-white;
     background-color: #198754;
     border-color: #198754;
-    box-shadow: 3px 3px 8px rgba(20, 90, 60, 0.3), -2px -2px 6px rgba(255, 255, 255, 0.55),
-      inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    box-shadow: 0 4px 10px -3px rgba(25, 135, 84, 0.42);
   }
   .btn-success:hover:not(:disabled) {
     background-color: #157347;
     border-color: #146c43;
   }
   .btn-success:active:not(:disabled) {
-    box-shadow: inset 3px 3px 7px rgba(15, 70, 45, 0.5),
-      inset -2px -2px 5px rgba(255, 255, 255, 0.1);
+    box-shadow: inset 0 2px 6px rgba(12, 60, 40, 0.42);
   }
 
   /* Bootstrap .form-label / .form-control. */
@@ -331,19 +386,18 @@
    * user is fixing the field the focus ring tells them where they are, and the
    * invalid state returns the moment they leave it still empty.
    *
-   * The invalid colour is --danger's deep #a4161a, not Bootstrap's #dc3545:
-   * against a red accent the lighter red was nearly the accent itself, so a
-   * rejected field looked merely focused.
+   * The invalid colour is --invalid, a red of its own: the focus ring is the
+   * accent, so an invalid field drawn in the accent looks merely focused.
    */
   [data-invalid] .field-input,
   .field-input.is-invalid {
-    border-color: #a4161a;
+    border-color: var(--invalid);
     background-color: #fffafa;
   }
   [data-invalid] .field-input:focus,
   .field-input.is-invalid:focus {
-    border-color: #a4161a;
-    box-shadow: 0 0 0 3px rgba(164, 22, 26, 0.2);
+    border-color: var(--invalid);
+    box-shadow: 0 0 0 3px rgba(153, 27, 27, 0.2);
   }
 
   /*
@@ -360,7 +414,7 @@
   .field-error {
     @apply mt-1 flex items-center gap-1;
     font-size: 0.8125rem;
-    color: #dc3545;
+    color: var(--danger);
   }
   .field-error::before {
     content: '';
@@ -681,13 +735,13 @@
     background-color: #f3f4f6;
     font-size: 0.8125rem;
     font-weight: 700;
-    color: #5c1414;
+    color: #1f2937;
     border-bottom: 2px solid #e5e7eb;
   }
   .table-cell {
     @apply px-3 py-2;
     font-size: 0.875rem;
-    color: #5c1414;
+    color: #1f2937;
     border-top: 1px solid #eceef1;
   }
 
@@ -800,8 +854,26 @@
   }
 
   /*
+   * The rail stays put. Always.
+   *
+   * It is `sticky` under the topbar at every desktop height — scrolling the
+   * page must never carry the menu away, because the menu is how you leave the
+   * page you are scrolling.
+   *
+   * When the viewport is too short for the whole menu, the rail becomes its own
+   * scroller (`max-height` + `overflow-y: auto` on .app-sidebar) rather than
+   * growing past the screen. That is one scrollbar for the page and one for the
+   * menu, each scrolling the thing it belongs to.
+   *
+   * An earlier attempt released the rail to `position: static` on short
+   * viewports so there would only ever be a single scrollbar. That traded one
+   * complaint for a worse one: the menu scrolled off the top of the window and
+   * had to be scrolled back to. Reverted deliberately.
+   */
+
+  /*
    * Sidebar colours, the legacy structure recoloured: idle stays neutral
-   * #374151, hover #fdeeee/#c94040, active #fbe3e3/#a82a2a. The depth is the
+   * #374151, hover #fef2f2/#e31b23, active #fee2e2/#b91c1c. The depth is the
    * part that is not legacy — the active row carries a gradient and a left
    * accent bar rather than a flat tint block, and icons dim when idle so the
    * active one leads the eye.
@@ -834,14 +906,14 @@
     transition: color 0.2s ease;
   }
   .sidebar-item:hover {
-    background-color: #fdeeee;
-    color: #c94040;
+    background-color: #fef2f2;
+    color: #e31b23;
   }
   .sidebar-item:hover::before {
     transform: translateY(-50%) scaleY(0.6);
   }
   .sidebar-item:hover svg {
-    color: #c94040;
+    color: #e31b23;
   }
   /*
    * The current page is a tint plus the accent bar at its left edge. It used to
@@ -850,15 +922,15 @@
    * that vanishes in forced-colours mode. The tint and the bar say it plainly.
    */
   .sidebar-item.active {
-    background-image: linear-gradient(100deg, #fbe3e3 0%, #fdf1f1 100%);
+    background-image: linear-gradient(100deg, #fee2e2 0%, #fef2f2 100%);
     font-weight: 600;
-    color: #a82a2a;
+    color: #b91c1c;
   }
   .sidebar-item.active::before {
     transform: translateY(-50%) scaleY(1);
   }
   .sidebar-item.active svg {
-    color: #a82a2a;
+    color: #b91c1c;
   }
   .sidebar-heading {
     font-size: 11px;
@@ -898,16 +970,16 @@
     transition: background 0.15s ease, color 0.15s ease;
   }
   .collapse-inner a:hover {
-    background: #fdf1f1;
-    color: #a82a2a;
+    background: #fef2f2;
+    color: #b91c1c;
     text-decoration: none;
   }
   /* #accordionSidebar .collapse-inner a.active in the legacy stylesheet,
      recoloured to the brand red — the row also carries a dot on the rail so the
      current page is findable without reading every label. */
   .collapse-inner a.active {
-    background: #fbe3e3;
-    color: #c94040;
+    background: #fee2e2;
+    color: #e31b23;
     font-weight: 700;
   }
   .collapse-inner a.active::before {
@@ -918,7 +990,7 @@
     width: 7px;
     height: 7px;
     border-radius: 9999px;
-    background: #c94040;
+    background: #e31b23;
     transform: translateY(-50%);
     box-shadow: 0 0 0 3px #fff;
   }
@@ -934,6 +1006,47 @@
   }
   .logo-text {
     font-size: 12px;
+  }
+
+  /*
+   * The same mark as a standalone tile (ChsHubMark), used on the signed-out
+   * screens so the badge over the login box is the logo the topbar wears rather
+   * than a glyph that appears nowhere else in the app.
+   *
+   * Everything scales off --chs-mark-size, which the component sets from its
+   * `size` prop and a caller can override — see .auth-showcase-card__badge,
+   * whose disc is a viewport-height clamp the tile has to track.
+   */
+  .chs-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    /* A rounded square: one length drives both axes rather than letting the
+       text's line box decide the height. */
+    width: var(--chs-mark-size, 68px);
+    height: var(--chs-mark-size, 68px);
+    border-radius: calc(var(--chs-mark-size, 68px) * 0.22);
+    /* Flat, not the gradient .chs-logo declares: that one runs #e31b23 to
+       #e31b23, so it only ever painted one colour anyway. */
+    background-color: #e31b23;
+    /* .chs-logo's shadow stack in proportion — two drops plus an inset
+       highlight, so the tile reads as a solid object catching light. */
+    box-shadow:
+      0 calc(var(--chs-mark-size, 68px) * 0.03) calc(var(--chs-mark-size, 68px) * 0.12)
+        rgba(201, 64, 64, 0.3),
+      0 calc(var(--chs-mark-size, 68px) * 0.12) calc(var(--chs-mark-size, 68px) * 0.3)
+        calc(var(--chs-mark-size, 68px) * -0.12) rgba(201, 64, 64, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  }
+  .chs-mark__text {
+    display: block;
+    text-align: center;
+    color: #fff;
+    font-family: Arial, sans-serif;
+    font-weight: 800;
+    font-size: calc(var(--chs-mark-size, 68px) * 0.26);
+    line-height: 1.1;
+    letter-spacing: 0.5px;
   }
   .society-name-pill {
     padding: 10px 24px;
@@ -1074,14 +1187,26 @@
   .auth-showcase-frame {
     position: relative;
     display: grid;
+    /*
+     * One explicit `minmax(0, 1fr)` track below `lg`, where the halves stack.
+     *
+     * Without it the single column is auto-sized, and an auto track takes its
+     * MINIMUM from its content — so the form card's own width set the grid's
+     * width, the grid overflowed the phone, and Forgot Password and the button
+     * sat off the right edge. `minmax(0, …)` is what lets the track be narrower
+     * than what is inside it, so the card has to fit the screen instead.
+     */
+    grid-template-columns: minmax(0, 1fr);
     min-height: 100vh;
     background-color: #fff;
   }
   @media (min-width: 1024px) {
     .auth-showcase-frame {
       /* An even split, as in the reference — the showcase and the form column
-         each take half the viewport. */
-      grid-template-columns: 1fr 1fr;
+         each take half the viewport. `minmax(0, …)` on both for the same reason
+         the single-column case needs it: a bare `1fr` cannot go narrower than
+         its content, so a wide card would push its own column past half. */
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       /*
        * Exactly the viewport, not merely at least it: a sign-in screen that
        * scrolls on a laptop reads as a page that did not fit rather than as a
@@ -1099,19 +1224,22 @@
   }
 
   /*
-   * The sign-in screen's own shades. The app accent is red everywhere now, so
-   * these no longer override it — they only carry the values this screen wants:
-   * a brighter primary for the button and the headline's second line, and a
-   * deep one for the pressed and hovered states.
+   * The sign-in screen's shades are now the APP's shades — the whole product
+   * was recoloured onto this screen's palette rather than the other way round.
+   *
+   * These aliases stay because the .login-* and .auth-showcase-* rules below
+   * are written against them, and because they mark which values this screen
+   * originally set. They no longer override anything: each one forwards to the
+   * :root token, so there is a single place to change a colour.
    */
   .auth-showcase-page {
-    --login-accent: #e31b23;
-    --login-accent-deep: #b91c1c;
+    --login-accent: var(--accent);
+    --login-accent-deep: var(--accent-strong);
     /* The wash behind the mark's disc and the input glyph wells. */
-    --login-accent-tint: #fef2f2;
-    --login-ink: #1f2937;
-    --login-ink-muted: #6b7280;
-    --login-line: #e5e7eb;
+    --login-accent-tint: var(--accent-tint);
+    --login-ink: var(--ink);
+    --login-ink-muted: var(--ink-muted);
+    --login-line: var(--line);
   }
 
   /*
@@ -1238,6 +1366,11 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
+  }
+  /* Sized to the two lines of type beside it, so the tile and the lockup share
+     a cap height rather than the mark towering over the words. */
+  .auth-wordmark > .chs-mark {
+    --chs-mark-size: clamp(2.75rem, 4.5vw, 3.5rem);
   }
   .auth-wordmark__name {
     font-size: clamp(1.375rem, 2vw, 1.75rem);
@@ -1502,7 +1635,20 @@
      * do not support the `safe` keyword yet.
      */
     justify-content: safe center;
-    align-items: center;
+    /*
+     * `stretch`, not `center`.
+     *
+     * Centring on the cross axis sizes children to their CONTENT, and the
+     * card's max-width then caps a box that was already as wide as its widest
+     * field — so on a phone it overflowed to the right and took Forgot Password
+     * and the button off screen. Stretching makes the column's own width the
+     * starting point, so max-width is the only thing that can bind.
+     *
+     * The card is then centred by capping and centring THIS column's content
+     * box below, not by auto margins on the card — a horizontal auto margin
+     * would re-trigger shrink-to-fit and undo the whole thing.
+     */
+    align-items: stretch;
     min-width: 0;
     /*
      * The frame is pinned to the viewport, so a form taller than it — the
@@ -1511,8 +1657,23 @@
      */
     overflow-x: hidden;
     overflow-y: auto;
-    padding: clamp(1.75rem, 3vw, 3rem) clamp(1rem, 2.2vw, 2.25rem);
+    /*
+     * The horizontal padding is what centres the stretched card.
+     *
+     * `max()` of a floor and half the leftover width: below the card's cap the
+     * floor wins and the card fills the column minus a gutter; above it, the
+     * second term takes exactly half the surplus on each side, so the card
+     * lands centred at its 560px cap. Doing it this way rather than with auto
+     * margins on the card is deliberate — a horizontal auto margin makes a flex
+     * item shrink-to-fit, which is what let the card outgrow a phone.
+     */
+    padding-block: clamp(1.75rem, 3vw, 3rem);
+    padding-inline: max(clamp(1rem, 2.2vw, 2.25rem), (100% - 560px) / 2);
     background-color: #f8f9fa;
+  }
+  /* The registration card is wider, so its column has to surrender more. */
+  .auth-showcase-form:has(.auth-showcase-card--wide) {
+    padding-inline: max(clamp(1rem, 2.2vw, 2.25rem), (100% - 620px) / 2);
   }
 
   /*
@@ -1543,35 +1704,46 @@
     position: relative;
     z-index: 2;
     /*
-     * `align-self: stretch` rather than `width: 100%`.
+     * `align-self: stretch`, NOT `width: 100%`.
      *
-     * The column centres its children, which makes them size to their CONTENT —
-     * and a percentage width then resolves against that content box, not the
-     * column. The card ended up as wide as its widest field plus padding and
-     * ran off a phone's right edge, taking Forgot Password and both buttons
-     * with it. Stretching to the column and capping with max-width is what
-     * makes the cap the binding constraint at every width.
+     * The column sets `align-items: center`, which sizes its children to their
+     * CONTENT — and a percentage width then resolves against that content box
+     * rather than against the column. On a phone the card grew to its widest
+     * field plus padding and ran off the right edge, taking Forgot Password and
+     * the button with it.
+     *
+     * Stretching to the column instead makes max-width the only thing that can
+     * bind, at every viewport. The auto margins below still centre it: on the
+     * cross axis `stretch` yields to a definite size, and max-width supplies
+     * one as soon as the column is wider than 560px.
      */
-    /*
-     * `width: 100%` with the column's `align-items: center`, rather than
-     * `align-self: stretch` — stretch fights the auto margins below, which are
-     * what keep a too-tall card reachable at the top.
-     */
-    width: 100%;
+    align-self: stretch;
     /* Wide, as in the reference — the card fills most of its column rather than
        sitting as a narrow strip in the middle of it, which is what makes the
        form read as the page's subject instead of as a widget on it. */
     max-width: 560px;
     min-width: 0;
     /*
-     * `auto` on all four sides, not just the horizontal pair. Auto margins on a
-     * flex item centre it while it fits and collapse to zero when it does not,
-     * which is the same behaviour `justify-content: safe center` gives — and
-     * this works in the browsers that do not support the `safe` keyword yet.
-     * Without it the tall registration card overflows above the column's top
-     * edge, where scrolling cannot reach it.
+     * VERTICAL auto margins only.
+     *
+     * They do the job `justify-content: safe center` does — centre the card
+     * while it fits, collapse to zero when it is taller than the column so its
+     * top stays reachable — and they work in browsers without the `safe`
+     * keyword. That is why they are here.
+     *
+     * `margin: auto` on all four sides looked equivalent and was not: a
+     * horizontal auto margin makes a flex item shrink-to-fit, which cancels
+     * `align-self: stretch` and hands the width back to the content. That is
+     * what kept the card wider than a phone no matter what max-width said.
      */
-    margin: auto;
+    margin-block: auto;
+    /*
+     * NOT `auto`. A horizontal auto margin makes a flex item shrink-to-fit,
+     * which cancels `align-self: stretch` and hands the width back to the
+     * content — the card then ignores max-width and grows past a phone.
+     * Centring is done by the column's own `justify-items` instead.
+     */
+    margin-inline: 0;
     /* Generous, as in the reference: the card is the only object on this half
        of the page, so it can afford the room and reads as considered rather
        than as a form squeezed into a box. */
@@ -1646,18 +1818,29 @@
   /* Height-aware for the same reason the panel's headline is: the card is
      inside a viewport-pinned frame, and a fixed 7rem badge on a 768px laptop
      costs the room the buttons need. */
+  /*
+   * The badge is now only a centring slot, not a disc.
+   *
+   * It used to draw a pale round wash behind the mark, which suited the
+   * building glyph — a shape with no edge of its own. The CHS HUB tile has its
+   * own square silhouette and its own shadow, so the circle behind it read as a
+   * second, mismatched object rather than as a backing.
+   *
+   * Height-aware sizing stays, via the mark's own variable: the card sits in a
+   * viewport-pinned frame, and a fixed tile on a 768px laptop costs the room
+   * the buttons need.
+   */
   .auth-showcase-card__badge {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: clamp(5rem, 11vh, 8.5rem);
-    height: clamp(5rem, 11vh, 8.5rem);
-    border-radius: 50%;
-    background: radial-gradient(circle at 50% 42%, var(--login-accent-tint) 0%, #fdf4f4 72%, #ffffff 100%);
   }
   .auth-showcase-card__badge > svg {
-    width: 62%;
-    height: 62%;
+    width: clamp(5rem, 11vh, 8.5rem);
+    height: clamp(5rem, 11vh, 8.5rem);
+  }
+  .auth-showcase-card__badge > .chs-mark {
+    --chs-mark-size: clamp(3.75rem, 8vh, 6rem);
   }
   .auth-showcase-title {
     margin-top: clamp(0.75rem, 1.8vh, 1.5rem);
@@ -1824,11 +2007,11 @@
    */
   .login-field--invalid {
     background-color: #fffafa;
-    border-color: #dc7070;
+    border-color: var(--danger);
   }
   .login-field--invalid .login-field__icon {
-    background: #fbdada;
-    color: #a4161a;
+    background: #fee2e2;
+    color: var(--invalid);
   }
   /* Focus still wins: once you are answering the complaint, the box should
      look like the one you are typing in, not like the one that failed. */
@@ -1847,7 +2030,7 @@
     line-height: 1.4;
   }
   .login-field__error {
-    color: #c0392b;
+    color: var(--danger);
   }
   .login-field__hint {
     color: #8b94a5;
@@ -2010,7 +2193,7 @@
     transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
   }
   .login-alt-action:hover {
-    background-color: #fdf1f1;
+    background-color: #fef2f2;
     box-shadow: 0 6px 14px -8px rgba(200, 31, 31, 0.5);
   }
   .login-alt-action:active {

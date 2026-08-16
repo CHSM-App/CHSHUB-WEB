@@ -200,7 +200,7 @@ export default function ProfileDialog({ open, onClose }) {
               backgroundImage:
                 'radial-gradient(circle at 18% 120%, rgba(255,255,255,0.30), transparent 45%),' +
                 'radial-gradient(circle at 82% -20%, rgba(255,255,255,0.22), transparent 50%),' +
-                'linear-gradient(120deg, #5c1414 0%, #a82a2a 55%, #e56b6b 100%)',
+                'linear-gradient(120deg, #1f2937 0%, #b91c1c 55%, #e56b6b 100%)',
             }}
           >
             <span
@@ -228,7 +228,7 @@ export default function ProfileDialog({ open, onClose }) {
               ) : (
                 <span
                   className="flex h-full w-full items-center justify-center text-4xl font-bold text-white"
-                  style={{ background: 'linear-gradient(135deg, #a82a2a, #e56b6b)' }}
+                  style={{ background: 'linear-gradient(135deg, #b91c1c, #e56b6b)' }}
                 >
                   {initial}
                 </span>
@@ -243,7 +243,7 @@ export default function ProfileDialog({ open, onClose }) {
                   bonus rather than the only hint that this is clickable. */}
               <span
                 className="absolute bottom-1 right-1 flex h-7 w-7 items-center justify-center rounded-full text-xs text-white shadow-md"
-                style={{ background: '#a82a2a', border: '2px solid #fff' }}
+                style={{ background: '#b91c1c', border: '2px solid #fff' }}
                 aria-hidden="true"
               >
                 ✎
@@ -252,14 +252,14 @@ export default function ProfileDialog({ open, onClose }) {
             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onPickPhoto} />
 
             <div className="min-w-0 pb-1">
-              <p className="truncate text-xl font-bold" style={{ color: '#5c1414' }}>
+              <p className="truncate text-xl font-bold" style={{ color: '#1f2937' }}>
                 {[form.firstName, form.lastName].filter(Boolean).join(' ') || user?.name}
               </p>
               <div className="mt-1.5 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
                 {role ? (
                   <span
                     className="rounded-full px-3 py-1 text-xs font-semibold"
-                    style={{ background: '#fbeaea', color: '#a82a2a' }}
+                    style={{ background: '#fbeaea', color: '#b91c1c' }}
                   >
                     {role}
                   </span>
@@ -291,7 +291,7 @@ export default function ProfileDialog({ open, onClose }) {
                 👤
               </span>
               <div>
-                <h3 className="text-sm font-semibold" style={{ color: '#5c1414' }}>
+                <h3 className="text-sm font-semibold" style={{ color: '#1f2937' }}>
                   Account Settings
                 </h3>
                 <p className="text-sm text-slate-500">Here you can change your account information</p>
@@ -364,7 +364,7 @@ export default function ProfileDialog({ open, onClose }) {
                 🔒
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold" style={{ color: '#5c1414' }}>
+                <span className="block text-sm font-semibold" style={{ color: '#1f2937' }}>
                   Change Password
                 </span>
                 <span className="block text-xs text-slate-500">

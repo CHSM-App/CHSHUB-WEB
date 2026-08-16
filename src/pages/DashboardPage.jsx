@@ -87,8 +87,14 @@ function HeadlineTile({ label, value, icon, hint }) {
       className="stat-tile stat-tile-compact flex h-full flex-col justify-between gap-2"
       style={{ '--tile-grad': g.grad }}
     >
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      {/* `min-w-0` on the row and the label both: a flex item's automatic
+          minimum is its content, so without it a long uppercase label cannot
+          shrink and pushes the tile wider than its grid cell. At browser zoom
+          that is what clipped the glyph plate off the right-hand edge. */}
+      <div className="flex min-w-0 items-start justify-between gap-2">
+        <p className="min-w-0 text-[11px] font-semibold uppercase leading-tight tracking-wide text-slate-500">
+          {label}
+        </p>
         {/*
           The tile is white now, so the glyph plate is what carries the tile's
           colour: it is filled with the same --tile-grad the tile used to be
@@ -135,7 +141,7 @@ function HeadlineTile({ label, value, icon, hint }) {
  * contrast tone now — it stays distinct from both the accent and the green.
  */
 const CHART_TONES = {
-  brand: ['#e58a8a', '#c94040', 'rgba(201, 64, 64,0.12)'],
+  brand: ['#e58a8a', '#e31b23', 'rgba(201, 64, 64,0.12)'],
   green: ['#4ee0ae', '#1cc88a', 'rgba(28,200,138,0.12)'],
   amber: ['#ffd071', '#e8a021', 'rgba(232,160,33,0.12)'],
 };
@@ -833,7 +839,7 @@ function VillageHero({ name, collected, outstanding, houses, staff }) {
       style={{
         // Lighter and bluer than the sign-in panel's near-black start: at that
         // depth the village name sat dark-on-dark and barely read.
-        background: 'linear-gradient(120deg, #7d1a1a 0%, #c94040 55%, #e06060 100%)',
+        background: 'linear-gradient(120deg, #7d1a1a 0%, #e31b23 55%, #e06060 100%)',
         /* Coloured fill, so the tinted drop + lit rim the stat tiles use — the
            shared pair's white light-shadow would halo against this red. */
         boxShadow:
@@ -945,7 +951,7 @@ function VillageTrend({ trend }) {
                 height: `${Math.max(2, (m.collected / peak) * 100)}%`,
                 background:
                   m.collected > 0
-                    ? 'linear-gradient(180deg, #e06a6a 0%, #c94040 100%)'
+                    ? 'linear-gradient(180deg, #e31b23 0%, #e31b23 100%)'
                     : '#eef2f9',
               }}
               title={`${m.label}: ₹${money(m.collected)} from ${m.receipts} receipt(s)`}
@@ -1246,7 +1252,7 @@ function VillageDashboard() {
                   <span
                     className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] text-white transition-transform group-hover:scale-105"
                     style={{
-                      background: 'linear-gradient(135deg, #e06a6a, #c94040)',
+                      background: 'linear-gradient(135deg, #e31b23, #e31b23)',
                       boxShadow: '0 4px 12px -2px rgba(201, 64, 64,0.45)',
                     }}
                     aria-hidden="true"
@@ -1598,7 +1604,7 @@ export default function DashboardPage() {
   const trackerSeries = [
     { key: 'due', label: 'Due', color: '#ffc107', data: expenseChart },
     { key: 'collection', label: 'Collection', color: '#28a745', data: expenseChart },
-    { key: 'total', label: 'Total', color: '#c94040', data: expenseChart },
+    { key: 'total', label: 'Total', color: '#e31b23', data: expenseChart },
   ].map((s) => ({ ...s, valueKey: { due: 'Due', collection: 'Collection', total: 'expense' }[s.key] }));
 
   return (
@@ -1733,7 +1739,7 @@ export default function DashboardPage() {
                   </div>
                   <Link
                     to="/billing/pdc/clearing"
-                    className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-[#a82a2a] hover:gap-2 hover:underline"
+                    className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-[#b91c1c] hover:gap-2 hover:underline"
                     style={{ transition: 'gap 0.15s ease' }}
                   >
                     Open <span aria-hidden="true">→</span>
@@ -1788,7 +1794,7 @@ export default function DashboardPage() {
                   </div>
                   <Link
                     to="/community/helpdesk"
-                    className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-[#a82a2a] hover:gap-2 hover:underline"
+                    className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-[#b91c1c] hover:gap-2 hover:underline"
                     style={{ transition: 'gap 0.15s ease' }}
                   >
                     Open <span aria-hidden="true">→</span>
@@ -1810,7 +1816,7 @@ export default function DashboardPage() {
                       // GridView's inline Eval did: 0.00 => blue tools, else green tick.
                       const paid = Number(a.paid_amount || 0);
                       const isPayment = paid !== 0;
-                      const tone = isPayment ? '#1cc88a' : '#c94040';
+                      const tone = isPayment ? '#1cc88a' : '#e31b23';
                       return (
                         <li
                           key={i}
@@ -1845,7 +1851,7 @@ export default function DashboardPage() {
                 )}
                 <Link
                   to="/reports/activity"
-                  className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-[#a82a2a] hover:gap-2 hover:underline"
+                  className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-[#b91c1c] hover:gap-2 hover:underline"
                   style={{ transition: 'gap 0.15s ease' }}
                 >
                   See All <span aria-hidden="true">→</span>
@@ -1891,7 +1897,7 @@ export default function DashboardPage() {
                               role="menuitem"
                               className="block w-full px-4 py-2 text-left text-sm hover:bg-slate-50"
                               style={{
-                                color: period === p.id ? '#a82a2a' : '#5c1414',
+                                color: period === p.id ? '#b91c1c' : '#1f2937',
                                 fontWeight: period === p.id ? 600 : 400,
                               }}
                               onClick={() => {
@@ -1911,7 +1917,7 @@ export default function DashboardPage() {
                 <DonutChart
                   centerLabel="Total"
                   segments={[
-                    { label: 'Collection', value: collection, color: '#c94040' },
+                    { label: 'Collection', value: collection, color: '#e31b23' },
                     { label: 'Due', value: due, color: '#f6c23e' },
                   ]}
                 />
@@ -1951,7 +1957,7 @@ export default function DashboardPage() {
               centerLabel="Billed"
               segments={[
                 { label: 'Collected', value: collection, color: '#1cc88a' },
-                { label: 'Outstanding', value: due, color: '#e74a3b' },
+                { label: 'Outstanding', value: due, color: '#991b1b' },
               ]}
             />
           </Panel>

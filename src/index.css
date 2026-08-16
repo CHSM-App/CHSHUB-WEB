@@ -1823,13 +1823,6 @@
     line-height: 1.5;
     color: var(--login-ink-muted);
   }
-  .auth-showcase-feature__chevron {
-    display: flex;
-    flex: none;
-    align-items: center;
-    color: #9aa3b1;
-  }
-
   /*
    * The red proof strip closing off the foot of the panel. It is a flex row of
    * three, and it wraps rather than compressing — three points squeezed into a

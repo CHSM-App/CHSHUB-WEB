@@ -91,8 +91,17 @@ function HeadlineTile({ label, value, icon, hint }) {
           minimum is its content, so without it a long uppercase label cannot
           shrink and pushes the tile wider than its grid cell. At browser zoom
           that is what clipped the glyph plate off the right-hand edge. */}
-      <div className="flex min-w-0 items-start justify-between gap-2">
-        <p className="min-w-0 text-[11px] font-semibold uppercase leading-tight tracking-wide text-slate-500">
+      <div className="stat-tile-head flex min-w-0 items-start justify-between gap-2">
+        {/* 12px, not 11: this names the headline figure beside it — "Due
+            Payments", "Total Members" — and it is uppercase and tracked, which
+            costs legibility at small sizes rather than buying it. 12px is the
+            floor for UI text that has to be read rather than glanced at. */}
+        {/* No `text-xs`/`tracking-wide` here: the size is a container query in
+            index.css (`.stat-tile-label`), and a Tailwind utility sits in the
+            `utilities` layer, which outranks `components` — so a utility here
+            would silently win over the query and the label would keep wrapping
+            in a narrow tile. The class owns both properties instead. */}
+        <p className="stat-tile-label min-w-0 font-semibold uppercase leading-tight text-slate-500">
           {label}
         </p>
         {/*
@@ -101,7 +110,12 @@ function HeadlineTile({ label, value, icon, hint }) {
           washed with, and the glyph on it stays white.
         */}
         <span
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+          /* stat-tile-glyph: the plate shrinks to 28px in a narrow tile — see
+             index.css. At 36px it left the label 58px in a 140px tile, which
+             is less than "DEFAULTERS" needs, so the label wrapped into the
+             plate. The glyph is decoration; the label naming the figure is
+             not, so the plate is what gives way. */
+          className="stat-tile-glyph flex shrink-0 items-center justify-center"
           style={{
             background: g.grad,
             boxShadow: '0 3px 8px -2px rgba(17,24,39,0.28), inset 0 1px 0 rgba(255,255,255,0.3)',
@@ -412,20 +426,25 @@ function DonutChart({ segments, centerLabel = 'Total' }) {
 
   return (
     /*
-     * Stacked on a phone, side by side once there is room.
+     * Stacked or side by side depending on THIS PANEL's width, not the
+     * viewport's — see `.donut-chart` in index.css.
      *
-     * This was a single `flex-wrap` row, which never actually wrapped: the
-     * legend had `flex-1`, so instead of dropping below the 144px donut it
-     * shrank to whatever was left — about 120px inside the dashboard's narrow
-     * column — and the amounts were clipped mid-figure ("₹23…").
+     * It used to switch on `sm:` (a 640px VIEWPORT). That is the wrong
+     * measurement: this chart renders inside the dashboard's right-hand `1fr`
+     * column, which is about 227px wide on a 1024px screen and never grows
+     * past ~525px. So `sm:flex-row` was always on, the 144px donut and a 24px
+     * gap took 168px of a 185px row, and the legend was left with 17px — the
+     * labels collapsed to nothing and "₹235,291" spilled 30px past the panel's
+     * edge.
      *
-     * A wrap only happens once an item cannot shrink any further, so the fix
-     * is to stop asking it to shrink: the two stack below `sm`, and the legend
-     * takes the full width of the card there.
+     * A container query asks the question that actually matters — "is there
+     * room in this box for two columns?" — so the same component lays out
+     * correctly whether it is dropped in a narrow sidebar panel or a full-width
+     * card, without either one having to know about the other.
      */
-    <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center sm:gap-6">
-      <div className="relative shrink-0">
-        <svg viewBox="0 0 42 42" className="h-32 w-32 -rotate-90 sm:h-36 sm:w-36" role="img" aria-label="Split chart">
+    <div className="donut-chart">
+      <div className="donut-chart__dial relative shrink-0">
+        <svg viewBox="0 0 42 42" className="h-32 w-32 -rotate-90" role="img" aria-label="Split chart">
           <circle cx="21" cy="21" r={R} fill="none" stroke="#eef1f7" strokeWidth="5" />
           {segments.map((s, i) => {
             const pct = (Number(s.value || 0) / total) * 100;
@@ -459,7 +478,7 @@ function DonutChart({ segments, centerLabel = 'Total' }) {
         </div>
       </div>
 
-      <ul className="w-full min-w-0 space-y-3 sm:flex-1">
+      <ul className="donut-chart__legend w-full min-w-0 space-y-3">
         {segments.map((s) => {
           const pct = Math.round((Number(s.value || 0) / total) * 100);
           return (
@@ -1777,7 +1796,9 @@ export default function DashboardPage() {
                       className="stat-chip"
                       style={{ '--chip-bg': '#fef3f2', '--chip-border': 'rgba(231,74,59,0.15)' }}
                     >
-                      <p className="text-xs font-medium text-slate-500">Open Ticket</p>
+                      {/* slate-600, not 500: on the chip's tint these labels
+                          measured 4.38:1, just under the 4.5:1 floor. */}
+                      <p className="text-xs font-medium text-slate-600">Open Ticket</p>
                       <p className="mt-1 text-2xl font-bold" style={{ color: 'var(--danger)' }}>
                         {data?.tickets?.opened ?? 0}
                       </p>
@@ -1786,7 +1807,7 @@ export default function DashboardPage() {
                       className="stat-chip"
                       style={{ '--chip-bg': '#effaf5', '--chip-border': 'rgba(28,200,138,0.18)' }}
                     >
-                      <p className="text-xs font-medium text-slate-500">Resolve Tickets</p>
+                      <p className="text-xs font-medium text-slate-600">Resolve Tickets</p>
                       <p className="mt-1 text-2xl font-bold" style={{ color: 'var(--success)' }}>
                         {data?.tickets?.resolved ?? 0}
                       </p>
@@ -1865,7 +1886,10 @@ export default function DashboardPage() {
                   <div className="relative">
                     <button
                       type="button"
-                      className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-slate-100"
+                      /* min-h-[36px] so the period switcher is reachable on a
+                         tablet: at py-1.5 it renders 28px, and it is the only
+                         control on this panel. */
+                      className="flex min-h-[36px] items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors hover:bg-slate-100"
                       style={{ background: '#f4f6fa', color: 'var(--ink)' }}
                       aria-label="Change period"
                       aria-expanded={periodOpen}
@@ -1935,9 +1959,15 @@ export default function DashboardPage() {
                     <Link
                       key={m.label}
                       to={m.to}
-                      className="rounded-xl px-2 py-3 transition-colors hover:bg-slate-50"
+                      className="rounded-xl px-1 py-3 transition-colors hover:bg-slate-50"
                     >
-                      <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{m.label}</dt>
+                      {/* slate-500 for contrast (slate-400 measured 2.56:1),
+                          and the SIZE lives in `.summary-label` in index.css
+                          rather than on a `text-xs` utility — three of these
+                          share a narrow panel, so the label has to be able to
+                          shrink with its column, and a utility would outrank
+                          the container query that does it. */}
+                      <dt className="summary-label font-medium uppercase text-slate-500">{m.label}</dt>
                       <dd className="mt-1 text-xl font-bold" style={{ color: 'var(--ink)' }}>
                         {m.value ?? '—'}
                       </dd>

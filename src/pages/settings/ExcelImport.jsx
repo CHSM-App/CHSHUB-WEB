@@ -400,7 +400,18 @@ export default function ExcelImport({ onDone, defaultType = 'building' }) {
 
   return (
     <div className="space-y-4">
+      {/*
+        Capped rather than filling the dialog.
+
+        A `.field-input` is `w-full`, so this select stretched to the whole
+        672px dialog for four options whose longest is "Society Member". A
+        control far wider than anything it can contain reads as a layout
+        mistake, and the native dropdown a browser opens is sized from the
+        control — so an over-wide select also opens an over-wide list. Capping
+        it fixes both. `max-w-full` keeps it inside a phone.
+      */}
       <SelectField
+        className="max-w-xs"
         label="Import type"
         name="importType"
         placeholder=""

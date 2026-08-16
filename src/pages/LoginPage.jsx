@@ -36,22 +36,17 @@ export default function LoginPage() {
   }
 
   /*
-   * Both boxes are required, and the first accepts either a username or a
-   * 10-digit mobile number — so an all-digit entry is checked as a number and
-   * anything else is checked as a username. Validating a digits-only string
-   * against the username rule would reject a perfectly good phone number, and
-   * skipping the check entirely lets a 4-digit typo reach the API.
+   * Both boxes are required, and that is the whole of it. A username is
+   * whatever the account was created with — an email, a name, a contact
+   * number — so the form holds no opinion about its shape; only the server
+   * knows which ones exist.
    */
   const validate = () => {
     const next = {};
     const id = username.trim();
 
     if (!id) {
-      next.username = 'Enter your username or mobile number.';
-    } else if (/^\d+$/.test(id)) {
-      if (id.length !== 10) next.username = 'A mobile number must be 10 digits.';
-    } else if (id.length < 3) {
-      next.username = 'A username must be at least 3 characters.';
+      next.username = 'Enter your username.';
     }
 
     if (!password) next.password = 'Enter your password.';
@@ -114,11 +109,11 @@ export default function LoginPage() {
           rhythm is what pushes the buttons past the fold. */}
       <form onSubmit={onSubmit} className="login-form" noValidate>
         <ShowcaseField
-          label="Username / Mobile Number"
+          label="Username"
           icon={AUTH_ICONS.user}
           name="username"
           autoComplete="username"
-          placeholder="Enter username or mobile number"
+          placeholder="Enter username"
           value={username}
           onChange={(e) => {
             setUsername(e.target.value);

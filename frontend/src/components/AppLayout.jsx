@@ -22,7 +22,6 @@ const NAV = [
       {
         label: 'Property Master',
         icon: 'building',
-        heading: 'Properties:',
         items: [
           { to: '/settings/society', label: 'Society Master' },
           { to: '/masters/buildings', label: 'Buildings' },
@@ -37,7 +36,6 @@ const NAV = [
       {
         label: 'People & Staff Master',
         icon: 'users',
-        heading: 'Masters:',
         items: [
           { to: '/masters/members', label: 'Committee Member Master' },
           { to: '/masters/owners', label: 'Owner Master' },
@@ -48,7 +46,6 @@ const NAV = [
       {
         label: 'Service & facility',
         icon: 'tools',
-        heading: 'Services:',
         items: [
           { to: '/masters/parking-allotment', label: 'Parking Allotment' },
           { to: '/community/facility-bookings', label: 'Facility Booking' },
@@ -61,7 +58,6 @@ const NAV = [
       {
         label: 'Society Management',
         icon: 'city',
-        heading: 'Management:',
         items: [
           { to: '/community/documents', label: 'Upload Documents' },
           { to: '/accounts/shop-maintenance', label: 'Shop Maintenance' },
@@ -72,7 +68,6 @@ const NAV = [
       {
         label: 'vendor management',
         icon: 'bag',
-        heading: 'Management:',
         items: [
           { to: '/accounts/vendors', label: 'Add Vendor' },
           { to: '/accounts/vendor-bills', label: 'Vendor Bill/Approvals' },
@@ -138,7 +133,6 @@ const NAV = [
       {
         label: 'Village',
         icon: 'file',
-        heading: 'Village Management',
         /*
          * Ordered by the work, not by when each screen was built: a house is
          * recorded, its charges are set, the period's bills are raised, and
@@ -748,22 +742,6 @@ export default function AppLayout() {
 
                       {isOpen ? (
                         <div className="collapse-inner">
-                          {group.heading ? (
-                            <h6
-                              /* 11px, not 10: this names the group of links
-                                 under it, and uppercase tracked type loses
-                                 legibility faster than lowercase as it
-                                 shrinks — 10px put it under what a menu label
-                                 can afford to be. */
-                              className="mb-1 mt-1 px-2.5 text-[11px] font-bold uppercase tracking-wide"
-                              /* #9aa3b2 measured 2.54:1 on white — well under
-                                 the 4.5:1 needed. Same grey family, dark
-                                 enough to read. */
-                              style={{ color: '#6b7280' }}
-                            >
-                              {group.heading}
-                            </h6>
-                          ) : null}
                           {group.items.map((item) => (
                             <NavLink
                               key={`${group.label}-${item.to}`}

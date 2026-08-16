@@ -153,13 +153,6 @@ export default function AuthShowcaseLayout({
                     <span className="auth-showcase-feature__title">{item.title}</span>
                     <span className="auth-showcase-feature__body">{item.body}</span>
                   </span>
-                  {/* Decorative: these cards are not links, and the chevron is
-                      the reference's shape rather than an affordance. */}
-                  <span className="auth-showcase-feature__chevron" aria-hidden="true">
-                    <Glyph size={16}>
-                      <path d="m9 6 6 6-6 6" />
-                    </Glyph>
-                  </span>
                 </li>
               ))}
             </ul>

@@ -59,13 +59,18 @@ describe('LoginPage', () => {
 
     await user.click(submit);
 
-    expect(await screen.findByText(/enter your username or mobile number/i)).toBeInTheDocument();
+    expect(await screen.findByText(/enter your username/i)).toBeInTheDocument();
     expect(screen.getByText(/enter your password/i)).toBeInTheDocument();
     // Nothing was sent: a rejected submit must not reach the API.
     expect(readSession()).toBeNull();
   });
 
-  it('rejects a mobile number that is not ten digits', async () => {
+  /*
+   * A username is whatever the account was created with, so the form holds no
+   * opinion about its shape — a short all-digits one goes to the server like
+   * any other and comes back rejected on its own merits, not on a format rule.
+   */
+  it('sends an all-digit username to the server instead of rejecting it', async () => {
     const user = userEvent.setup();
     renderLogin();
 
@@ -73,8 +78,8 @@ describe('LoginPage', () => {
     await user.type(screen.getByLabelText(/^password/i), 'correct');
     await user.click(screen.getByRole('button', { name: /^login$/i }));
 
-    expect(await screen.findByText(/must be 10 digits/i)).toBeInTheDocument();
-    expect(readSession()).toBeNull();
+    expect(await screen.findByRole('alert')).toHaveTextContent(/invalid username or password/i);
+    expect(screen.queryByText(/must be 10 digits/i)).not.toBeInTheDocument();
   });
 
   it('clears a field complaint as soon as the box is edited', async () => {

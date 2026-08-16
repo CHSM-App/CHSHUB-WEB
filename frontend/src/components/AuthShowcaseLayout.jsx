@@ -68,19 +68,19 @@ const CAPABILITIES = [
  */
 const TRUST_POINTS = [
   {
-    title: 'Secure',
-    body: 'Your data is protected with advanced security',
-    icon: <path d="M12 3 5 6v5c0 4.4 2.9 8.4 7 9.5 4.1-1.1 7-5.1 7-9.5V6l-7-3ZM12 9v3M12 15h.01" />,
+    title: 'Instant Receipts',
+    body: 'Record a payment and print the receipt on the spot',
+    icon: <path d="M6 3h12a1 1 0 0 1 1 1v17l-3-2-3 2-3-2-3 2V4a1 1 0 0 1 1-1ZM9 8h6M9 12h6" />,
   },
   {
-    title: '24/7 Support',
-    body: 'We are here to help you anytime',
-    icon: <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 7v5l3.5 2" />,
+    title: 'Dues on Track',
+    body: 'Defaulters and post-dated cheques never slip through',
+    icon: <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 8v5M12 16h.01" />,
   },
   {
-    title: 'Cloud Based',
-    body: 'Access your society from anywhere',
-    icon: <path d="M7 18a4 4 0 0 1-.4-8A6 6 0 0 1 18 9.5a3.75 3.75 0 0 1-.5 8.5H7Z" />,
+    title: 'Start in Minutes',
+    body: 'Import your existing flats and owners from Excel',
+    icon: <path d="M12 3v12M8 11l4 4 4-4M4 19h16" />,
   },
 ];
 
@@ -215,12 +215,6 @@ export default function AuthShowcaseLayout({
           </div>
 
           <div className="auth-showcase-legal">
-            <p className="auth-showcase-legal__badge">
-              <Glyph size={15}>
-                <path d="M12 3 5 6v5c0 4.4 2.9 8.4 7 9.5 4.1-1.1 7-5.1 7-9.5V6l-7-3ZM9.5 12l1.8 1.8 3.4-3.4" />
-              </Glyph>
-              Trusted by 1000+ Societies
-            </p>
             <p className="auth-showcase-legal__copy">
               © {new Date().getFullYear()} Society Management System. All rights reserved.
             </p>

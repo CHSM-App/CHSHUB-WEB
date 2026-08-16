@@ -167,10 +167,13 @@ describe('PdcPage', () => {
     // Wait for the contact block, which is what carries wing_id.
     await screen.findByDisplayValue('asha@example.com');
 
-    await user.type(screen.getByLabelText(/cheque number/i), '9001');
-    await user.type(screen.getByLabelText(/^amount/i), '5000');
-    await user.type(screen.getByLabelText(/cheque date/i), '2026-09-01');
-    await user.click(screen.getByRole('button', { name: /^save$/i }));
+    // Scoped to the form: the grid behind it has a sortable "Cheque date"
+    // heading, so an unscoped label query matches the header too.
+    const form = within(screen.getByRole('dialog'));
+    await user.type(form.getByLabelText(/cheque number/i), '9001');
+    await user.type(form.getByLabelText(/^amount/i), '5000');
+    await user.type(form.getByLabelText(/cheque date/i), '2026-09-01');
+    await user.click(form.getByRole('button', { name: /^save$/i }));
 
     // wing_id is not asked for — it belongs to the owner, and a separate box
     // for it only invited a mismatch.

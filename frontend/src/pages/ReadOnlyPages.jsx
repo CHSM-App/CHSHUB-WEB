@@ -2,6 +2,8 @@ import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import * as M from '@/api/modules';
 import { EmptyState, ErrorNotice, Spinner } from '@/components/ui.jsx';
 import ExportToolbar from '@/components/ExportToolbar.jsx';
+import useSortedRows from '@/components/useSortedRows.js';
+import { SortableHead, SortControl } from '@/components/SortableHead.jsx';
 
 const money = (v) =>
   v == null || v === '' ? '—' : Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -49,11 +51,13 @@ function DataTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const rows = useMemo(() => {
+  const filtered = useMemo(() => {
     const term = deferred.trim().toLowerCase();
     if (!filterRow || !term) return allRows;
     return allRows.filter((r) => filterRow(r, term));
   }, [allRows, deferred, filterRow]);
+
+  const { sorted: rows, sort, toggleSort } = useSortedRows(filtered, columns);
 
   return (
     <section>
@@ -98,14 +102,16 @@ function DataTable({
               exportName={title.toLowerCase().replace(/\s+/g, '-')}
               exportTitle={title}
             />
+            {/* The table's headings are what sort on a wide screen; below `sm`
+                the stacked card view hides them, so the same sort is offered
+                as a control above the cards. */}
+            <SortControl columns={columns} sort={sort} onSort={toggleSort} className="px-4 pb-2" />
             <div className="overflow-x-auto">
             <table className="min-w-full stacked-table">
               <thead>
                 <tr>
                   {columns.map((c) => (
-                    <th key={c.key} className="table-head">
-                      {c.label}
-                    </th>
+                    <SortableHead key={c.key} column={c} sort={sort} onSort={toggleSort} />
                   ))}
                 </tr>
               </thead>

@@ -29,7 +29,7 @@ const NAV = [
           { to: '/masters/flats', label: 'Flat Master' },
           { to: '/masters/tenants', label: 'Rental Master' },
           { to: '/settings/charges', label: 'Maintenance Charges Master' },
-          { to: '/community/facilities', label: 'amenity Master' },
+          { to: '/community/facilities', label: 'Amenity Master' },
           { to: '/masters/parking-places', label: 'Parking Place Master' },
         ],
       },

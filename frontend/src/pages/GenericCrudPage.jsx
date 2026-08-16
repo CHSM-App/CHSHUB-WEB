@@ -18,6 +18,8 @@ import {
 import { FileUploadField } from '@/components/FormControls.jsx';
 import ExportToolbar from '@/components/ExportToolbar.jsx';
 import RichTextField from '@/components/RichTextField.jsx';
+import useSortedRows from '@/components/useSortedRows.js';
+import { SortableHead, SortControl } from '@/components/SortableHead.jsx';
 
 /**
  * One implementation behind most list/edit screens.
@@ -26,9 +28,13 @@ import RichTextField from '@/components/RichTextField.jsx';
  * soft delete — across dozens of masters. Rather than clone that markup, each
  * screen is described declaratively:
  *
- *   columns : [{ key, label, format?, exportValue?, printHidden? }]
+ *   columns : [{ key, label, format?, exportValue?, printHidden?, sortable?,
+ *               sortValue? }]
  *             format is (value, row, index); printHidden drops the column from
  *             the printed sheet, for one whose cell is only a control.
+ *             Headings sort on click; `sortable: false` opts a column out (a
+ *             serial number, or a cell that is only a button) and `sortValue`
+ *             gives the value to order by where it isn't the raw field.
  *   fields  : [{ name, label, type?, required?, options?, hint?, span?, showIf?,
  *               placeholder?, maxLength?, digits? }]
  *             maxLength stops the input at the column's width; digits admits
@@ -76,11 +82,13 @@ export default function GenericCrudPage({
   const { items, loading, error, saving, create, update, remove, refresh, setError } =
     useCrudResource(resource, { params, label: recordLabel });
 
-  const rows = useMemo(() => {
+  const filtered = useMemo(() => {
     const term = deferred.trim().toLowerCase();
     if (!filterRow || !term) return items;
     return items.filter((r) => filterRow(r, term));
   }, [items, deferred, filterRow]);
+
+  const { sorted: rows, sort, toggleSort } = useSortedRows(filtered, columns);
 
   const [lookups, setLookups] = useState({});
   const [editing, setEditing] = useState(null);
@@ -273,17 +281,16 @@ export default function GenericCrudPage({
               exportName={title.toLowerCase().replace(/\s+/g, '-')}
               exportTitle={title}
             />
+            {/* The table's headings are what sort on a wide screen; below `sm`
+                the stacked card view hides them, so the same sort is offered
+                as a control above the cards. */}
+            <SortControl columns={columns} sort={sort} onSort={toggleSort} className="px-4 pb-2" />
             <div className="overflow-x-auto">
             <table className="min-w-full stacked-table">
               <thead>
                 <tr>
                   {columns.map((c) => (
-                    <th
-                      key={c.key}
-                      className={`table-head${c.printHidden ? ' print:hidden' : ''}`}
-                    >
-                      {c.label}
-                    </th>
+                    <SortableHead key={c.key} column={c} sort={sort} onSort={toggleSort} />
                   ))}
                   {/* The Edit/Delete column: its buttons are already dropped in
                       print, which left an empty column ruled to the page edge. */}

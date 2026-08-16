@@ -125,6 +125,17 @@ export function AuthProvider({ children }) {
       user: session?.user ?? null,
       societyId: session?.user?.society_id ?? null,
       villageId: session?.user?.village_id ?? null,
+      /*
+       * Whether the tenant has been through its setup form.
+       *
+       * A named tenant is the test, and the name arrives with the sign-in
+       * response already — publicUser returns society_name / village_name — so
+       * the setup wizards can answer this without a second round trip, and
+       * without a window in which they render before the answer comes back.
+       */
+      tenantNamed: Boolean(
+        String(session?.user?.society_name ?? session?.user?.village_name ?? '').trim(),
+      ),
       isAuthenticated: Boolean(session?.accessToken),
       loading,
       login,

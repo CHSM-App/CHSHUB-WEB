@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { onboarding } from '@/api/onboarding';
 import { api } from '@/api/client';
 import { useAuth } from '@/auth/AuthContext.jsx';
 import { ErrorNotice, Field, FormErrorSummary } from '@/components/ui.jsx';
-import { AuthSplitLayout, AuthSubmit, Glyph } from '@/components/AuthLayout.jsx';
+import { AuthSubmit, Glyph } from '@/components/AuthLayout.jsx';
+import AuthShowcaseLayout from '@/components/AuthShowcaseLayout.jsx';
 import { useToast } from '@/components/Toast.jsx';
 import {
   countErrors,
@@ -39,7 +40,7 @@ const SETUP_FIELDS = [
 
 export default function VillageSetupPage() {
   const navigate = useNavigate();
-  const { villageId, refreshUser, logout } = useAuth();
+  const { villageId, tenantNamed, refreshUser, logout } = useAuth();
 
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -121,7 +122,20 @@ export default function VillageSetupPage() {
   /* new_village.aspx's btn_save_Click ended with Response.Redirect("login1.aspx"). */
   if (done) {
     return (
-      <AuthSplitLayout title="Village created" subtitle="Your village is set up and ready to use.">
+      <AuthShowcaseLayout
+        heading="Smart Management"
+        tagline={
+          <>
+            Stronger <span className="auth-showcase-heading__accent">Community</span>
+          </>
+        }
+        title={
+          <>
+            Village <span className="auth-showcase-title__accent">created</span>
+          </>
+        }
+        subtitle="Your village is set up and ready to use."
+      >
         <div
           className="flex items-start gap-3 rounded-lg border p-4"
           style={{ borderColor: '#bbf7d0', background: '#f0fdf4' }}
@@ -158,14 +172,39 @@ export default function VillageSetupPage() {
             Go to sign in
           </button>
         </div>
-      </AuthSplitLayout>
+      </AuthShowcaseLayout>
     );
   }
 
+  /*
+   * A village that has been named has been through this form, so it never sees
+   * it again: Back from the dashboard, a bookmark or a stale tab all land here
+   * otherwise, and the empty form would offer to overwrite a live village with
+   * blanks.
+   *
+   * `village_name` arrives with the sign-in response, so this is decided on the
+   * first render — no fetch, and no window in which the form paints and is then
+   * yanked away.
+   *
+   * Checked AFTER `done`: the account that just finished has a name by now too,
+   * and it still needs to see the success screen.
+   */
+  if (tenantNamed) return <Navigate to="/dashboard" replace />;
+
   return (
-    <AuthSplitLayout
+    <AuthShowcaseLayout
       wide
-      title="Set up your village"
+      heading="Smart Management"
+      tagline={
+        <>
+          Stronger <span className="auth-showcase-heading__accent">Community</span>
+        </>
+      }
+      title={
+        <>
+          Set up your <span className="auth-showcase-title__accent">Village</span>
+        </>
+      }
       subtitle="Tell us about the village this account manages."
     >
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
@@ -318,6 +357,6 @@ export default function VillageSetupPage() {
           Submit Registration
         </AuthSubmit>
       </form>
-    </AuthSplitLayout>
+    </AuthShowcaseLayout>
   );
 }

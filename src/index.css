@@ -63,30 +63,33 @@
   /*
    * Elevation ramp — resting, hover, floating.
    *
-   * Neumorphic: each level is a PAIR of shadows, a light one up-left and a dark
-   * one down-right, so a surface reads as extruded from the page rather than
-   * floating above it. The light member is pure white and the dark member is
-   * the page tint driven down (#d9dce1 family) — that pairing is what produces
-   * the soft moulded edge.
+   * Plain downward drop shadows. These were neumorphic: each level was a PAIR,
+   * a white glow up-left and a dark one down-right, so a surface read as
+   * moulded out of the page rather than floating above it.
    *
-   * Cards keep their white fill rather than matching the page, which is the one
-   * departure from textbook neumorphism: a same-colour surface has no edge but
-   * its shadow, and this app is dense with tables and forms that need a
-   * legible boundary. White-on-grey keeps the contrast and still moulds.
+   * That is gone deliberately. The moulded look only holds together when every
+   * surface uses it, and this app is dense with tables, dialogs and forms whose
+   * edges have to be unambiguous; the up-left white glow also does nothing on
+   * any surface that is not sitting on the page tint, which by now is most of
+   * them. A single soft drop reads the same everywhere.
+   *
+   * Two members per level, not one: a tight near-opaque shadow for the contact
+   * edge and a wider, softer one for the ambient falloff. One shadow alone
+   * either looks like a hard border or like a smudge.
    */
-  --shadow-sm: -3px -3px 8px rgba(255, 255, 255, 0.9), 3px 3px 10px rgba(174, 179, 189, 0.28);
-  --shadow-md: -5px -5px 12px rgba(255, 255, 255, 0.95), 6px 6px 16px rgba(174, 179, 189, 0.38);
-  --shadow-lg: -7px -7px 18px rgba(255, 255, 255, 1), 9px 9px 24px rgba(174, 179, 189, 0.45);
+  --shadow-sm: 0 1px 2px rgba(23, 31, 43, 0.06), 0 2px 6px rgba(23, 31, 43, 0.05);
+  --shadow-md: 0 2px 4px rgba(23, 31, 43, 0.06), 0 6px 16px -4px rgba(23, 31, 43, 0.1);
+  --shadow-lg: 0 4px 8px rgba(23, 31, 43, 0.06), 0 16px 32px -8px rgba(23, 31, 43, 0.14);
 
   /*
-   * Pressed / carved. The same pair turned inward, for surfaces that should
-   * read as recessed into the page: inputs at rest, buttons while held, the
-   * active nav row.
+   * Pressed. Only for the moment a control is held down — a real button does
+   * darken and sink under a finger, and that is a state change worth drawing.
+   *
+   * Inputs no longer use these: at rest they are flat white on a hairline, the
+   * same as the sign-in screen's boxes.
    */
-  --shadow-inset: inset 2px 2px 5px rgba(174, 179, 189, 0.4),
-    inset -2px -2px 5px rgba(255, 255, 255, 0.9);
-  --shadow-inset-deep: inset 3px 3px 7px rgba(174, 179, 189, 0.5),
-    inset -3px -3px 7px rgba(255, 255, 255, 0.95);
+  --shadow-inset: inset 0 2px 5px rgba(23, 31, 43, 0.16);
+  --shadow-inset-deep: inset 0 3px 7px rgba(23, 31, 43, 0.22);
 
   /*
    * Shell depth. The legacy app painted the page white and let the sidebar card
@@ -103,16 +106,18 @@
   --page-tint-a: #f3f4f6;
   --page-tint-b: #f9fafb;
   /*
-   * Hairlines go nearly invisible under neumorphism — the moulded edge is what
-   * separates a surface now, and a visible border on top of it reads as a
-   * drawn outline around a soft shape. Kept non-zero rather than removed so
-   * the boundary survives in forced-colours / high-contrast mode, where box
-   * shadows are dropped entirely.
+   * A real hairline, at Tailwind's grey-200.
+   *
+   * It used to be rgba(17,24,39,0.04) — all but invisible — because under
+   * neumorphism the moulded edge did the separating and a drawn border on top
+   * of a soft shape looked like an outline around it. With the carve gone that
+   * reasoning goes with it: the border IS the edge now, and a 4%-alpha line
+   * leaves every card and table looking like it has no boundary at all.
    */
-  --shell-line: rgba(17, 24, 39, 0.04);
-  --shell-shadow: -4px -4px 10px rgba(255, 255, 255, 0.9), 5px 5px 14px rgba(174, 179, 189, 0.3);
-  --shell-shadow-lifted: -6px -6px 16px rgba(255, 255, 255, 0.95),
-    8px 8px 22px rgba(174, 179, 189, 0.42);
+  --shell-line: #e5e7eb;
+  --shell-shadow: 0 1px 2px rgba(23, 31, 43, 0.06), 0 4px 12px -2px rgba(23, 31, 43, 0.08);
+  --shell-shadow-lifted: 0 2px 4px rgba(23, 31, 43, 0.06),
+    0 12px 28px -6px rgba(23, 31, 43, 0.14);
 }
 
 @layer base {
@@ -165,10 +170,10 @@
   }
 
   /*
-   * Bootstrap .btn geometry, rounded up for neumorphism: the 0.25rem corner is
-   * too tight for a soft shadow to wrap, so it goes to 10px. Transitions cover
-   * box-shadow and transform as well as colour now, because the press is an
-   * elevation change rather than only a tint change.
+   * Bootstrap .btn geometry with a 10px corner rather than its 0.25rem, which
+   * matches the inputs and cards around it. Transitions cover box-shadow and
+   * transform as well as colour, because the press is an elevation change
+   * rather than only a tint change.
    */
   .btn {
     /* no-underline because several of these are <a>/<Link> rather than
@@ -186,9 +191,8 @@
       box-shadow 0.15s ease, transform 0.1s ease;
   }
   /*
-   * The press. Every button sinks toward the page and its extrusion inverts —
-   * the one interaction that makes a neumorphic surface feel physical. Applied
-   * on .btn so all four variants share it.
+   * The press. Every button travels a pixel toward the page, which is the cue
+   * that it took the click. Applied on .btn so all four variants share it.
    */
   .btn:active:not(:disabled) {
     transform: translateY(1px);
@@ -268,43 +272,53 @@
   }
 
   /* Bootstrap .form-label / .form-control. */
+  /* Same size, weight and colour as .login-label, so a labelled box reads the
+     same whether it is on the sign-in card or a settings page. */
   .field-label {
-    @apply mb-1 block;
-    font-size: 0.875rem;
+    @apply block;
+    margin-bottom: 0.5rem;
+    font-size: 0.8125rem;
     font-weight: 600;
-    color: #5c1414;
+    color: #1f2937;
   }
   /*
-   * Inputs read as carved INTO the page rather than drawn on it: a soft inset
-   * pair, a near-flat fill and only a whisper of a border.
+   * Every input in the app, drawn exactly like the sign-in screen's boxes: a
+   * white fill on a hairline border, no carve.
    *
-   * The focus state deliberately keeps a solid accent ring on top of the inset.
-   * A purely neumorphic focus — deepening the carve — is far too subtle to see,
-   * and focus is the one state that must be unmissable for keyboard users. So
-   * the resting state is the soft treatment and the focus state is explicit.
+   * This used to be neumorphic — an inset shadow pair on a grey fill, so the
+   * box read as pressed INTO the page. Two problems with that here. The carve
+   * costs contrast at the very edge that tells you where the control is, and it
+   * only ever half-worked: the sign-in screen already drew its boxes flat, so
+   * the same product had two different-looking inputs depending which screen
+   * you were on. Flat everywhere is the one that scales.
+   *
+   * The focus state is a solid accent ring rather than a deeper carve — focus
+   * is the one state that must be unmissable for keyboard users.
    */
   .field-input {
     @apply w-full;
-    padding: 0.5rem 0.75rem;
+    padding: 0.5625rem 0.75rem;
     font-size: 0.875rem;
     line-height: 1.5;
-    color: #212529;
-    background-color: #f7f8fa;
-    border: 1px solid rgba(17, 24, 39, 0.05);
+    color: var(--ink);
+    background-color: #fff;
+    border: 1px solid #e5e7eb;
     border-radius: 10px;
-    box-shadow: var(--shadow-inset);
     transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out,
       background-color 0.15s ease-in-out;
+  }
+  .field-input:hover:not(:focus):not(:disabled) {
+    border-color: #c8d0dc;
   }
   .field-input:focus {
     outline: 0;
     background-color: #fff;
-    border-color: #c94040;
-    box-shadow: var(--shadow-inset), 0 0 0 3px rgba(201, 64, 64, 0.22);
+    border-color: #e31b23;
+    box-shadow: 0 0 0 3px rgba(227, 27, 35, 0.14);
   }
   .field-input:disabled {
-    background-color: #eceef1;
-    box-shadow: none;
+    background-color: #f3f4f6;
+    color: #9aa2b1;
   }
 
   /*
@@ -318,20 +332,18 @@
    * invalid state returns the moment they leave it still empty.
    *
    * The invalid colour is --danger's deep #a4161a, not Bootstrap's #dc3545:
-   * against a #c94040 accent the lighter red was nearly the accent itself, so
-   * a rejected field looked merely focused. It also keeps the carved inset, or
-   * an invalid input would pop out of the page while its neighbours stay in it.
+   * against a red accent the lighter red was nearly the accent itself, so a
+   * rejected field looked merely focused.
    */
   [data-invalid] .field-input,
   .field-input.is-invalid {
     border-color: #a4161a;
-    background-color: #fdf3f3;
-    box-shadow: var(--shadow-inset);
+    background-color: #fffafa;
   }
   [data-invalid] .field-input:focus,
   .field-input.is-invalid:focus {
     border-color: #a4161a;
-    box-shadow: var(--shadow-inset), 0 0 0 3px rgba(164, 22, 26, 0.25);
+    box-shadow: 0 0 0 3px rgba(164, 22, 26, 0.2);
   }
 
   /*
@@ -381,10 +393,9 @@
   }
 
   /*
-   * SB Admin 2 .card, moulded rather than floated. The white fill and the
-   * hairline stay; the shadow is now the neumorphic pair, and the radius is
-   * larger because a soft shadow needs a generous corner to wrap around — at
-   * 12px the light and dark members meet too sharply and read as a bevel.
+   * SB Admin 2 .card: a white fill, a hairline and a soft drop shadow. The
+   * hairline is what actually separates it from the page tint — the shadow only
+   * lifts it.
    */
   .card {
     background-color: #fff;
@@ -410,9 +421,11 @@
     border: 1px solid var(--shell-line);
     box-shadow: var(--shadow-sm);
   }
+  /* A recessed panel — now a tint and a hairline rather than a carve, so it
+     matches the flat inputs it usually contains. */
   .surface-inset {
+    background-color: #f8f9fa;
     border: 1px solid var(--shell-line);
-    box-shadow: var(--shadow-inset);
   }
 
   /*
@@ -465,9 +478,8 @@
    * White, like every other card on the page.
    *
    * These used to be filled with --tile-grad and set white text on top. Three
-   * saturated blocks in a row fought the moulded white surfaces around them,
-   * and a coloured fill cannot take the neumorphic pair at all — its white
-   * light-shadow halos rather than moulding.
+   * saturated blocks in a row fought the white surfaces around them and pulled
+   * the eye away from the figures they were meant to be showing.
    *
    * The tile's colour now lives in its glyph and its figure instead. The
    * gradient it was filled with is still passed in as --tile-grad, and the
@@ -540,8 +552,7 @@
     border-radius: 14px;
     padding: 14px 16px;
     background: var(--chip-bg, #f3f4f6);
-    border: 1px solid var(--chip-border, transparent);
-    box-shadow: var(--shadow-inset);
+    border: 1px solid var(--chip-border, #e5e7eb);
   }
 
   /* Skeleton shimmer used while the dashboard payload is in flight. */
@@ -833,18 +844,15 @@
     color: #c94040;
   }
   /*
-   * The current page is PRESSED INTO the rail rather than tinted on top of it.
-   * That is the neumorphic way to say "you are here": a selected surface sinks,
-   * an unselected one is flush. The tint and the accent bar stay as the
-   * redundant cue — the carve alone is too quiet to rely on, and it disappears
-   * entirely in forced-colours mode.
+   * The current page is a tint plus the accent bar at its left edge. It used to
+   * also be carved into the rail — the neumorphic way to say "you are here" —
+   * but the carve was always the quietest of the three cues and it is the one
+   * that vanishes in forced-colours mode. The tint and the bar say it plainly.
    */
   .sidebar-item.active {
     background-image: linear-gradient(100deg, #fbe3e3 0%, #fdf1f1 100%);
     font-weight: 600;
     color: #a82a2a;
-    box-shadow: inset 2px 2px 5px rgba(174, 179, 189, 0.45),
-      inset -2px -2px 5px rgba(255, 255, 255, 0.85);
   }
   .sidebar-item.active::before {
     transform: translateY(-50%) scaleY(1);
@@ -970,7 +978,10 @@
      */
     .field-input,
     select.field-input,
-    textarea.field-input {
+    textarea.field-input,
+    /* The sign-in boxes are a separate class but the same trap: they are the
+       first controls anyone in this app touches on a phone. */
+    .login-field__input {
       font-size: 16px;
     }
 
@@ -1024,134 +1035,41 @@
   /* Signed-out screens (AuthLayout)                                     */
   /* ------------------------------------------------------------------ */
 
-  /*
-   * The drifting colour blooms behind the brand panel. Two layers share this
-   * rule at different durations and directions so they cross rather than move
-   * as one block, which is what keeps the panel from looking like a single
-   * sliding gradient.
-   */
-  .auth-aurora {
-    animation: auth-aurora-drift 18s ease-in-out infinite alternate;
-    will-change: transform;
-  }
-  .auth-aurora--slow {
-    animation-duration: 26s;
-    animation-direction: alternate-reverse;
-  }
-
-  @keyframes auth-aurora-drift {
-    from {
-      transform: translate3d(0, 0, 0) scale(1);
-    }
-    to {
-      transform: translate3d(40px, -30px, 0) scale(1.12);
-    }
-  }
-
-  /*
-   * The form fields on these screens are the one thing the page exists for, so
-   * they are taller and rounder than the compact .field-input the data tables
-   * use, and the focus ring is the app accent rather than Bootstrap's blue.
-   */
-  .auth-field .field-input {
-    padding: 0.625rem 0.875rem;
-    font-size: 0.9375rem;
-    border-radius: 8px;
-    background-color: #fbfcfe;
-  }
-  .auth-field .field-input:focus {
-    border-color: var(--accent-strong);
-    background-color: #fff;
-    box-shadow: 0 0 0 3px rgba(201, 64, 64, 0.18);
-  }
-
-  /*
-   * Inputs that carry a leading glyph. The wrapper the input sits in becomes
-   * the positioning context — Field renders a <label> around it and TextField a
-   * <div>, and in both the element directly holding the input is the last child
-   * of .auth-field--icon — so the glyph is centred on the input regardless of
-   * how tall the label above it turned out.
-   */
-  .auth-field--icon {
-    position: relative;
-  }
-  .auth-field--icon .field-input {
-    padding-left: 2.5rem;
-  }
-  .auth-field__icon {
-    position: absolute;
-    left: 0.875rem;
-    /* Offset from the bottom, not the top: the input is the last thing in the
-       box, so its own height is the only measurement this depends on. */
-    bottom: 0;
-    height: 2.625rem;
-    display: flex;
-    align-items: center;
-    z-index: 1;
-    color: #94a3b8;
-    pointer-events: none;
-  }
-  /* When a field is showing an error message, that message sits below the
-     input and pushes the bottom edge down past it. */
-  .auth-field--icon:has(.field-error) .auth-field__icon,
-  .auth-field--icon[data-invalid] .auth-field__icon {
-    bottom: auto;
-    top: 1.625rem;
-  }
-
-  /* The submit button lifts slightly on hover. Transform rather than a colour
-     change, because the fill is already a gradient set inline. */
-  .auth-submit {
-    transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
-  }
-  .auth-submit:hover:not(:disabled) {
-    transform: translateY(-1px);
-    filter: saturate(1.08);
-    box-shadow: 0 8px 20px -4px rgba(201, 64, 64, 0.5);
-  }
-  .auth-submit:active:not(:disabled) {
-    transform: translateY(0);
-  }
-  .auth-submit:disabled {
-    opacity: 0.55;
-  }
 
   /* ------------------------------------------------------------------ */
   /* Sign-in screen (AuthShowcaseLayout)                                 */
   /* ------------------------------------------------------------------ */
 
   /*
-   * The blue half's flat fill. It is a ::before rather than the element's own
-   * background so it can sit BELOW the sphere layer while the half's text sits
-   * above it — the spheres have to overlap the seam onto the white, which they
-   * cannot do from inside the half, and cannot be painted under its background
-   * if that background is on the element itself.
-   */
-  /*
-   * The page sits inside a white frame: a margin of white on all four sides
-   * with the whole composition rounded off inside it. The reference is a
-   * screenshot of exactly that — the artwork does not reach the viewport edge,
-   * and the rounded corners are what make it read as one panel rather than as
-   * a full-bleed background.
+   * The page sits inside a frame: a margin on all four sides with the whole
+   * composition rounded off inside it and lifted off the field behind. The
+   * reference is a screenshot of exactly that — the artwork does not reach the
+   * viewport edge, and the rounding plus the drop shadow are what make it read
+   * as one panel rather than as a full-bleed background.
    *
    * Below `lg` the frame goes away: on a phone, giving up margin on both sides
    * of an already-narrow column costs more than the framing is worth.
    */
+  /*
+   * The page is full-bleed white: no outer margin, no grey field, no card
+   * around the composition. The two halves run to the viewport's edges and the
+   * design IS the page rather than a panel floating on one.
+   */
   .auth-showcase-page {
-    background-color: #fff;
-  }
-  @media (min-width: 1024px) {
-    .auth-showcase-page {
-      /* The frame is the page's own padding; .auth-showcase-frame inside it
-         carries the rounding and the clip. */
-      padding: clamp(14px, 1.6vw, 30px);
-    }
+    background-color: #ffffff;
+    /* Nothing on this page may widen the document: the photo, the swept card
+       stack and the trust strip all bleed to the edges, and a single overflow
+       turns the whole sign-in screen into a horizontally scrolling page. */
+    overflow-x: hidden;
   }
 
   /*
-   * The rounded, clipped stage. Everything — both halves and every sphere —
-   * lives inside this, so the artwork is cut to the rounded rectangle instead
-   * of running to the viewport edge.
+   * The rounded, clipped stage. Both halves live inside this, so the artwork is
+   * cut to the rounded rectangle instead of running to the viewport edge.
+   */
+  /*
+   * The stage. Full-bleed — no rounding, no shadow, no inset: the halves reach
+   * the viewport's edges on every side.
    */
   .auth-showcase-frame {
     position: relative;
@@ -1161,217 +1079,714 @@
   }
   @media (min-width: 1024px) {
     .auth-showcase-frame {
+      /* An even split, as in the reference — the showcase and the form column
+         each take half the viewport. */
       grid-template-columns: 1fr 1fr;
-      min-height: calc(100vh - 2 * clamp(14px, 1.6vw, 30px));
+      /*
+       * Exactly the viewport, not merely at least it: a sign-in screen that
+       * scrolls on a laptop reads as a page that did not fit rather than as a
+       * designed one, and the first thing anyone does on it — reach for the
+       * username box — should never require finding it first.
+       *
+       * `dvh` so a mobile browser's collapsing toolbar does not leave a strip
+       * of blank page under the form; it falls back to vh where unsupported.
+       */
+      height: 100vh;
+      height: 100dvh;
+      min-height: 0;
       overflow: hidden;
-      border-radius: clamp(10px, 1.1vw, 20px);
     }
   }
 
   /*
-   * The red half carries its own fill and CLIPS its artwork, which is what
-   * keeps its own edge intact while the spill layer crosses it.
-   *
-   * The spheres that cross onto the white in the reference are not drawn here
-   * — they are a separate page-level layer (.auth-showcase-spill) that is not
-   * clipped. Splitting them this way is what gives both halves of the effect
-   * at once; a single layer can be clipped or can cross, never both.
-   */
-  /*
-   * Light at the BOTTOM-LEFT running to deep red at the top-right. The
-   * reference lights the panel from its lower-left corner, which is what keeps
-   * the deepest red behind "WELCOME" at the top and lets the pale corner read
-   * against the circles stacked over it.
-   *
-   * The ramp is the brand mark's #c94040 → #e85555 family carried down to panel
-   * depth. Its luminance profile matches the blue it replaced stop for stop, so
-   * the white headline keeps the same contrast it was designed against.
-   */
-  /*
-   * The sign-in screen's own two shades. The app accent is red everywhere now,
-   * so these no longer override it — they only carry the deeper values this
-   * screen wants: its artwork is saturated red, so the form's accents and its
-   * submit sit below --accent to stay legible against it.
+   * The sign-in screen's own shades. The app accent is red everywhere now, so
+   * these no longer override it — they only carry the values this screen wants:
+   * a brighter primary for the button and the headline's second line, and a
+   * deep one for the pressed and hovered states.
    */
   .auth-showcase-page {
-    --login-accent: #c02f2f;
-    --login-accent-deep: #8f1f1f;
+    --login-accent: #e31b23;
+    --login-accent-deep: #b91c1c;
+    /* The wash behind the mark's disc and the input glyph wells. */
+    --login-accent-tint: #fef2f2;
+    --login-ink: #1f2937;
+    --login-ink-muted: #6b7280;
+    --login-line: #e5e7eb;
   }
 
+  /*
+   * The showcase half. A pale, faintly warm field rather than a saturated red
+   * fill: the hero illustration and the red swoosh carry the colour, and a red
+   * ground behind both would flatten them into it.
+   */
+  /*
+   * The showcase half. The photograph is its ground; this element only carries
+   * the fallback tint that shows before the image decodes and the stacking
+   * context the layers above it sit in.
+   */
+  /* The fill the photograph is laid on. It is the crop's own sky tone rather
+     than a neutral grey, so where the strip runs out at the left there is no
+     visible seam between image and background. */
   .auth-showcase-half {
     position: relative;
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
-    background: linear-gradient(28deg, #ef6a6a 0%, #d43b3b 38%, #b62727 68%, #8f1b1b 100%);
+    /* The photograph's own sky tone: the image is fitted to the panel's height
+       and so does not span its width, and this is what fills the rest. A
+       neutral grey here shows as a visible band beside the picture. */
+    background-color: #e4e1e2;
   }
-  @media (min-width: 1024px) {
-    /*
-     * The bulge has to escape this element, so the panel cannot clip from `lg`.
-     * Its own spheres stay contained because .auth-showcase-art clips them
-     * instead, and the frame clips everything to the rounded rectangle.
-     */
-    .auth-showcase-half {
-      overflow: visible;
-    }
-  }
+
   /*
-   * The greeting, the mark and the copyright ride above the spill layer, so
-   * the pair of circles passes BEHIND the text rather than over it. Without
-   * this the copyright line is overdrawn by the lower-left disc.
+   * The photograph, bled to the panel's edges.
+   *
+   * `background-position: right bottom` rather than centre: the crop is a tall
+   * narrow strip of the building and its entrance, and the frontage at the
+   * bottom-right is the part worth keeping when a wide column crops the image.
    */
-  .auth-showcase-half > .relative {
+  .auth-showcase-photo {
+    position: absolute;
+    inset: 0;
+    background-image: none;
+    /*
+     * Fitted to the panel's HEIGHT, not `cover`.
+     *
+     * `cover` on a half-viewport column scaled this tall photograph until only
+     * a narrow vertical band of it showed — and that band landed on the
+     * foreground tree rather than the building, magnified enough that the
+     * browser's stretch read as blur. Fitting the height instead shows the
+     * whole frame — both blocks receding down the street, the entrance canopy,
+     * the lit path — at close to its native scale, so it stays sharp.
+     *
+     * The image is then narrower than the column. That is deliberate: it is
+     * anchored right, and the wash over it runs to solid at the left, which is
+     * exactly where the photograph ends — so the join never shows.
+     */
+    /*
+     * `cover`, so the photograph reaches every edge of the panel — a
+     * height-fitted copy leaves a band of flat colour down one side that reads
+     * as a picture pasted onto a background.
+     *
+     * Softness on a wide monitor is handled by the ASSET being large enough to
+     * cover without magnification, not by fitting the image smaller.
+     *
+     * `72% center` frames the tall block and the lit pathway at its foot — the
+     * subject sits in the photograph's right half, and anchoring left fills the
+     * panel with the empty sky and lawn on the other side of it.
+     */
+    background-size: cover;
+    background-position: 72% center;
+    background-repeat: no-repeat;
+  }
+
+  /*
+   * The wash over the photograph. Near-solid white at the left, clear by the
+   * middle — the headline and the cards sit on the solid end and the building
+   * is left untouched on the side nothing is written over.
+   *
+   * A single flat overlay cannot do this: it would either wash out the whole
+   * photograph or leave the headline unreadable. The gradient is what buys
+   * contrast only where contrast is needed.
+   */
+  .auth-showcase-wash {
+    position: absolute;
+    inset: 0;
+    /*
+     * Solid white where the copy sits, then off FAST. The previous ramp was
+     * still at half opacity across the middle of the panel and carried a haze
+     * over the whole photograph, which is what left the building looking washed
+     * out rather than lit. Holding solid to the copy's right edge and clearing
+     * within the next fifth buys the same legibility and leaves the photograph
+     * at full strength everywhere it is actually seen.
+     */
+    background: linear-gradient(
+      95deg,
+      rgba(255, 255, 255, 0.98) 0%,
+      rgba(255, 255, 255, 0.95) 22%,
+      rgba(255, 255, 255, 0.82) 34%,
+      rgba(255, 255, 255, 0.5) 45%,
+      rgba(255, 255, 255, 0.2) 55%,
+      rgba(255, 255, 255, 0.05) 64%,
+      rgba(255, 255, 255, 0) 72%
+    );
+  }
+
+  /* The copy column rides above both layers. */
+  /*
+   * `min-height: 0` so this can shrink below its content's natural height —
+   * without it a flex item refuses to, and on a short laptop the copy pushes
+   * the trust strip off the bottom of a viewport-height panel. `flex: 1` then
+   * gives it whatever is left after the strip has taken its own height.
+   */
+  .auth-showcase-copy {
+    position: relative;
     z-index: 2;
+    flex: 1 1 auto;
+    min-height: 0;
+    /*
+     * Clipped, not scrollable. Nobody scrolls a decorative pitch to reach a
+     * fourth bullet, and a scrollbar over the photograph is worse than the
+     * bullet being absent — the short-viewport rules above drop whole cards
+     * instead, so there is nothing left to scroll to.
+     */
+    overflow: hidden;
+    padding: clamp(1rem, 3vh, 3.25rem) clamp(1.5rem, 3vw, 3rem) clamp(0.75rem, 2vh, 1.5rem);
+  }
+
+  .auth-wordmark {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .auth-wordmark__name {
+    font-size: clamp(1.375rem, 2vw, 1.75rem);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: 0.02em;
+    color: var(--login-accent);
+  }
+  /* Tracked out to the width of the word above it, as in the reference — the
+     two lines read as one lockup rather than as a title and a caption. */
+  .auth-wordmark__sub {
+    margin-top: 0.1875rem;
+    font-size: clamp(0.75rem, 1.05vw, 0.9375rem);
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--login-ink);
   }
 
   /*
-   * The right edge is not a straight seam: it bulges CONVEX into the white
-   * around the vertical middle, so the blue reaches furthest right at roughly
-   * the headline's height and pulls back at the top and bottom. That bulge is
-   * the reference's defining shape.
-   *
-   * An ellipse at `right` in a radial-gradient mask does exactly this and, unlike
-   * clip-path: path(), takes percentages — so the curve tracks a fluid column
-   * width instead of breaking at one viewport size.
-   *
-   * Only from `lg`. Below it the halves stack, and a curve on the right edge
-   * would slice the corner off the greeting instead of shaping a seam.
+   * The two-line headline. Both lines are ink except the last word, which is
+   * the accent — one emphasis, carried by colour rather than a second weight.
    */
-  @media (min-width: 1024px) {
-    /*
-     * The bulge is NOT a mask on this element.
-     *
-     * A radial-gradient mask cuts the panel back to the INSIDE of an ellipse,
-     * which rounds its corners — the edge bows the wrong way and the panel
-     * loses its full-height straight run. The reference's edge instead runs
-     * straight top and bottom with blue pushing OUT past the seam in the
-     * middle, which is material added beyond the box, not removed from it.
-     *
-     * So the panel keeps a straight edge and the bulge is its own ellipse
-     * (::after) sitting astride that edge, filled with the same gradient.
-     * Adding a shape is what a mask cannot do.
-     */
-    .auth-showcase-half::after {
-      content: '';
-      position: absolute;
-      /*
-       * Half of it overhangs the seam; the other half sits on the panel and
-       * disappears into the identical fill, so the two read as one form.
-       *
-       * Much taller than the panel (230%) and centred on it, so only the
-       * ellipse's flattest middle band crosses the seam. Two things go wrong
-       * if it is shorter: the arc curves back in near the top and bottom and
-       * leaves white notches at the panel's corners, and the curve gets tight
-       * enough to read as a band drawn down the panel rather than as the
-       * panel's own edge bowing outward. The arc has to be far longer than the
-       * edge it bulges out of.
-       *
-       * Width stays modest (17%) because that is the bulge's DEPTH past the
-       * seam; the reference's edge pushes out gently, not into a lobe.
-       */
-      top: 50%;
-      right: 0;
-      width: 17%;
-      height: 230%;
-      transform: translate(50%, -50%);
-      border-radius: 50%;
-      /*
-       * Inherits the panel's own painted gradient rather than restating it.
-       *
-       * Two separate gradients cannot be made to agree here: this element is a
-       * tall narrow sliver and the panel is a wide box, so the same angle and
-       * stops resolve to different colours at the point they meet, and the
-       * mismatch shows as a vertical seam line down the middle of the panel.
-       *
-       * `background: inherit` takes the parent's computed background image and
-       * paints it over THIS element's box, which still differs. The fix that
-       * works is painting the panel's gradient at the panel's own size and
-       * origin: a fixed background-size tied to the parent's box, positioned so
-       * the sliver samples the same ramp the panel does at that x.
-       */
-      background-image: linear-gradient(
-        28deg,
-        #ef6a6a 0%,
-        #d43b3b 38%,
-        #b62727 68%,
-        #8f1b1b 100%
-      );
-      /* Roughly the panel's box (its width is ~1/0.17 of this sliver's), so the
-         ramp runs at the panel's scale instead of compressing into the sliver
-         and darkening it relative to the fill it abuts. */
-      background-size: 590% 100%;
-      background-position: 88% center;
-      background-repeat: no-repeat;
-      pointer-events: none;
+  /*
+   * Sized against the VIEWPORT HEIGHT as well as its width. The panel is now
+   * pinned to the viewport, so on a 768px laptop a width-only scale leaves the
+   * headline at its 1920px size and pushes the fourth capability card off the
+   * bottom. `vh` in the clamp is what makes the whole column breathe down to
+   * fit instead of overflowing.
+   */
+  .auth-showcase-heading {
+    margin-top: clamp(1rem, 4vh, 3.25rem);
+    font-size: clamp(1.4rem, 2.2vw + 0.4vh, 2.3rem);
+    font-weight: 800;
+    line-height: 1.22;
+    letter-spacing: -0.02em;
+    color: var(--login-ink);
+  }
+  .auth-showcase-heading__line {
+    display: block;
+  }
+  .auth-showcase-heading__accent {
+    color: var(--login-accent);
+  }
+
+  .auth-showcase-rule {
+    display: block;
+    width: 4.25rem;
+    height: 3px;
+    margin: clamp(0.75rem, 1.8vh, 1.125rem) 0 clamp(0.75rem, 1.8vh, 1.25rem);
+    border-radius: 2px;
+    background: var(--login-accent);
+  }
+
+  .auth-showcase-lede {
+    max-width: 20rem;
+    font-size: clamp(0.8125rem, 1vw, 0.9375rem);
+    line-height: 1.6;
+    color: #414c5c;
+  }
+
+  /*
+   * The capability cards — translucent white over the photograph, so the
+   * building stays faintly visible through them rather than being boxed out.
+   * The backdrop blur is what keeps the title legible where the photo behind a
+   * card is busy.
+   */
+  /*
+   * The last card is DROPPED rather than clipped once the panel is too short
+   * for four.
+   *
+   * Letting the column scroll was not enough: the copy is the thing that has to
+   * fit beside a form, nobody scrolls a decorative pitch to reach a fourth
+   * bullet, and a card sliced in half by the trust strip reads as a broken page
+   * rather than as more content. Three whole cards say the same thing as three
+   * and a half.
+   *
+   * 820px is where the fourth stops fitting at the sizes below.
+   */
+  @media (min-width: 1024px) and (max-height: 820px) {
+    .auth-showcase-feature:nth-child(4) {
+      display: none;
+    }
+  }
+  /* Shorter still and the lede goes too, so three cards stay whole. */
+  @media (min-width: 1024px) and (max-height: 680px) {
+    .auth-showcase-lede {
+      display: none;
     }
   }
 
-  /*
-   * Clips its own spheres to the panel's box. It has to do this itself: the
-   * half sets `overflow: visible` from `lg` so the bulge can escape, and
-   * without a clip here the panel's spheres would escape with it.
-   *
-   * Sits under the half's text, which is `relative` and therefore paints later
-   * in the same stacking context, and under the ::after bulge.
-   */
-  .auth-showcase-art {
-    position: absolute;
-    inset: 0;
-    overflow: hidden;
-    pointer-events: none;
+  .auth-showcase-features {
+    margin-top: clamp(0.875rem, 2.6vh, 2.5rem);
+    display: grid;
+    gap: clamp(0.4375rem, 1vh, 0.75rem);
+    /* Narrow enough that each description wraps to two lines, as in the
+       reference — a single long line reads as a caption, two read as a card. */
+    max-width: 21rem;
+  }
+  .auth-showcase-feature {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: clamp(0.625rem, 1.4vh, 1rem) 1.125rem;
+    border-radius: 14px;
+    /* Near-solid, and lifted on a real shadow. At 0.88 over a photograph these
+       read as translucent panels laid on the picture; the reference's cards sit
+       ON it, which needs an opaque face and an edge that casts. */
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 12px 28px -14px rgba(23, 31, 43, 0.35),
+      0 2px 6px -2px rgba(23, 31, 43, 0.1);
+  }
+  .auth-showcase-feature__icon {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 12px;
+    color: #fff;
+    background: linear-gradient(135deg, #e31b23 0%, #b91c1c 100%);
+    box-shadow: 0 8px 16px -8px rgba(200, 31, 31, 0.65);
+  }
+  .auth-showcase-feature__icon > svg {
+    width: 22px;
+    height: 22px;
+  }
+  .auth-showcase-feature__text {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .auth-showcase-feature__title {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--login-ink);
+  }
+  .auth-showcase-feature__body {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.78125rem;
+    line-height: 1.5;
+    color: var(--login-ink-muted);
+  }
+  .auth-showcase-feature__chevron {
+    display: flex;
+    flex: none;
+    align-items: center;
+    color: #9aa3b1;
   }
 
   /*
-   * The unclipped layer, spanning the whole frame. Its spheres are anchored
-   * near the seam so they overlap it onto the white. It sits above the blue
-   * half but below the form column, which is `relative` and comes later in
-   * document order.
-   *
-   * `grid-area: 1 / 1 / -1 / -1` rather than plain `inset: 0`: this is a child
-   * of the two-column grid, and an absolutely positioned grid child without an
-   * explicit area is contained by its auto-placed CELL, not by the grid. That
-   * confined the spheres to the right-hand column and clipped the pair at the
-   * seam. Spanning every column is what lets them cross it.
-   *
-   * No `overflow: hidden` here — .auth-showcase-frame already clips to the
-   * rounded rectangle, and a second clip on this layer would cut the spheres
-   * back to the frame's straight edges before the rounding applied.
+   * The red proof strip closing off the foot of the panel. It is a flex row of
+   * three, and it wraps rather than compressing — three points squeezed into a
+   * narrow column would set their body copy one word per line.
    */
-  .auth-showcase-spill {
-    position: absolute;
-    grid-area: 1 / 1 / -1 / -1;
-    inset: 0;
-    pointer-events: none;
+  .auth-showcase-trust {
+    position: relative;
+    z-index: 2;
+    /* `flex: none` so the strip keeps its height when the copy above it is
+       competing for a short viewport — it is the panel's floor, and a floor
+       that compresses is just a gap. */
+    flex: none;
+    margin-top: clamp(1rem, 2.5vh, 2.25rem);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem clamp(1rem, 2.4vw, 2rem);
+    padding: clamp(1rem, 2.2vw, 1.5rem) clamp(1.5rem, 3vw, 3rem);
+    background: linear-gradient(120deg, #b91c1c 0%, #e31b23 55%, var(--login-accent-deep) 100%);
+    color: #fff;
+  }
+  .auth-showcase-trust > li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    flex: 1 1 8rem;
+    min-width: 0;
+  }
+  .auth-showcase-trust__icon {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+  }
+  .auth-showcase-trust__text {
+    display: block;
+    min-width: 0;
+  }
+  .auth-showcase-trust__title {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+  .auth-showcase-trust__body {
+    display: block;
+    margin-top: 0.125rem;
+    font-size: 0.6875rem;
+    line-height: 1.45;
+    color: rgba(255, 255, 255, 0.78);
+  }
+
+  /*
+   * Below `lg` the halves stack and the showcase is a short branded header: the
+   * cards, the lede and the proof strip would push the form off the first
+   * screen, so only the wordmark and the headline stay.
+   */
+  @media (max-width: 1023px) {
+    .auth-showcase-features,
+    .auth-showcase-lede,
+    .auth-showcase-trust {
+      display: none;
+    }
+    .auth-showcase-copy {
+      padding-bottom: clamp(1.25rem, 3vw, 2rem);
+    }
+    .auth-showcase-heading {
+      margin-top: 1.25rem;
+      font-size: 1.4rem;
+    }
+    .auth-showcase-rule {
+      margin: 0.75rem 0 0;
+    }
+    /* The photo is a wide strip here, so its bottom-right anchor would show
+       only shrubbery — centre it on the building instead. */
+    .auth-showcase-photo {
+      background-position: center 30%;
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Form half                                                           */
+  /* ------------------------------------------------------------------ */
+
+  /*
+   * `justify-content: center` on a column axis rather than `align-items`: a
+   * form taller than the viewport centred the other way overflows in BOTH
+   * directions and its first field scrolls out of reach above the top.
+   */
+  .auth-showcase-form {
+    position: relative;
+    display: flex;
+    flex-direction: column;
     /*
-     * Above the panel and its ::after bulge, below the form column. The panel
-     * creates a stacking context, so document order alone is not enough to
-     * lift these over the bulge — the pair has to sit ON the bulge where it
-     * crosses the seam.
+     * `justify-content` is NOT plain `center`.
+     *
+     * A flex item taller than a centred column overflows in BOTH directions,
+     * and the half above the top is unreachable — no amount of scrolling gets
+     * to it, because scrolling only ever reveals content below the start edge.
+     * That is what cut the top off the registration form's card.
+     *
+     * `safe center` centres a form that fits and falls back to flex-start for
+     * one that does not, so the tall case starts at the top and scrolls
+     * normally. The auto margins on the card do the same job in browsers that
+     * do not support the `safe` keyword yet.
      */
-    z-index: 1;
+    justify-content: safe center;
+    align-items: center;
+    min-width: 0;
+    /*
+     * The frame is pinned to the viewport, so a form taller than it — the
+     * registration screen on a short laptop — has to scroll HERE rather than
+     * being clipped.
+     */
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: clamp(1.75rem, 3vw, 3rem) clamp(1rem, 2.2vw, 2.25rem);
+    background-color: #f8f9fa;
   }
 
   /*
-   * The sign-in boxes are filled rather than outlined and carry no visible
-   * label, so the fill itself is what marks where the field starts and ends.
-   * That makes the resting state do more work than a bordered input does: the
-   * grey has to be dark enough to be seen as a control on white, and the focus
-   * state has to change more than a border colour to be noticed.
+   * The dotted field at the column's bottom-left — a repeating radial-gradient
+   * rather than an image, so it costs nothing and scales cleanly.
+   */
+  .auth-showcase-dots {
+    position: absolute;
+    left: 4%;
+    bottom: 3%;
+    width: 34%;
+    height: 26%;
+    background-image: radial-gradient(circle, var(--login-line) 1.5px, transparent 1.6px);
+    background-size: 14px 14px;
+    /* Fades out up and to the right so it reads as a corner texture rather
+       than a rectangle of dots parked on the page. */
+    mask-image: linear-gradient(315deg, #000 0%, transparent 72%);
+    -webkit-mask-image: linear-gradient(315deg, #000 0%, transparent 72%);
+    pointer-events: none;
+  }
+
+  /*
+   * The one floating object on the page. Its white sits on the column's faint
+   * tint and the elevation is what separates them — this is what everyone came
+   * to the screen for, so it lifts rather than rests.
+   */
+  .auth-showcase-card {
+    position: relative;
+    z-index: 2;
+    /*
+     * `align-self: stretch` rather than `width: 100%`.
+     *
+     * The column centres its children, which makes them size to their CONTENT —
+     * and a percentage width then resolves against that content box, not the
+     * column. The card ended up as wide as its widest field plus padding and
+     * ran off a phone's right edge, taking Forgot Password and both buttons
+     * with it. Stretching to the column and capping with max-width is what
+     * makes the cap the binding constraint at every width.
+     */
+    /*
+     * `width: 100%` with the column's `align-items: center`, rather than
+     * `align-self: stretch` — stretch fights the auto margins below, which are
+     * what keep a too-tall card reachable at the top.
+     */
+    width: 100%;
+    /* Wide, as in the reference — the card fills most of its column rather than
+       sitting as a narrow strip in the middle of it, which is what makes the
+       form read as the page's subject instead of as a widget on it. */
+    max-width: 560px;
+    min-width: 0;
+    /*
+     * `auto` on all four sides, not just the horizontal pair. Auto margins on a
+     * flex item centre it while it fits and collapse to zero when it does not,
+     * which is the same behaviour `justify-content: safe center` gives — and
+     * this works in the browsers that do not support the `safe` keyword yet.
+     * Without it the tall registration card overflows above the column's top
+     * edge, where scrolling cannot reach it.
+     */
+    margin: auto;
+    /* Generous, as in the reference: the card is the only object on this half
+       of the page, so it can afford the room and reads as considered rather
+       than as a form squeezed into a box. */
+    /*
+     * Roomy. With the second button gone the card lost a whole row, and the
+     * padding has to take that space back or the form reads as a small box
+     * marooned in a large column.
+     */
+    padding: clamp(1.75rem, 5vh, 4rem) clamp(1.75rem, 3.6vw, 3.5rem);
+    background-color: #fff;
+    border-radius: 24px;
+    box-shadow: 0 30px 64px -28px rgba(23, 31, 43, 0.32),
+      0 6px 16px -6px rgba(23, 31, 43, 0.08);
+  }
+  /*
+   * The registration form carries seven boxes to sign-in's two, so it gets the
+   * extra width AND a tighter vertical rhythm: at the sign-in card's spacing it
+   * is far taller than any laptop viewport, and a sign-up screen that opens
+   * mid-scroll is the one place a user is most likely to give up.
+   *
+   * The rules below out-scope the roomy defaults rather than the defaults being
+   * written tight for everyone — sign-in is the screen almost every visit ends
+   * at, and it should not pay for the one that seven fields need.
+   */
+  .auth-showcase-card--wide {
+    max-width: 620px;
+    padding: clamp(1.25rem, 2.6vh, 2.25rem) clamp(1.5rem, 3vw, 2.75rem);
+  }
+  .auth-showcase-card--wide .auth-showcase-card__badge {
+    width: clamp(3.25rem, 6vh, 4.5rem);
+    height: clamp(3.25rem, 6vh, 4.5rem);
+  }
+  .auth-showcase-card--wide .auth-showcase-title {
+    margin-top: clamp(0.5rem, 1.2vh, 0.875rem);
+    font-size: clamp(1.25rem, 1.2vw + 0.5vh, 1.75rem);
+  }
+  .auth-showcase-card--wide .auth-showcase-card__head {
+    margin-bottom: clamp(0.75rem, 1.6vh, 1.125rem);
+  }
+  .auth-showcase-card--wide .auth-showcase-subtitle {
+    margin-top: 0.375rem;
+    font-size: 0.8125rem;
+  }
+  /* The boxes themselves shrink too — seven of them at the sign-in height is
+     most of the overflow on their own. */
+  .auth-showcase-card--wide .login-label {
+    margin-bottom: 0.3125rem;
+    font-size: 0.75rem;
+  }
+  .auth-showcase-card--wide .login-field__input {
+    padding-top: 0.6875rem;
+    padding-bottom: 0.6875rem;
+    font-size: 0.875rem;
+  }
+  .auth-showcase-card--wide .login-form {
+    gap: clamp(0.5rem, 1.4vh, 0.875rem);
+  }
+  .auth-showcase-card--wide .auth-showcase-footer {
+    margin-top: clamp(0.625rem, 1.6vh, 1rem);
+    font-size: 0.75rem;
+  }
+
+  /* The badge, the title and the subtitle, centred as a block above the form. */
+  .auth-showcase-card__head {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: clamp(0.875rem, 2.2vh, 1.75rem);
+    text-align: center;
+  }
+  /* The mark inside a pale disc, as in the reference. */
+  /* Height-aware for the same reason the panel's headline is: the card is
+     inside a viewport-pinned frame, and a fixed 7rem badge on a 768px laptop
+     costs the room the buttons need. */
+  .auth-showcase-card__badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: clamp(5rem, 11vh, 8.5rem);
+    height: clamp(5rem, 11vh, 8.5rem);
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 42%, var(--login-accent-tint) 0%, #fdf4f4 72%, #ffffff 100%);
+  }
+  .auth-showcase-card__badge > svg {
+    width: 62%;
+    height: 62%;
+  }
+  .auth-showcase-title {
+    margin-top: clamp(0.75rem, 1.8vh, 1.5rem);
+    font-size: clamp(1.5rem, 1.8vw + 0.7vh, 2.5rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--login-ink);
+  }
+  /* The emphasised word of the title, in the accent — the same two-tone device
+     the showcase headline uses, so the two halves rhyme. */
+  .auth-showcase-title__accent {
+    color: var(--login-accent);
+  }
+  .auth-showcase-subtitle {
+    margin-top: 0.625rem;
+    font-size: 0.9375rem;
+    color: var(--login-ink-muted);
+  }
+
+  .auth-showcase-footer {
+    margin-top: 1.25rem;
+    text-align: center;
+    font-size: 0.8125rem;
+    color: var(--ink-muted);
+  }
+
+  .auth-showcase-legal {
+    position: relative;
+    z-index: 2;
+    margin: clamp(1.25rem, 2.4vw, 2rem) auto 0;
+    text-align: center;
+  }
+  .auth-showcase-legal__badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4375rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #4a5464;
+  }
+  .auth-showcase-legal__badge > svg {
+    color: var(--login-accent);
+  }
+  .auth-showcase-legal__copy {
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: #9aa2b1;
+  }
+
+  /*
+   * The label above each box. The reference labels every field, and the boxes
+   * below are white-on-white — the label is what names the control, and the
+   * placeholder inside is only an example of what goes in it.
+   */
+  /* The sign-in form's vertical rhythm, breathing with the viewport's height
+     for the same reason the card's padding does. */
+  .login-form {
+    display: grid;
+    /* One explicit `minmax(0, …)` track for the same reason the paired row has
+       two: without it the widest child sets the grid's minimum and the form
+       grows past the card rather than wrapping inside it. */
+    grid-template-columns: minmax(0, 1fr);
+    gap: clamp(0.875rem, 2.6vh, 1.5rem);
+  }
+  /*
+   * FormErrorSummary carries Tailwind's `sm:col-span-2` for the two-column
+   * dialogs it was written for. This form has ONE column, and a child spanning
+   * two implies a second track — which stretched the grid past the card and
+   * pushed the right-hand fields off the screen. Pinning it back to the single
+   * track is what keeps the summary inside the form.
+   */
+  .login-form > [role='alert'] {
+    grid-column: 1 / -1;
+  }
+
+  /*
+   * Two boxes on one row, from `sm` up. Stacked below that: a 40rem-wide phone
+   * splitting a Contact No. box in half leaves neither side usable.
+   */
+  .login-pair {
+    display: grid;
+    /* The same step the form itself uses, so a paired row sits on the identical
+       rhythm as the full-width boxes above and below it. */
+    gap: clamp(0.5rem, 1.4vh, 0.875rem) 0.75rem;
+  }
+  @media (min-width: 640px) {
+    .login-pair {
+      /* `minmax(0, 1fr)`, not `1fr`. A bare `1fr` track has an automatic
+         MINIMUM of its content's width, so a long placeholder or a validation
+         message under a box widens the track, the grid, the card and finally
+         the page — which is what pushed the right-hand fields off screen. */
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+  }
+
+  .login-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.005em;
+    color: var(--login-ink);
+  }
+
+  /*
+   * A labelled, outlined box — white rather than the filled grey it used to be.
+   * The label now marks where the field starts, so the fill no longer has to,
+   * and a white input inside a white card needs its hairline to be the edge.
+   *
+   * The leading glyph sits in a tinted well at the left, which is the
+   * reference's shape: the icon is separated from the typing area rather than
+   * floating loose inside it.
    */
   .login-field {
     position: relative;
     display: flex;
     align-items: center;
-    background-color: #f1f3f7;
-    border: 1px solid transparent;
+    background-color: #fff;
+    border: 1px solid var(--login-line);
     border-radius: 12px;
-    /* Carved, like .field-input — the sign-in boxes were already filled rather
-       than outlined, so they take the inset naturally. */
-    box-shadow: var(--shadow-inset);
     transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
   }
+  .login-field:hover:not(:focus-within) {
+    border-color: #c8d0dc;
+  }
   .login-field:focus-within {
-    background-color: #fff;
     border-color: var(--login-accent);
-    box-shadow: var(--shadow-inset), 0 0 0 3px rgba(201, 64, 64, 0.18);
+    box-shadow: 0 0 0 3px rgba(217, 45, 45, 0.14);
   }
 
   .login-field__input {
@@ -1379,7 +1794,7 @@
     /* min-width:0 rather than the flex default of auto: without it a long
        placeholder sets the input's minimum and the row overflows the card. */
     min-width: 0;
-    padding: 0.75rem 0.875rem 0.75rem 2.75rem;
+    padding: 1.0625rem 0.875rem 1.0625rem 3.25rem;
     background: transparent;
     border: 0;
     font-size: 0.9375rem;
@@ -1396,18 +1811,109 @@
     opacity: 0.6;
   }
   /* An input with a trailing action must stop before it, or long text runs
-     underneath the SHOW toggle. */
+     underneath the reveal toggle. */
   .login-field:has(.login-field__action) .login-field__input {
-    padding-right: 4rem;
+    padding-right: 2.75rem;
   }
 
+  /*
+   * A box the last submit rejected. The border carries it, backed by a faint
+   * wash and a deepened glyph well — the boxes already rest on a hairline, so
+   * recolouring that hairline reads as the same edge gone wrong rather than as
+   * the field suddenly gaining an outline.
+   */
+  .login-field--invalid {
+    background-color: #fffafa;
+    border-color: #dc7070;
+  }
+  .login-field--invalid .login-field__icon {
+    background: #fbdada;
+    color: #a4161a;
+  }
+  /* Focus still wins: once you are answering the complaint, the box should
+     look like the one you are typing in, not like the one that failed. */
+  .login-field--invalid:focus-within {
+    background-color: #fff;
+    border-color: var(--login-accent);
+  }
+
+  /* The message under a box. Both slots share their geometry so a field does
+     not shift when its hint is replaced by an error. */
+  .login-field__error,
+  .login-field__hint {
+    margin-top: 0.375rem;
+    padding-left: 0.25rem;
+    font-size: 0.75rem;
+    line-height: 1.4;
+  }
+  .login-field__error {
+    color: #c0392b;
+  }
+  .login-field__hint {
+    color: #8b94a5;
+  }
+
+  /*
+   * The glyph well at the left of every box — a tinted rounded square with the
+   * icon inside, as in the reference, rather than a bare glyph floating in the
+   * input's padding.
+   */
   .login-field__icon {
     position: absolute;
-    left: 0.9375rem;
+    left: 0.4375rem;
     display: flex;
     align-items: center;
-    color: #7c8798;
+    justify-content: center;
+    width: 1.875rem;
+    height: 1.875rem;
+    border-radius: 7px;
+    background: var(--login-accent-tint);
+    color: var(--login-accent);
     pointer-events: none;
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+  .login-field__icon > svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  /*
+   * The Society / Village choice on the sign-up form, as one filled track with
+   * the selected half raised out of it — the same fill and radius as the boxes
+   * below, so the form reads as one stack of controls rather than a radio row
+   * sitting on top of a set of fields.
+   *
+   * The radios themselves are visually hidden but still focusable, so the
+   * keyboard and screen-reader behaviour is a real radio group; the ring below
+   * is what makes that focus visible.
+   */
+  .auth-segmented {
+    display: flex;
+    gap: 0.25rem;
+    padding: 0.25rem;
+    background-color: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+  }
+  .auth-segmented__option {
+    flex: 1 1 0;
+    padding: 0.5rem 0.75rem;
+    border-radius: 9px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--login-ink-muted);
+    text-align: center;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .auth-segmented__option--on {
+    background-color: #fff;
+    color: var(--login-accent);
+    box-shadow: var(--shadow-sm);
+  }
+  /* The input is sr-only, so the ring has to be drawn on the label it names. */
+  .auth-segmented__option:has(:focus-visible) {
+    box-shadow: 0 0 0 3px rgba(217, 45, 45, 0.25);
   }
 
   /*
@@ -1423,16 +1929,23 @@
   .login-field__action {
     display: flex;
     align-items: center;
-    padding-right: 0.875rem;
+    padding-right: 0.5rem;
   }
+  /* A 32px hit target around a 17px eye: the glyph alone is well under the
+     minimum a thumb can land on. */
   .login-field__reveal {
-    font-size: 0.75rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    color: var(--login-accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 7px;
+    color: #98a1b0;
+    transition: color 0.15s ease, background-color 0.15s ease;
   }
   .login-field__reveal:hover {
-    text-decoration: underline;
+    color: var(--login-accent);
+    background-color: var(--login-accent-tint);
   }
 
   /* Sized up from the 16px default: this is a phone-first login screen and the
@@ -1444,79 +1957,70 @@
     cursor: pointer;
   }
 
-  /* Rules either side of the word, drawn with a flex row so the word keeps its
-     own width and the rules take whatever is left. */
-  .login-divider {
-    display: flex;
-    align-items: center;
-    gap: 0.875rem;
-    margin: 0.875rem 0;
-    color: #97a0b0;
-    font-size: 0.75rem;
-  }
-  .login-divider::before,
-  .login-divider::after {
-    content: '';
-    flex: 1 1 auto;
-    height: 1px;
-    background-color: #e2e6ee;
-  }
-
   /*
-   * The sign-in screen's submit is a solid deep red, not the lighter
+   * The sign-in screen's submit: a saturated red gradient, brighter than the
    * --grad-accent wash the other signed-out screens use. AuthSubmit sets its
    * fill inline, so this has to out-specify a style attribute — hence the
    * !important. It is scoped to this one screen and overrides nothing else.
-   *
-   * Deeper than the panel's mid-tones so the button still reads as the one
-   * action on the page rather than dissolving into the artwork beside it.
    */
   .login-submit.auth-submit {
-    background: var(--login-accent-deep) !important;
-    border-color: var(--login-accent-deep) !important;
-    padding-top: 0.8125rem !important;
-    padding-bottom: 0.8125rem !important;
-    box-shadow: 0 4px 14px -4px rgba(143, 31, 31, 0.5) !important;
+    gap: 0.5rem;
+    background: linear-gradient(135deg, #e31b23 0%, #b91c1c 100%) !important;
+    border-color: transparent !important;
+    border-radius: 12px !important;
+    padding-top: 0.9375rem !important;
+    padding-bottom: 0.9375rem !important;
+    font-size: 1.0625rem !important;
+    box-shadow: 0 8px 18px -8px rgba(200, 31, 31, 0.65) !important;
   }
   .login-submit.auth-submit:hover:not(:disabled) {
-    background: #a82a2a !important;
+    background: linear-gradient(135deg, var(--login-accent) 0%, var(--login-accent-deep) 100%) !important;
+    box-shadow: 0 10px 22px -8px rgba(200, 31, 31, 0.7) !important;
   }
   .login-submit.auth-submit:active:not(:disabled) {
-    box-shadow: inset 3px 3px 8px rgba(70, 12, 12, 0.55),
-      inset -2px -2px 6px rgba(255, 255, 255, 0.12) !important;
+    box-shadow: inset 0 2px 6px rgba(80, 10, 10, 0.4) !important;
     transform: translateY(1px);
   }
+  /* Disabled has to look unavailable, not merely dimmed by opacity — the
+     gradient at 50% opacity still reads as the page's one call to action. */
+  .login-submit.auth-submit:disabled {
+    background: #e4c5c5 !important;
+    box-shadow: none !important;
+  }
 
-  /* The outlined counterpart to .auth-submit — same height and radius, so the
-     two stack as a pair rather than as a button and a link. */
+  /*
+   * The outlined counterpart to .auth-submit — the reference's second button.
+   * Same height and radius as the submit, in the accent's outline rather than
+   * its fill, so the two stack as a primary and a secondary rather than as two
+   * competing calls to action.
+   */
   .login-alt-action {
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: 0.5rem;
     width: 100%;
-    padding: 0.6875rem 1rem;
-    border: 1px solid #d5dae4;
-    border-radius: 8px;
-    font-size: 0.9375rem;
+    padding: 0.9375rem 1rem;
+    background-color: #fff;
+    border: 1px solid var(--login-accent);
+    border-radius: 12px;
+    font-size: 1.0625rem;
     font-weight: 600;
-    color: var(--ink);
-    box-shadow: var(--shadow-sm);
+    color: var(--login-accent);
     transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
   }
-  .login-alt-action:active {
-    box-shadow: var(--shadow-inset);
-  }
   .login-alt-action:hover {
-    border-color: var(--login-accent);
-    background-color: #fdf6f6;
+    background-color: #fdf1f1;
+    box-shadow: 0 6px 14px -8px rgba(200, 31, 31, 0.5);
+  }
+  .login-alt-action:active {
+    background-color: #fbe6e6;
+    box-shadow: inset 0 2px 5px rgba(150, 30, 30, 0.18);
   }
 
   /* Motion here is decoration only — none of it carries meaning, so it all
      goes away rather than being slowed down. */
   @media (prefers-reduced-motion: reduce) {
-    .auth-aurora {
-      animation: none;
-    }
     .auth-submit {
       transition: none;
     }
@@ -1524,7 +2028,8 @@
       transform: none;
     }
     .login-field,
-    .login-alt-action {
+    .login-alt-action,
+    .auth-segmented__option {
       transition: none;
     }
     /*
@@ -1546,15 +2051,13 @@
   }
 
   /*
-   * Neumorphism's fallback.
+   * Forced-colours fallback.
    *
-   * The whole style rests on box-shadow: surfaces are separated by a moulded
-   * edge rather than by a border. Windows High Contrast and forced-colours mode
-   * DROP box-shadow entirely, which would leave every card, input and button as
-   * an unbounded rectangle — the page would collapse into one flat sheet.
-   *
-   * So in that mode the borders come back. Same rule for prefers-contrast:
-   * more, where a user has asked for firmer edges than a soft shadow gives.
+   * Windows High Contrast and forced-colours mode DROP box-shadow entirely.
+   * Every surface here now carries a real hairline as well, so the page no
+   * longer collapses without them the way it did under neumorphism — but a 1px
+   * grey line is not the firm edge these modes are asking for, so it is
+   * promoted to currentColor. Same rule for prefers-contrast: more.
    */
   @media (forced-colors: active), (prefers-contrast: more) {
     .card,
@@ -1568,8 +2071,9 @@
       border: 1px solid currentColor;
       box-shadow: none;
     }
-    /* The carve is what marks the current page; with shadows gone it needs a
-       real border to stay findable. */
+    /* The active row's tint is a background-image, which forced-colours also
+       overrides — so the current page needs a border of its own to stay
+       findable, heavier than the one every other surface gets. */
     .sidebar-item.active {
       border: 2px solid currentColor;
       box-shadow: none;

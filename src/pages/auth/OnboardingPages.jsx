@@ -1,12 +1,20 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { onboarding } from '@/api/onboarding';
 import { lookups } from '@/api/modules';
 import { api } from '@/api/client';
 import { useAuth } from '@/auth/AuthContext.jsx';
 import { ErrorNotice, Field, Modal, Spinner, FormErrorSummary } from '@/components/ui.jsx';
-import { PageHeader, TextField } from '@/components/FormControls.jsx';
-import { AuthLink, AuthSplitLayout, AuthSubmit, Glyph } from '@/components/AuthLayout.jsx';
+import { PageHeader } from '@/components/FormControls.jsx';
+import {
+  AUTH_ICONS,
+  AuthLink,
+  AuthSubmit,
+  Glyph,
+  RevealToggle,
+  ShowcaseField,
+} from '@/components/AuthLayout.jsx';
+import AuthShowcaseLayout from '@/components/AuthShowcaseLayout.jsx';
 import ExcelImport from '@/pages/settings/ExcelImport.jsx';
 import { useToast } from '@/components/Toast.jsx';
 import {
@@ -123,17 +131,21 @@ export function RegisterPage() {
   // TextChanged postback. Kept, but only until the user types a username of
   // their own — after that, editing the email must not overwrite it.
   const [usernameEdited, setUsernameEdited] = useState(false);
+  const [revealed, setRevealed] = useState(false);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const toast = useToast();
   // name -> message, for the fields the last submit found empty.
   const [fieldErrors, setFieldErrors] = useState({});
 
+  /** Drops the complaint against a box as soon as it is being answered. */
+  const clearFieldError = (key) =>
+    setFieldErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
+
   const setField = (key) => (e) => {
     const { value } = e.target;
     setForm((prev) => ({ ...prev, [key]: value }));
-    // The complaint goes as soon as it is being answered.
-    setFieldErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
+    clearFieldError(key);
   };
 
   const onEmailChange = (e) => {
@@ -143,11 +155,16 @@ export function RegisterPage() {
       email: value,
       username: usernameEdited ? prev.username : value,
     }));
+    // The username box mirrors this one until it is edited, so answering the
+    // email answers both complaints.
+    clearFieldError('email');
+    if (!usernameEdited) clearFieldError('username');
   };
 
   const onUsernameChange = (e) => {
     setUsernameEdited(true);
     setForm((prev) => ({ ...prev, username: e.target.value }));
+    clearFieldError('username');
   };
 
   const onSubmit = async (event) => {
@@ -210,32 +227,61 @@ export function RegisterPage() {
   };
 
   return (
-    <AuthSplitLayout
+    <AuthShowcaseLayout
       wide
-      title="Create Account"
-      subtitle="Register a committee or admin login."
+      heading="Smart Management"
+      tagline={
+        <>
+          Stronger <span className="auth-showcase-heading__accent">Community</span>
+        </>
+      }
+      title={
+        <>
+          Create your <span className="auth-showcase-title__accent">Account</span>
+        </>
+      }
+      subtitle="Register the login that will run your society."
       footer={
         <>
           Already have an account? <AuthLink to="/login">Sign in</AuthLink>
+          {/* Someone who already has an account and came here by mistake is
+              usually here because they could not get in — so the way out is
+              the reset, not only the sign-in link. */}
+          <span className="mx-2" aria-hidden="true" style={{ color: '#c9cfda' }}>
+            ·
+          </span>
+          <AuthLink to="/forgot-password">Forgot Password?</AuthLink>
         </>
       }
     >
-      <form onSubmit={onSubmit} className="space-y-4" noValidate>
+      {/* The gaps are a class rather than Tailwind's fixed space-y: this card
+          sits inside a viewport-pinned frame and carries seven boxes, so a
+          fixed rhythm is exactly what pushes Sign Up past the fold. */}
+      <form onSubmit={onSubmit} className="login-form" noValidate>
         <FormErrorSummary count={countErrors(fieldErrors)} />
-        {/* The Society / Village radio pair the legacy page opened with. */}
-        <fieldset className="flex items-center gap-5">
+
+        {/* The Society / Village radio pair the legacy page opened with. Drawn
+            as a segmented pair rather than two bare radios: the boxes below
+            carry no visible labels, so a labelled radio row above them would
+            be the only outlined thing on the form. */}
+        <fieldset className="auth-segmented">
           <legend className="sr-only">Account type</legend>
           {['Society', 'Village'].map((option) => (
-            <label key={option} className="flex cursor-pointer items-center gap-2 text-sm">
+            <label
+              key={option}
+              className={`auth-segmented__option${
+                form.type === option ? ' auth-segmented__option--on' : ''
+              }`}
+            >
               <input
                 type="radio"
                 name="type"
                 value={option}
                 checked={form.type === option}
                 onChange={setField('type')}
-                style={{ accentColor: 'var(--accent-strong)' }}
+                className="sr-only"
               />
-              <span style={{ color: 'var(--ink)' }}>{option}</span>
+              {option}
             </label>
           ))}
         </fieldset>
@@ -243,100 +289,134 @@ export function RegisterPage() {
         {/* Fields follow new_registration.aspx's own order and placeholders:
             Name, Address, Contact No., Email, Username, Password,
             Re-enter Password. */}
-        <Field label="Name" name="name" required error={fieldErrors.name}>
-          <input
-            className="field-input"
-            placeholder="Enter Name"
-            value={form.name}
-            onChange={setField('name')}
-            required
-          />
-        </Field>
+        <ShowcaseField
+          label="Name"
+          icon={AUTH_ICONS.user}
+          name="name"
+          placeholder="Name"
+          autoComplete="name"
+          value={form.name}
+          onChange={setField('name')}
+          error={fieldErrors.name}
+          disabled={busy}
+          required
+        />
 
-        <Field label="Address" required>
-          <input
-            className="field-input"
-            placeholder="Enter Address"
-            maxLength={50}
-            value={form.address}
-            onChange={setField('address')}
-            required
-          />
-        </Field>
+        <ShowcaseField
+          label="Address"
+          icon={AUTH_ICONS.home}
+          name="address"
+          placeholder="Address"
+          autoComplete="street-address"
+          maxLength={50}
+          value={form.address}
+          onChange={setField('address')}
+          error={fieldErrors.address}
+          disabled={busy}
+          required
+        />
 
-        <Field label="Contact No." required>
-          <input
-            className="field-input"
+        {/* Paired from `sm` up. Seven full-width boxes run this form well past
+            any laptop viewport, and these four are short enough to sit two to a
+            row without either becoming cramped — which is what lets the whole
+            form fit on one screen instead of opening mid-scroll. */}
+        <div className="login-pair">
+          <ShowcaseField
+            label="Contact No."
+            icon={AUTH_ICONS.phone}
+            name="contactNo"
             type="tel"
             inputMode="numeric"
             maxLength={10}
-            placeholder="Enter Contact No."
+            placeholder="Contact No."
+            autoComplete="tel"
             value={form.contactNo}
             onChange={setField('contactNo')}
+            error={fieldErrors.contactNo}
+            disabled={busy}
             required
           />
-        </Field>
 
-        <Field label="Email" required>
-          <input
-            className="field-input"
+          <ShowcaseField
+            label="Email"
+            icon={AUTH_ICONS.mail}
+            name="email"
             type="email"
-            placeholder="Enter Email"
+            placeholder="Email"
+            autoComplete="email"
             value={form.email}
             onChange={onEmailChange}
+            error={fieldErrors.email}
+            disabled={busy}
             required
           />
-        </Field>
+        </div>
 
         {/* The legacy username box was disabled and filled from the email.
             Kept editable: a username you cannot correct is a dead end if the
             address is already taken. */}
-        <Field label="Username" required>
-          <input
-            className="field-input"
-            placeholder="Username"
-            autoComplete="username"
-            value={form.username}
-            onChange={onUsernameChange}
+        <ShowcaseField
+          label="Username"
+          icon={AUTH_ICONS.id}
+          name="username"
+          placeholder="User Name"
+          autoComplete="username"
+          value={form.username}
+          onChange={onUsernameChange}
+          error={fieldErrors.username}
+          disabled={busy}
+          required
+        />
+
+        <div className="login-pair">
+          <ShowcaseField
+            label="Password"
+            icon={AUTH_ICONS.lock}
+            name="password"
+            type={revealed ? 'text' : 'password'}
+            placeholder="Password"
+            autoComplete="new-password"
+            value={form.password}
+            onChange={setField('password')}
+            error={fieldErrors.password}
+            disabled={busy}
+            required
+            action={<RevealToggle revealed={revealed} onToggle={() => setRevealed((v) => !v)} />}
+          />
+
+          {/* No reveal on the confirmation box: it exists to catch a typo in
+              the box above, and showing both defeats the check. */}
+          <ShowcaseField
+            label="Re-enter Password"
+            icon={AUTH_ICONS.lock}
+            name="confirm"
+            type="password"
+            placeholder="Re-enter Password"
+            autoComplete="new-password"
+            value={form.confirm}
+            onChange={setField('confirm')}
+            error={fieldErrors.confirm}
+            disabled={busy}
             required
           />
-        </Field>
-
-        <TextField
-          label="Password"
-          name="password"
-          type="password"
-          required
-          placeholder="Enter Password"
-          autoComplete="new-password"
-          value={form.password}
-          onChange={setField('password')}
-        />
-
-        <TextField
-          label="Re-enter Password"
-          name="confirm"
-          type="password"
-          required
-          placeholder="Re-enter Password"
-          autoComplete="new-password"
-          value={form.confirm}
-          onChange={setField('confirm')}
-        />
+        </div>
 
         <ErrorNotice error={error} />
 
-        <AuthSubmit busy={busy} busyLabel="Creating…">
-          Create Account
-        </AuthSubmit>
+        <div className="pt-1">
+          <AuthSubmit className="login-submit" busy={busy} busyLabel="Creating…">
+            Sign Up
+          </AuthSubmit>
+        </div>
       </form>
-    </AuthSplitLayout>
+    </AuthShowcaseLayout>
   );
 }
 
 /** Replaces ForgetPassword.aspx. */
 export function ForgotPasswordPage() {
   const [form, setForm] = useState({ email: '', newPassword: '', confirm: '' });
+  const [revealed, setRevealed] = useState(false);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const toast = useToast();
@@ -382,59 +462,103 @@ export function ForgotPasswordPage() {
   };
 
   return (
-    <AuthSplitLayout
-      title="Reset password"
+    <AuthShowcaseLayout
+      heading="Smart Management"
+      tagline={
+        <>
+          Stronger <span className="auth-showcase-heading__accent">Community</span>
+        </>
+      }
+      title={
+        <>
+          Reset <span className="auth-showcase-title__accent">Password</span>
+        </>
+      }
       subtitle="Set a new password for your account."
-      footer={<AuthLink to="/login">Back to sign in</AuthLink>}
+      footer={
+        <>
+          Remembered it? <AuthLink to="/login">Sign in</AuthLink>
+        </>
+      }
     >
       {done ? (
-        <SuccessNotice>
-          If an account exists for that email address, its password has been updated. You can now
-          sign in.
-        </SuccessNotice>
+        <>
+          <SuccessNotice>
+            If an account exists for that email address, its password has been updated. You can now
+            sign in.
+          </SuccessNotice>
+
+          {/* The confirmation is a dead end without this: the form it replaced
+              was the only thing on the page that led anywhere. */}
+          <Link to="/login" className="login-alt-action mt-4">
+            Back to sign in
+          </Link>
+        </>
       ) : (
-        <form onSubmit={onSubmit} className="space-y-4" noValidate>
+        <form onSubmit={onSubmit} className="space-y-3.5" noValidate>
           <FormErrorSummary count={countErrors(fieldErrors)} />
-          <Field label="Email address" name="email" required error={fieldErrors.email}>
-            <input
-              className="field-input"
-              type="email"
-              placeholder="Enter your email"
-              value={form.email}
-              onChange={setField('email')}
-              required
-            />
-          </Field>
-          <TextField
-            label="New password"
-            name="newPassword"
-            type="password"
+
+          <ShowcaseField
+            label="Email address"
+            icon={AUTH_ICONS.mail}
+            name="email"
+            type="email"
+            placeholder="Email"
+            autoComplete="email"
+            value={form.email}
+            onChange={setField('email')}
+            error={fieldErrors.email}
+            disabled={busy}
             required
-            placeholder="Enter new password"
+          />
+
+          <ShowcaseField
+            label="New password"
+            icon={AUTH_ICONS.lock}
+            name="newPassword"
+            type={revealed ? 'text' : 'password'}
+            placeholder="New Password"
             autoComplete="new-password"
             hint="At least 8 characters"
             value={form.newPassword}
             onChange={setField('newPassword')}
+            error={fieldErrors.newPassword}
+            disabled={busy}
+            required
+            action={<RevealToggle revealed={revealed} onToggle={() => setRevealed((v) => !v)} />}
           />
-          <TextField
+
+          {/* No reveal here — this box exists to catch a typo in the one above,
+              and showing both defeats the check. */}
+          <ShowcaseField
             label="Confirm password"
+            icon={AUTH_ICONS.lock}
             name="confirm"
             type="password"
-            required
-            placeholder="Re-enter new password"
+            placeholder="Re-enter New Password"
             autoComplete="new-password"
             value={form.confirm}
             onChange={setField('confirm')}
+            error={fieldErrors.confirm}
+            disabled={busy}
+            required
           />
 
           <ErrorNotice error={error} />
 
-          <AuthSubmit busy={busy} busyLabel="Updating…">
-            Reset password
-          </AuthSubmit>
+          <div className="pt-1">
+            <AuthSubmit
+              className="login-submit"
+              busy={busy}
+              busyLabel="Updating…"
+              disabled={!form.email || !form.newPassword || !form.confirm}
+            >
+              Reset Password
+            </AuthSubmit>
+          </div>
         </form>
       )}
-    </AuthSplitLayout>
+    </AuthShowcaseLayout>
   );
 }
 

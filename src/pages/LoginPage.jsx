@@ -1,42 +1,23 @@
-import { useId, useState } from 'react';
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthContext.jsx';
 import { ErrorNotice } from '@/components/ui.jsx';
-import { AuthLink, AuthSubmit, Glyph } from '@/components/AuthLayout.jsx';
+import {
+  AUTH_ICONS,
+  AuthLink,
+  AuthSubmit,
+  Glyph,
+  RevealToggle,
+  ShowcaseField,
+} from '@/components/AuthLayout.jsx';
 import AuthShowcaseLayout from '@/components/AuthShowcaseLayout.jsx';
 
-const USER_ICON = <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4 20a8 8 0 0 1 16 0" />;
-const LOCK_ICON = (
-  <path d="M6 10V8a6 6 0 1 1 12 0v2M5 10h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1Z" />
-);
-
-/*
- * A filled input carrying a leading glyph and, optionally, a trailing action.
+/**
+ * The sign-in screen.
  *
- * The design puts no visible label above these boxes, so the label is rendered
- * for assistive tech only and the placeholder carries it visually — without the
- * sr-only label the icon would be the only thing naming the field, and an icon
- * names nothing to a screen reader.
+ * There is one sign-in here and it is the committee's: members use the mobile
+ * app, so this page has no second, member-facing mode to switch into.
  */
-function ShowcaseField({ label, icon, action, ...rest }) {
-  const generatedId = useId();
-  const id = `login-${rest.name || generatedId}`;
-  return (
-    <div>
-      <label htmlFor={id} className="sr-only">
-        {label}
-      </label>
-      <div className="login-field">
-        <span className="login-field__icon" aria-hidden="true">
-          <Glyph size={19}>{icon}</Glyph>
-        </span>
-        <input id={id} className="login-field__input" {...rest} />
-        {action ? <div className="login-field__action">{action}</div> : null}
-      </div>
-    </div>
-  );
-}
-
 export default function LoginPage() {
   const { login, isAuthenticated, loading } = useAuth();
   const navigate = useNavigate();
@@ -47,15 +28,45 @@ export default function LoginPage() {
   const [revealed, setRevealed] = useState(false);
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [busy, setBusy] = useState(false);
 
   if (!loading && isAuthenticated) {
     return <Navigate to={location.state?.from?.pathname || '/dashboard'} replace />;
   }
 
+  /*
+   * Both boxes are required, and the first accepts either a username or a
+   * 10-digit mobile number — so an all-digit entry is checked as a number and
+   * anything else is checked as a username. Validating a digits-only string
+   * against the username rule would reject a perfectly good phone number, and
+   * skipping the check entirely lets a 4-digit typo reach the API.
+   */
+  const validate = () => {
+    const next = {};
+    const id = username.trim();
+
+    if (!id) {
+      next.username = 'Enter your username or mobile number.';
+    } else if (/^\d+$/.test(id)) {
+      if (id.length !== 10) next.username = 'A mobile number must be 10 digits.';
+    } else if (id.length < 3) {
+      next.username = 'A username must be at least 3 characters.';
+    }
+
+    if (!password) next.password = 'Enter your password.';
+
+    return next;
+  };
+
   const onSubmit = async (event) => {
     event.preventDefault();
     setError(null);
+
+    const problems = validate();
+    setFieldErrors(problems);
+    if (Object.keys(problems).length) return;
+
     setBusy(true);
     try {
       await login(username.trim(), password);
@@ -67,58 +78,76 @@ export default function LoginPage() {
     }
   };
 
+  /* Clearing a box's complaint as soon as it is edited: leaving it until the
+     next submit means the message still names a value that is no longer there. */
+  const clearError = (field) =>
+    setFieldErrors((prev) => (prev[field] ? { ...prev, [field]: undefined } : prev));
+
+  /*
+   * The footer says "Register your society", not the reference's "Contact
+   * Administrator": /register is where a committee that has no account yet
+   * creates one, and that is a real destination. Telling an admin who has no
+   * account to contact an administrator would send them in a circle.
+   */
   return (
     <AuthShowcaseLayout
-      heading="Welcome"
-      tagline="to your society, online"
-      title="Sign in"
-      subtitle="Enter your credentials to reach your society dashboard."
+      heading="Smart Management"
+      tagline={
+        <>
+          Stronger <span className="auth-showcase-heading__accent">Community</span>
+        </>
+      }
+      title={
+        <>
+          Welcome <span className="auth-showcase-title__accent">Back!</span>
+        </>
+      }
+      subtitle="Sign in to your committee account to continue"
       footer={
         <>
-          Don&rsquo;t have an account? <AuthLink to="/register">Sign Up</AuthLink>
+          New society? <AuthLink to="/register">Register your society</AuthLink>
         </>
       }
     >
-      <form onSubmit={onSubmit} className="space-y-3.5" noValidate>
+      {/* The gaps are a class rather than Tailwind's fixed space-y: the card
+          sits inside a viewport-pinned frame, and on a short laptop a fixed
+          rhythm is what pushes the buttons past the fold. */}
+      <form onSubmit={onSubmit} className="login-form" noValidate>
         <ShowcaseField
-          label="Username"
-          icon={USER_ICON}
+          label="Username / Mobile Number"
+          icon={AUTH_ICONS.user}
           name="username"
           autoComplete="username"
-          placeholder="User Name"
+          placeholder="Enter username or mobile number"
           value={username}
-          onChange={(e) => setUsername(e.target.value)}
+          onChange={(e) => {
+            setUsername(e.target.value);
+            clearError('username');
+          }}
+          error={fieldErrors.username}
           disabled={busy}
           required
         />
 
         <ShowcaseField
           label="Password"
-          icon={LOCK_ICON}
+          icon={AUTH_ICONS.lock}
           name="password"
           type={revealed ? 'text' : 'password'}
           autoComplete="current-password"
-          placeholder="Password"
+          placeholder="Enter your password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e) => {
+            setPassword(e.target.value);
+            clearError('password');
+          }}
+          error={fieldErrors.password}
           disabled={busy}
           required
-          action={
-            <button
-              type="button"
-              className="login-field__reveal"
-              // Announces the action, not the state, so screen readers say what
-              // pressing it will do.
-              aria-label={revealed ? 'Hide password' : 'Show password'}
-              aria-pressed={revealed}
-              onClick={() => setRevealed((v) => !v)}
-            >
-              {revealed ? 'HIDE' : 'SHOW'}
-            </button>
-          }
+          action={<RevealToggle revealed={revealed} onToggle={() => setRevealed((v) => !v)} />}
         />
 
-        <div className="flex items-center justify-between gap-3 pt-0.5">
+        <div className="flex items-center justify-between gap-3">
           <label className="flex items-center gap-2 text-[13px] text-slate-600">
             <input
               type="checkbox"
@@ -127,36 +156,34 @@ export default function LoginPage() {
               onChange={(e) => setRemember(e.target.checked)}
               disabled={busy}
             />
-            Remember me
+            Remember Me
           </label>
           <AuthLink to="/forgot-password">Forgot Password?</AuthLink>
         </div>
 
         <ErrorNotice error={error} />
 
-        <div className="pt-1">
-          <AuthSubmit
-            className="login-submit"
-            busy={busy}
-            busyLabel="Signing in…"
-            disabled={!username || !password}
-          >
-            Sign in
-          </AuthSubmit>
-        </div>
+        {/* Not disabled until both boxes are filled: a dead button says nothing
+            about WHY it is dead. Submitting an empty form runs validate() and
+            names the missing box instead. */}
+        <AuthSubmit className="login-submit" busy={busy} busyLabel="Signing in…">
+          {/* Sign-in arrow, as in the reference — the label leads and the
+              glyph follows it rather than the button opening with an icon. */}
+          <Glyph size={17}>
+            <path d="M15 3h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H3" />
+          </Glyph>
+          Login
+        </AuthSubmit>
       </form>
 
-      {/* The reference's "Or / Sign in with other" pair. There is no SSO behind
-          this app, so "other" is the emailed one-time link rather than a
-          third-party provider — the label is the reference's, and the
-          destination is the only alternative sign-in that actually exists. */}
-      <div className="login-divider" role="presentation">
-        <span>Or</span>
-      </div>
+      {/*
+        No "Login as Admin" second action.
 
-      <Link to="/forgot-password" className="login-alt-action">
-        Sign in with other
-      </Link>
+        This site IS the committee's console — members use the mobile app, and
+        there is no member-facing web sign-in for a second button to lead to. A
+        button that only ever reloads the screen you are already on is worse
+        than no button: it reads as a door, and there is nothing behind it.
+      */}
     </AuthShowcaseLayout>
   );
 }

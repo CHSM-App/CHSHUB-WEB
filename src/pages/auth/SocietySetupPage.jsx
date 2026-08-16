@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { onboarding } from '@/api/onboarding';
 import { api } from '@/api/client';
 import { useAuth } from '@/auth/AuthContext.jsx';
 import { ErrorNotice, Field } from '@/components/ui.jsx';
 import { findInvalidFormats } from '@/components/formValidation.js';
 import RichTextField from '@/components/RichTextField.jsx';
-import { AuthSplitLayout, AuthSubmit, Glyph } from '@/components/AuthLayout.jsx';
+import { AuthSubmit, Glyph } from '@/components/AuthLayout.jsx';
+import AuthShowcaseLayout from '@/components/AuthShowcaseLayout.jsx';
 import { useToast } from '@/components/Toast.jsx';
 
 /*
@@ -73,7 +74,7 @@ const FORMATTED = [
 
 export default function SocietySetupPage() {
   const navigate = useNavigate();
-  const { societyId, refreshUser, logout } = useAuth();
+  const { societyId, tenantNamed, refreshUser, logout } = useAuth();
 
   const [step, setStep] = useState(0);
   const [error, setError] = useState(null);
@@ -218,8 +219,18 @@ export default function SocietySetupPage() {
    */
   if (done) {
     return (
-      <AuthSplitLayout
-        title="Society created"
+      <AuthShowcaseLayout
+        heading="Smart Management"
+        tagline={
+          <>
+            Stronger <span className="auth-showcase-heading__accent">Community</span>
+          </>
+        }
+        title={
+          <>
+            Society <span className="auth-showcase-title__accent">created</span>
+          </>
+        }
         subtitle="Your society is set up and ready to use."
       >
         <div
@@ -258,14 +269,39 @@ export default function SocietySetupPage() {
             Go to sign in
           </button>
         </div>
-      </AuthSplitLayout>
+      </AuthShowcaseLayout>
     );
   }
 
+  /*
+   * A society that has been named has been through this wizard, so it never
+   * sees it again: Back from the dashboard, a bookmark or a stale tab all land
+   * here otherwise, and the empty form would offer to overwrite a live society
+   * with blanks.
+   *
+   * `society_name` arrives with the sign-in response, so this is decided on the
+   * first render — no fetch, and no window in which the wizard paints and is
+   * then yanked away.
+   *
+   * Checked AFTER `done`: the account that just finished has a name by now too,
+   * and it still needs to see the success screen.
+   */
+  if (tenantNamed) return <Navigate to="/dashboard" replace />;
+
   return (
-    <AuthSplitLayout
+    <AuthShowcaseLayout
       wide
-      title="Set up your society"
+      heading="Smart Management"
+      tagline={
+        <>
+          Stronger <span className="auth-showcase-heading__accent">Community</span>
+        </>
+      }
+      title={
+        <>
+          Set up your <span className="auth-showcase-title__accent">Society</span>
+        </>
+      }
       subtitle={`Step ${step + 1} of ${STEPS.length} — ${STEPS[step].title}`}
     >
       {/*
@@ -591,6 +627,6 @@ export default function SocietySetupPage() {
           </div>
         </div>
       </form>
-    </AuthSplitLayout>
+    </AuthShowcaseLayout>
   );
 }

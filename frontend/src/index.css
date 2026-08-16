@@ -515,6 +515,77 @@
   }
   .panel-body {
     padding: 20px;
+    /*
+     * Makes the panel's content box a QUERY CONTAINER, so what is inside it can
+     * lay itself out against the room it actually has rather than against the
+     * viewport. The dashboard puts panels in a `2fr 1fr` grid, so a panel on
+     * the right is ~227px wide on a 1024px screen — a `sm:` viewport class
+     * inside one is answering a question nobody asked.
+     *
+     * `inline-size` scopes the containment to the horizontal axis only: the
+     * panel's height still grows with its content, which `container-type:
+     * size` would have broken.
+     */
+    container-type: inline-size;
+    container-name: panel;
+  }
+
+  /*
+   * The Income Tracker donut and its legend.
+   *
+   * Stacked by default — the dial over the figures — because that is what fits
+   * the narrow right-hand column this chart usually lands in. It only goes
+   * side by side once its CONTAINER is wide enough to hold both, which is the
+   * measurement that was wrong before: the component switched on a 640px
+   * viewport, so in a 185px column it was always in two-column mode with 17px
+   * left for the legend, and the amounts spilled past the panel's edge.
+   *
+   * 300px is where the 128px dial, the 24px gap and a legend wide enough for
+   * "Collection ₹235,291" all fit without either column being squeezed.
+   */
+  .donut-chart {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.25rem;
+  }
+  @container panel (min-width: 300px) {
+    .donut-chart {
+      flex-direction: row;
+      align-items: center;
+      gap: 1.5rem;
+    }
+    .donut-chart__legend {
+      flex: 1;
+    }
+    /* The dial can afford to be bigger once it is sharing a row rather than
+       sitting above the legend. */
+    .donut-chart__dial > svg {
+      width: 9rem;
+      height: 9rem;
+    }
+  }
+
+  /*
+   * The band just above the stacking threshold.
+   *
+   * Between ~300px and ~390px of container the two sit side by side, but a
+   * 9rem dial plus the gap leaves the legend about two pixels short of
+   * "Collection" — so the label truncated to "Collecti…", which is exactly the
+   * clipping the row layout was supposed to prevent.
+   *
+   * Trimming the dial to 7rem in that band buys the word back. The dial is a
+   * proportion and reads the same slightly smaller; a cut-off label does not.
+   *
+   * This MUST come after the `min-width: 300px` block above — both are
+   * single-class selectors of equal specificity, so the later rule is the one
+   * that wins, and putting it first would leave the dial back at 9rem.
+   */
+  @container panel (min-width: 300px) and (max-width: 390px) {
+    .donut-chart__dial > svg {
+      width: 7rem;
+      height: 7rem;
+    }
   }
 
   /*
@@ -575,6 +646,153 @@
     padding: 18px;
     border-radius: 14px;
     min-height: 104px;
+    /*
+     * A query container, so the label inside can size itself against the TILE
+     * rather than the viewport. Three of these sit in a `2fr` column split
+     * three ways, so each is ~140px wide on a 1024px screen however wide the
+     * window is — a viewport-based class cannot see that.
+     */
+    container-type: inline-size;
+    container-name: tile;
+  }
+
+  /*
+   * The tile's label — "DUE PAYMENTS", "TOTAL MEMBERS".
+   *
+   * The size lives here rather than on a `text-xs` utility in the markup:
+   * utilities sit in a later cascade layer than components, so a utility on
+   * the element would outrank the container query below and the label would go
+   * on wrapping however narrow the tile got.
+   */
+  .stat-tile-label {
+    font-size: 12px;
+    letter-spacing: 0.025em;
+  }
+
+  /*
+   * The tile's glyph plate. Sized here rather than with `h-9 w-9` utilities so
+   * the container query below can shrink it — a utility sits in a later
+   * cascade layer and would win over the query.
+   */
+  .stat-tile-glyph {
+    height: 2.25rem;
+    width: 2.25rem;
+    border-radius: 0.75rem;
+  }
+  .stat-tile-glyph > svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  /*
+   * Below 170px of tile there is not room for a two-word uppercase label
+   * beside a 36px icon plate, so it wrapped to two lines and pushed against
+   * the glyph — which is what clipped "DEFAULTERS" mid-word. Dropping to 11px
+   * and tightening the tracking buys back the width the second line was
+   * costing; the label is a caption for the figure under it, and one clean
+   * line reads better than two cramped ones.
+   *
+   * Only the narrow case pays this; from 170px up the label keeps its full
+   * 12px, which is where it belongs.
+   */
+  /*
+   * NOTE ON THE THRESHOLDS BELOW.
+   *
+   * A container query measures the container's CONTENT box, so these numbers
+   * are the tile's inner width — its border-box width minus its 36px of
+   * padding. A 197px tile queries as 161px, a 175px tile as 139px. Reading
+   * them as outer widths is what made an earlier attempt stack tiles that had
+   * plenty of room.
+   *
+   * The label needs 97px at 12px ("TOTAL MEMBERS", the longest in the set),
+   * and the plate plus gap costs 44px — so a row layout needs ~141px of inner
+   * width to hold both. Below that the label drops to 11px, and below ~120px
+   * the plate leaves the row entirely.
+   */
+  @container tile (max-width: 160px) {
+    .stat-tile-label {
+      font-size: 11px;
+      letter-spacing: 0.01em;
+    }
+    /*
+     * The glyph plate gives up 8px so the label can have it.
+     *
+     * The budget in a 140px tile is unforgiving: 36px of padding leaves a
+     * 102px row, and a 36px plate plus its 8px gap took 44px of that — so the
+     * label got 58px while "DEFAULTERS" needs 64px and "TOTAL MEMBERS" 87px.
+     * That deficit is what wrapped the label into a second line and pushed it
+     * under the plate.
+     *
+     * Shrinking the plate to 28px and tightening the gap hands ~13px back,
+     * which is enough for the one-word labels to fit outright. The plate is
+     * decoration — it repeats what the label already says — so it is the right
+     * thing to trade.
+     */
+    .stat-tile-glyph {
+      height: 1.75rem;
+      width: 1.75rem;
+      border-radius: 0.625rem;
+    }
+    .stat-tile-glyph > svg {
+      width: 15px;
+      height: 15px;
+    }
+
+  }
+
+  /*
+   * Below ~120px of inner width even the shrunken plate does not leave enough
+   * beside the label: "TOTAL MEMBERS" wants 87px at 11px and the row can offer
+   * 66px, so it still breaks into two lines and runs under the plate.
+   *
+   * At that point the plate stops sharing the row. It moves to its own line
+   * above the label, which hands the label the tile's FULL inner width —
+   * enough for every label in the set on one line — so the tile keeps both
+   * pieces of information rather than trading one away. `column-reverse` puts
+   * the glyph on top, so the coloured mark still leads the eye into the tile
+   * the way it does at every other size.
+   */
+  /*
+   * Property Summary's column labels — BUILDINGS / WINGS / FLATS.
+   *
+   * Three columns inside the dashboard's narrow right-hand panel, so each gets
+   * about a third of ~190px. "BUILDINGS" needs 64px at 12px with the tracking
+   * on, and the column offers 38px — so it truncated to "BUILDING…", which is
+   * the one thing a label naming a figure must not do.
+   *
+   * The tracking goes first (it is the cheapest 4px to give back) and the size
+   * follows in a narrow panel. Set here rather than with utilities so the
+   * container query can win.
+   */
+  .summary-label {
+    font-size: 12px;
+    letter-spacing: 0.01em;
+    /*
+     * The last resort, and the reason this never truncates again: if the
+     * column is still too narrow for the word, it BREAKS rather than being cut
+     * off. "BUILD-INGS" over two lines is legible; "BUILDING…" is a different
+     * word. The three columns are a fixed 1fr each, so there is no width for
+     * the label to negotiate for — wrapping is the only honest way out.
+     */
+    overflow-wrap: anywhere;
+    hyphens: auto;
+  }
+  @container panel (max-width: 260px) {
+    .summary-label {
+      font-size: 10.5px;
+      letter-spacing: 0;
+    }
+  }
+
+  @container tile (max-width: 120px) {
+    .stat-tile-head {
+      flex-direction: column-reverse;
+      align-items: flex-start;
+      gap: 0.375rem;
+    }
+    .stat-tile-head > .stat-tile-label {
+      width: 100%;
+    }
   }
   /*
    * The top-right bloom was a white circle lightening a coloured fill. On a
@@ -933,11 +1151,19 @@
     color: #b91c1c;
   }
   .sidebar-heading {
-    font-size: 11px;
+    /* 12px is the floor for body-adjacent UI text, and this is a section
+       heading in the app's primary navigation — the thing that tells you which
+       half of the menu you are looking at. Uppercase with letter-spacing needs
+       the size more than lowercase does, not less. */
+    font-size: 12px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: #8b94a5;
+    /* #8b94a5 measured 3.05:1 on the rail's white — under the 4.5:1 WCAG asks
+       for normal-size text. This is the same grey family one step darker, so
+       the heading still reads as secondary to the links beneath it while
+       actually being legible. */
+    color: #6b7280;
     margin: 10px 0 6px;
     padding: 0 14px;
   }
@@ -977,9 +1203,16 @@
   /* #accordionSidebar .collapse-inner a.active in the legacy stylesheet,
      recoloured to the brand red — the row also carries a dot on the rail so the
      current page is findable without reading every label. */
+  /*
+   * The accent red on the active row's pink tint measures 3.87:1 — under the
+   * 4.5:1 normal-size text needs, and this row is the one that tells you which
+   * page you are on. --accent-strong on the same tint clears it without
+   * changing the row's colour identity; the parent .sidebar-item.active
+   * already uses that deeper red for exactly this reason.
+   */
   .collapse-inner a.active {
     background: #fee2e2;
-    color: #e31b23;
+    color: var(--accent-strong);
     font-weight: 700;
   }
   .collapse-inner a.active::before {
@@ -1003,9 +1236,25 @@
    */
   .chs-logo {
     padding: 8px 12px;
+    /* Centres the two-line mark once a touch device gives it a taller box. */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
   .logo-text {
     font-size: 12px;
+  }
+
+  /*
+   * The mark is a LINK — it is how you get back to the dashboard — and its two
+   * 12px lines leave it 34px tall, under the 44px a finger needs. The tile's
+   * drawn size is left alone and only its hit area grows, so the header looks
+   * identical and the target is the size it should have been.
+   */
+  @media (pointer: coarse) {
+    .chs-logo {
+      min-height: 44px;
+    }
   }
 
   /*
@@ -1079,7 +1328,27 @@
    * controls the user actually touches, and each one fixes something that made
    * a screen awkward or unusable on a handset rather than merely tight.
    */
-  @media (max-width: 640px) {
+  /*
+   * TOUCH, not WIDTH.
+   *
+   * Every rule in this block answers a question about the INPUT DEVICE — how
+   * big a target a finger needs, and whether tapping a field will zoom the
+   * page. None of them is a question about how wide the screen is, so keying
+   * them on `max-width: 640px` (as they were) answered the wrong question and
+   * excluded exactly the devices that need them most.
+   *
+   * A 768px iPad, a 1024px iPad Pro and an 810px Android tablet are all touch
+   * devices, and all three sat above the old 640px cap: their buttons rendered
+   * at 35px against the ~44px Apple and Android both ask for, and their form
+   * fields at 14px, which is under the 16px threshold that makes iOS Safari
+   * zoom the page in on focus and never zoom back out.
+   *
+   * `pointer: coarse` is the primary input being a finger rather than a mouse,
+   * which is precisely the condition these rules exist for. The width query is
+   * kept alongside it so a narrow desktop window — a phone-sized browser on a
+   * machine with a mouse — still gets the phone treatment it always had.
+   */
+  @media (max-width: 640px), (pointer: coarse) {
     /*
      * iOS Safari zooms the whole page in when a focused control's text is
      * under 16px, and it does not zoom back out on blur — the user is left
@@ -1087,7 +1356,8 @@
      * this app sets 0.875rem (14px), so tapping any field triggered it.
      *
      * 16px is the threshold, not a preference: anything below it re-triggers.
-     * Desktop keeps 14px, which is why this sits inside the phone query.
+     * A mouse-driven screen keeps 14px, which is why this is scoped to coarse
+     * pointers rather than applied everywhere.
      */
     .field-input,
     select.field-input,
@@ -1130,15 +1400,50 @@
      * Checkboxes in grids are h-4 w-4 (16px) — a hard tap target to hit, and
      * the selection column is how bill runs and payments are driven. The box
      * is left at its drawn size and the touch area grown around it.
+     *
+     * 24px rather than the 20px this used to set: 24 is the floor WCAG 2.2
+     * gives for a target (Success Criterion 2.5.8), and a selection column
+     * where the wrong row gets ticked is how a bill run goes out against the
+     * wrong flat.
      */
     input[type='checkbox'],
     input[type='radio'] {
-      min-width: 20px;
-      min-height: 20px;
+      min-width: 24px;
+      min-height: 24px;
     }
 
+    /*
+     * Inline text links that act as controls — the dashboard's "Open →" and
+     * "See All →", a panel's "View all" — are laid out with utilities, so the
+     * .btn rules above cannot reach them and they render around 20px tall.
+     *
+     * The padding is vertical only and the links are inline-flex, so the extra
+     * area is added around the text without moving it or changing how the line
+     * reads. Scoped to links that already opt into inline-flex, so ordinary
+     * prose links inside a paragraph are left alone — growing those would
+     * break the line spacing of the sentence they sit in.
+     */
+    a.inline-flex {
+      min-height: 32px;
+    }
+
+    /*
+     * The sub-menu links in the sidebar drawer. They are the only navigation a
+     * tablet user has — the rail is a drawer below `lg` — and at their desktop
+     * padding they render 32px tall, close enough to their neighbours that a
+     * thumb lands on the wrong page.
+     */
+    .collapse-inner a {
+      min-height: 40px;
+      display: flex;
+      align-items: center;
+    }
+  }
+
+  @media (max-width: 640px) {
     /* Dialogs use the full width of a phone; 1rem of surround is enough to
-       still read as a layer above the page. */
+       still read as a layer above the page. This one IS about width — a tablet
+       has room for a dialog that does not reach its edges. */
     .modal-panel {
       max-height: calc(100vh - 1rem);
     }
@@ -1569,15 +1874,21 @@
   }
   .auth-showcase-trust__title {
     display: block;
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     font-weight: 700;
   }
+  /*
+   * 12px, up from 11px (0.6875rem). This is the last copy anyone reads before
+   * signing in, set in white on a saturated red — a combination that already
+   * costs legibility — and 11px is under the floor for a line of prose meant to
+   * be read rather than glanced at. The strip has the room: it wraps.
+   */
   .auth-showcase-trust__body {
     display: block;
     margin-top: 0.125rem;
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     line-height: 1.45;
-    color: rgba(255, 255, 255, 0.78);
+    color: rgba(255, 255, 255, 0.86);
   }
 
   /*

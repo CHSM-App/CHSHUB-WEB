@@ -289,7 +289,15 @@ export function Tabs({ tabs, active, onChange, className = '' }) {
             key={t.id}
             type="button"
             onClick={() => onChange(t.id)}
-            className={`whitespace-nowrap border-b-2 px-1 pb-2 text-sm transition-colors ${
+            /*
+             * `min-h-[44px]` and the top padding are the touch target, not
+             * decoration: a tab strip is how a user moves around a page, and
+             * at `pb-2` alone these render 30px tall — under the 44px a finger
+             * needs, with the tabs sitting side by side so a miss switches to
+             * the wrong section. The underline still sits on the text baseline
+             * because the extra height is added above it.
+             */
+            className={`inline-flex min-h-[44px] items-center whitespace-nowrap border-b-2 px-1 pb-2 pt-2 text-sm transition-colors ${
               active === t.id
                 ? 'border-[#e31b23] font-medium text-[#b91c1c]'
                 : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'

@@ -750,8 +750,16 @@ export default function AppLayout() {
                         <div className="collapse-inner">
                           {group.heading ? (
                             <h6
-                              className="mb-1 mt-1 px-2.5 text-[10px] font-bold uppercase tracking-wide"
-                              style={{ color: '#9aa3b2' }}
+                              /* 11px, not 10: this names the group of links
+                                 under it, and uppercase tracked type loses
+                                 legibility faster than lowercase as it
+                                 shrinks — 10px put it under what a menu label
+                                 can afford to be. */
+                              className="mb-1 mt-1 px-2.5 text-[11px] font-bold uppercase tracking-wide"
+                              /* #9aa3b2 measured 2.54:1 on white — well under
+                                 the 4.5:1 needed. Same grey family, dark
+                                 enough to read. */
+                              style={{ color: '#6b7280' }}
                             >
                               {group.heading}
                             </h6>
@@ -800,7 +808,8 @@ export default function AppLayout() {
         is dropped from print the same way the topbar is.
       */}
       <footer className="mt-auto shrink-0 px-6 py-8 text-center print:hidden">
-        <span className="text-xs" style={{ color: '#858796' }}>
+        {/* #858796 measured 3.4:1 on the page tint — under 4.5:1. */}
+        <span className="text-xs" style={{ color: '#6b7280' }}>
           Copyright © chsHub.co.in
         </span>
       </footer>

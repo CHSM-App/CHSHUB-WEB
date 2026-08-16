@@ -1,8 +1,24 @@
 import { useEffect, useState } from 'react';
 import { receipts } from '@/api/billing';
 import { EmptyState, ErrorNotice, Modal, Spinner } from '@/components/ui.jsx';
+import useSortedRows from '@/components/useSortedRows.js';
+import { SortableHead, SortControl } from '@/components/SortableHead.jsx';
 
 const money = (v) => Number(v ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/*
+ * Date and amount sort on their underlying value, not the rendered text: the
+ * cells show a localised date and a grouped number, and ordering those as
+ * strings puts 9,000 above 10,000 and sorts dates by their leading digit.
+ */
+const COLUMNS = [
+  { key: 'receipt_no', label: 'Receipt no.' },
+  { key: 'receipt_date', label: 'Date', sortValue: (r) => (r.receipt_date ? new Date(r.receipt_date).getTime() : null) },
+  { key: 'owner', label: 'Resident' },
+  { key: 'transaction_ref', label: 'Reference' },
+  { key: 'paid_amount', label: 'Amount', sortValue: (r) => Number(r.paid_amount ?? 0) },
+  { key: 'bill_status', label: 'Status' },
+];
 
 /**
  * Receipts ledger. Read-only for now: recording a payment writes to `receipt`
@@ -16,6 +32,7 @@ export default function ReceiptsPage() {
   const [error, setError] = useState(null);
   const [viewing, setViewing] = useState(null);
   const [viewLoading, setViewLoading] = useState(false);
+  const { sorted, sort, toggleSort } = useSortedRows(items, COLUMNS);
 
   useEffect(() => {
     let cancelled = false;
@@ -68,21 +85,20 @@ export default function ReceiptsPage() {
         ) : items.length === 0 ? (
           <EmptyState title="No receipts recorded" />
         ) : (
+          <>
+          <SortControl columns={COLUMNS} sort={sort} onSort={toggleSort} className="px-4 pb-2 pt-3" />
           <div className="overflow-x-auto">
             <table className="min-w-full stacked-table">
               <thead>
                 <tr>
-                  <th className="table-head">Receipt no.</th>
-                  <th className="table-head">Date</th>
-                  <th className="table-head">Resident</th>
-                  <th className="table-head">Reference</th>
-                  <th className="table-head">Amount</th>
-                  <th className="table-head">Status</th>
+                  {COLUMNS.map((c) => (
+                    <SortableHead key={c.key} column={c} sort={sort} onSort={toggleSort} />
+                  ))}
                   <th className="table-head sr-only">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {items.map((row) => (
+                {sorted.map((row) => (
                   <tr key={row.receipt_id} className="hover:bg-slate-50">
                     <td className="table-cell font-medium text-slate-800" data-label="Receipt no.">{row.receipt_no}</td>
                     <td className="table-cell" data-label="Date">
@@ -102,6 +118,7 @@ export default function ReceiptsPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 

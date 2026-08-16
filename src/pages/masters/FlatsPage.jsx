@@ -7,6 +7,21 @@ import {
   validateFields,
   focusFirstInvalid,
 } from '@/components/formValidation.js';
+import useSortedRows from '@/components/useSortedRows.js';
+import { SortableHead, SortControl } from '@/components/SortableHead.jsx';
+
+/*
+ * Flat numbers are text but read as numbers — the comparison is numeric-aware,
+ * so A-9 lands before A-101 rather than after it. The two measures sort as
+ * numbers so a blank sq. ft. doesn't order between two figures.
+ */
+const COLUMNS = [
+  { key: 'flat_no', label: 'Flat no.' },
+  { key: 'build_wing', label: 'Building / wing' },
+  { key: 'flat_type', label: 'Type' },
+  { key: 'bed', label: 'Bedrooms', sortValue: (r) => (r.bed == null || r.bed === '' ? null : Number(r.bed)) },
+  { key: 'sq_ft', label: 'Sq. ft.', sortValue: (r) => (r.sq_ft == null || r.sq_ft === '' ? null : Number(r.sq_ft)) },
+];
 
 const EMPTY = {
   wingId: '',
@@ -44,6 +59,8 @@ export default function FlatsPage() {
 
   const { items, loading, error, saving, create, update, remove, refresh, setError } =
     useCrudResource(flats, { params });
+
+  const { sorted, sort, toggleSort } = useSortedRows(items, COLUMNS);
 
   const [lookups, setLookups] = useState({ wings: [], flatTypes: [], usages: [], bedrooms: [] });
   const [editing, setEditing] = useState(null);
@@ -153,20 +170,20 @@ export default function FlatsPage() {
         ) : items.length === 0 ? (
           <EmptyState title="No flats found" hint="Flats belong to a wing — add one to get started." />
         ) : (
+          <>
+          <SortControl columns={COLUMNS} sort={sort} onSort={toggleSort} className="px-4 pb-2 pt-3" />
           <div className="overflow-x-auto">
             <table className="min-w-full stacked-table">
               <thead>
                 <tr>
-                  <th className="table-head">Flat no.</th>
-                  <th className="table-head">Building / wing</th>
-                  <th className="table-head">Type</th>
-                  <th className="table-head">Bedrooms</th>
-                  <th className="table-head">Sq. ft.</th>
+                  {COLUMNS.map((c) => (
+                    <SortableHead key={c.key} column={c} sort={sort} onSort={toggleSort} />
+                  ))}
                   <th className="table-head sr-only">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {items.map((row) => (
+                {sorted.map((row) => (
                   <tr key={row.flat_id} className="hover:bg-slate-50">
                     <td className="table-cell font-medium text-slate-800" data-label="Flat no.">{row.flat_no}</td>
                     <td className="table-cell" data-label="Building / wing">{row.build_wing}</td>
@@ -186,6 +203,7 @@ export default function FlatsPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 

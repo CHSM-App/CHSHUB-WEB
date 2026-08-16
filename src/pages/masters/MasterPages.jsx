@@ -1065,7 +1065,6 @@ export function FacilitiesMasterPage() {
       title="Facilities"
       resource={M.facilities}
       idKey="facility_id"
-      searchable={false}
       columns={[
         { key: 'name', label: 'Facility' },
         { key: 'description', label: 'Description' },

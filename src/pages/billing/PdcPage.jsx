@@ -6,6 +6,8 @@ import DateRangeReport, { money, day } from '../DateRangeReport.jsx';
 import { ConfirmDialog, EmptyState, ErrorNotice, Field, Modal, Spinner, FormErrorSummary } from '@/components/ui.jsx';
 import ExportToolbar from '@/components/ExportToolbar.jsx';
 import { useToast } from '@/components/Toast.jsx';
+import useSortedRows from '@/components/useSortedRows.js';
+import { SortableHead, SortControl } from '@/components/SortableHead.jsx';
 import {
   countErrors,
   validateFields,
@@ -35,6 +37,24 @@ const EXPORT_COLUMNS = [
   { key: 'che_date', label: 'Cheque date', exportValue: (r) => day(r.che_date) },
   { key: 'che_amount', label: 'Amount', exportValue: (r) => money(r.che_amount) },
   { key: 'status', label: 'Status', exportValue: statusText },
+];
+
+/*
+ * The on-screen columns. Date and amount order by their underlying value, and
+ * status by the same wording the export uses — the cell itself is three
+ * independent flags, which has no natural order of its own.
+ */
+const COLUMNS = [
+  { key: 'chqno', label: 'Cheque no.' },
+  { key: 'name', label: 'Resident' },
+  { key: 'Unit', label: 'Unit' },
+  {
+    key: 'che_date',
+    label: 'Cheque date',
+    sortValue: (r) => (r.che_date ? new Date(r.che_date).getTime() : null),
+  },
+  { key: 'che_amount', label: 'Amount', align: 'right', sortValue: (r) => Number(r.che_amount ?? 0) },
+  { key: 'status', label: 'Status', sortValue: statusText },
 ];
 
 /** Post-dated cheques on file. Replaces pdc_reminder_search.aspx. */
@@ -153,6 +173,8 @@ export function PdcPage() {
       )
     : items;
 
+  const { sorted, sort, toggleSort } = useSortedRows(visible, COLUMNS);
+
   return (
     <section>
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -201,21 +223,19 @@ export function PdcPage() {
               exportName="post-dated-cheques"
               exportTitle="Post-dated cheques"
             />
+            <SortControl columns={COLUMNS} sort={sort} onSort={toggleSort} className="px-4 pb-2" />
             <div className="overflow-x-auto">
             <table className="min-w-full stacked-table">
               <thead>
                 <tr>
-                  <th className="table-head">Cheque no.</th>
-                  <th className="table-head">Resident</th>
-                  <th className="table-head">Unit</th>
-                  <th className="table-head">Cheque date</th>
-                  <th className="table-head text-right">Amount</th>
-                  <th className="table-head">Status</th>
+                  {COLUMNS.map((c) => (
+                    <SortableHead key={c.key} column={c} sort={sort} onSort={toggleSort} />
+                  ))}
                   <th className="table-head sr-only">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {visible.map((row) => (
+                {sorted.map((row) => (
                   <tr key={row.pdc_rem_id} className="hover:bg-slate-50">
                     <td className="table-cell font-medium text-slate-800" data-label="Cheque no.">{row.chqno}</td>
                     <td className="table-cell" data-label="Resident">{row.name}</td>
@@ -453,6 +473,88 @@ const CLEARING_EXPORT_COLUMNS = [
 ];
 
 /** Cheques falling due in a window. Replaces pdc_clearing.aspx. */
+/*
+ * The outcome columns are radio buttons, not data — an ordering by "is this
+ * one ticked" would mean nothing, so they opt out and only the four record
+ * columns sort.
+ */
+const CLEARING_COLUMNS = [
+  { key: 'chqno', label: 'Cheque no.' },
+  { key: 'owner_name', label: 'Resident' },
+  {
+    key: 'che_date',
+    label: 'Cheque date',
+    sortValue: (r) => (r.che_date ? new Date(r.che_date).getTime() : null),
+  },
+  { key: 'che_amount', label: 'Amount', align: 'right', sortValue: (r) => Number(r.che_amount ?? 0) },
+  ...CHEQUE_STATES.map((s) => ({ key: s.key, label: s.label, sortable: false })),
+];
+
+/**
+ * The clearing grid, split out so its sort state is a hook of its own rather
+ * than something the parent's `render` callback has to carry.
+ */
+function ClearingTable({ rows, busyId, onPick }) {
+  const { sorted, sort, toggleSort } = useSortedRows(rows, CLEARING_COLUMNS);
+
+  return (
+    <>
+      <SortControl
+        columns={CLEARING_COLUMNS}
+        sort={sort}
+        onSort={toggleSort}
+        className="px-4 pb-2 pt-3"
+      />
+      <div className="overflow-x-auto">
+        <table className="min-w-full stacked-table">
+          <thead>
+            <tr>
+              {CLEARING_COLUMNS.map((c) => (
+                <SortableHead
+                  key={c.key}
+                  column={c}
+                  sort={sort}
+                  onSort={toggleSort}
+                  className={c.sortable === false ? 'text-center' : ''}
+                />
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((r) => {
+              const current = stateOf(r);
+              return (
+                <tr key={r.pdc_rem_id}>
+                  <td className="table-cell font-medium text-slate-800" data-label="Cheque no.">{r.chqno}</td>
+                  <td className="table-cell" data-label="Resident">{r.owner_name}</td>
+                  <td className="table-cell" data-label="Cheque date">{day(r.che_date)}</td>
+                  <td className="table-cell text-right" data-label="Amount">{money(r.che_amount)}</td>
+                  {CHEQUE_STATES.map((s) => (
+                    <td key={s.key} className="table-cell text-center" data-label={s.label}>
+                      <input
+                        type="radio"
+                        className="h-4 w-4"
+                        // One group per cheque, so picking an outcome
+                        // clears the other two — what the legacy
+                        // CheckedChanged handlers did by hand.
+                        name={`state-${r.pdc_rem_id}`}
+                        checked={current === s.key}
+                        disabled={busyId === r.pdc_rem_id}
+                        aria-label={`${s.label} — cheque ${r.chqno}`}
+                        onChange={() => onPick(r, s.key)}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
 export function PdcClearingPage() {
   const [busyId, setBusyId] = useState(null);
   const [confirmDeposit, setConfirmDeposit] = useState(null);
@@ -507,55 +609,14 @@ export function PdcClearingPage() {
               exportName="cheque-clearing"
               exportTitle="Cheque clearing"
             />
-            <div className="overflow-x-auto">
-              <table className="min-w-full stacked-table">
-                <thead>
-                  <tr>
-                    <th className="table-head">Cheque no.</th>
-                    <th className="table-head">Resident</th>
-                    <th className="table-head">Cheque date</th>
-                    <th className="table-head text-right">Amount</th>
-                    {CHEQUE_STATES.map((s) => (
-                      <th key={s.key} className="table-head text-center">
-                        {s.label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {d.items.map((r) => {
-                    const current = stateOf(r);
-                    return (
-                      <tr key={r.pdc_rem_id}>
-                        <td className="table-cell font-medium text-slate-800" data-label="Cheque no.">{r.chqno}</td>
-                        <td className="table-cell" data-label="Resident">{r.owner_name}</td>
-                        <td className="table-cell" data-label="Cheque date">{day(r.che_date)}</td>
-                        <td className="table-cell text-right" data-label="Amount">{money(r.che_amount)}</td>
-                        {CHEQUE_STATES.map((s) => (
-                          <td key={s.key} className="table-cell text-center" data-label={s.label}>
-                            <input
-                              type="radio"
-                              className="h-4 w-4"
-                              // One group per cheque, so picking an outcome
-                              // clears the other two — what the legacy
-                              // CheckedChanged handlers did by hand.
-                              name={`state-${r.pdc_rem_id}`}
-                              checked={current === s.key}
-                              disabled={busyId === r.pdc_rem_id}
-                              aria-label={`${s.label} — cheque ${r.chqno}`}
-                              onChange={() => {
-                                if (s.key === 'deposited') setConfirmDeposit({ row: r, reload });
-                                else applyState(r, s.key, reload);
-                              }}
-                            />
-                          </td>
-                        ))}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <ClearingTable
+              rows={d.items}
+              busyId={busyId}
+              onPick={(r, key) => {
+                if (key === 'deposited') setConfirmDeposit({ row: r, reload });
+                else applyState(r, key, reload);
+              }}
+            />
 
             <ConfirmDialog
               open={Boolean(confirmDeposit)}

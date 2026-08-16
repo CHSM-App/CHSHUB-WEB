@@ -7,6 +7,8 @@ import {
   validateFields,
   focusFirstInvalid,
 } from '@/components/formValidation.js';
+import useSortedRows from '@/components/useSortedRows.js';
+import { SortableHead, SortControl } from '@/components/SortableHead.jsx';
 
 const EMPTY = { name: '', amount: '', chargesType: '1', active: true };
 
@@ -33,6 +35,37 @@ const CHARGE_FIELDS = [
   { name: 'chargesType', label: 'Charge type', type: 'select', required: true },
 ];
 
+/*
+ * Three of these cells don't show their raw field, so each says what it orders
+ * by: type is a bit rendered as a word, status a bit rendered as a pill, and
+ * amount arrives as a string that would otherwise sort 100 before 20.
+ */
+const COLUMNS = [
+  { key: 'NatureOfCharge', label: 'Nature of charge' },
+  { key: 'charges_type', label: 'Type', sortValue: (r) => TYPE_LABEL[typeOf(r)] },
+  { key: 'amount', label: 'Amount', sortValue: (r) => Number(r.amount ?? 0) },
+  {
+    key: 'status',
+    label: 'Status',
+    sortValue: (r) => (r.status === true || Number(r.status) === 1 ? 'Active' : 'Inactive'),
+  },
+  {
+    /*
+     * The cell prints `Date` as it arrives rather than formatting it, so it may
+     * be a real timestamp or a string the server already rendered. Parsing is
+     * tried first and the raw value kept when it isn't a date, which at least
+     * groups equal dates together instead of ordering by NaN.
+     */
+    key: 'Date',
+    label: 'Created',
+    sortValue: (r) => {
+      if (!r.Date) return null;
+      const t = new Date(r.Date).getTime();
+      return Number.isNaN(t) ? String(r.Date) : t;
+    },
+  },
+];
+
 export default function ChargesPage() {
   const [typeFilter, setTypeFilter] = useState('');
   const params = useMemo(
@@ -42,6 +75,8 @@ export default function ChargesPage() {
 
   const { items, loading, error, saving, create, update, remove, refresh, setError } =
     useCrudResource(charges, { params });
+
+  const { sorted, sort, toggleSort } = useSortedRows(items, COLUMNS);
 
   const [editing, setEditing] = useState(null);
   const [confirming, setConfirming] = useState(null);
@@ -148,20 +183,20 @@ export default function ChargesPage() {
         ) : items.length === 0 ? (
           <EmptyState title="No charges configured" hint="Add a charge head to include it in bills." />
         ) : (
+          <>
+          <SortControl columns={COLUMNS} sort={sort} onSort={toggleSort} className="px-4 pb-2 pt-3" />
           <div className="overflow-x-auto">
             <table className="min-w-full stacked-table">
               <thead>
                 <tr>
-                  <th className="table-head">Nature of charge</th>
-                  <th className="table-head">Type</th>
-                  <th className="table-head">Amount</th>
-                  <th className="table-head">Status</th>
-                  <th className="table-head">Created</th>
+                  {COLUMNS.map((c) => (
+                    <SortableHead key={c.key} column={c} sort={sort} onSort={toggleSort} />
+                  ))}
                   <th className="table-head sr-only">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {items.map((row) => {
+                {sorted.map((row) => {
                   const isActive = row.status === true || Number(row.status) === 1;
                   return (
                     <tr key={row.charge_id} className="hover:bg-slate-50">
@@ -205,6 +240,7 @@ export default function ChargesPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 

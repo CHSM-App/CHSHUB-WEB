@@ -13,6 +13,8 @@ import {
 } from '@/components/ui.jsx';
 import ExportToolbar from '@/components/ExportToolbar.jsx';
 import { useToast } from '@/components/Toast.jsx';
+import useSortedRows from '@/components/useSortedRows.js';
+import { SortableHead, SortControl } from '@/components/SortableHead.jsx';
 
 // The New Maintenance modal's own fields. Bill period is how many months the
 // add-on charges are spread over — txt_period on the legacy form; the date is
@@ -64,6 +66,35 @@ const RUN_EXPORT_COLUMNS = [
   { key: 'bill_type_label', label: 'Type' },
   { key: 'gen_date', label: 'Bill date', exportValue: (r) => day(r.gen_date) },
   { key: 'due_date', label: 'Due date', exportValue: (r) => day(r.due_date) },
+  { key: 'Status', label: 'Status' },
+];
+
+/*
+ * The on-screen columns for the bill-runs list.
+ *
+ * Period reads "August 2026" but orders by the run's generation date: sorting
+ * the label itself would file April before August and split a year across the
+ * list. The two dates likewise order by timestamp rather than by the dd-mm-yyyy
+ * text, which would otherwise sort every 1st of the month together.
+ */
+const RUN_COLUMNS = [
+  { key: 'bill_id', label: 'Bill no.', sortValue: (r) => Number(r.bill_id ?? 0) },
+  {
+    key: 'period',
+    label: 'Period',
+    sortValue: (r) => (r.gen_date ? new Date(r.gen_date).getTime() : null),
+  },
+  { key: 'bill_type_label', label: 'Type' },
+  {
+    key: 'gen_date',
+    label: 'Generated',
+    sortValue: (r) => (r.gen_date ? new Date(r.gen_date).getTime() : null),
+  },
+  {
+    key: 'due_date',
+    label: 'Due',
+    sortValue: (r) => (r.due_date ? new Date(r.due_date).getTime() : null),
+  },
   { key: 'Status', label: 'Status' },
 ];
 
@@ -525,6 +556,10 @@ export default function BillsPage() {
     );
   }, [runs, yearFilter, search]);
 
+  // Untouched until a heading is clicked, so the API's newest-first order —
+  // which interleaves add-on runs with the regular ones — is what shows first.
+  const { sorted: sortedRuns, sort, toggleSort } = useSortedRows(visible, RUN_COLUMNS);
+
   /**
    * gen_bill runs on a schedule when auto generation is on, so the manual
    * button is hidden then — showHideGenerateBillBtn() did the same. Running it
@@ -664,21 +699,24 @@ export default function BillsPage() {
               exportName="maintenance-bills"
               exportTitle="Maintenance bills"
             />
+            <SortControl
+              columns={RUN_COLUMNS}
+              sort={sort}
+              onSort={toggleSort}
+              className="px-4 pb-2"
+            />
             <div className="overflow-x-auto">
             <table className="min-w-full stacked-table">
               <thead>
                 <tr>
-                  <th className="table-head">Bill no.</th>
-                  <th className="table-head">Period</th>
-                  <th className="table-head">Type</th>
-                  <th className="table-head">Generated</th>
-                  <th className="table-head">Due</th>
-                  <th className="table-head">Status</th>
+                  {RUN_COLUMNS.map((c) => (
+                    <SortableHead key={c.key} column={c} sort={sort} onSort={toggleSort} />
+                  ))}
                   <th className="table-head sr-only">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {visible.map((run) => (
+                {sortedRuns.map((run) => (
                   <tr key={run.bill_id} className="hover:bg-slate-50">
                     <td className="table-cell font-medium text-slate-800" data-label="Bill no.">#{run.bill_id}</td>
                     <td className="table-cell" data-label="Period">

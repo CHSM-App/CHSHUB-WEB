@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { EmptyState, Spinner } from './ui.jsx';
 import ExportToolbar from './ExportToolbar.jsx';
+import { SortableHead, SortControl } from './SortableHead.jsx';
+import { compareRows, sortValueOf } from './useSortedRows.js';
 
 /**
  * True while the browser is preparing a printed page.
@@ -96,18 +98,9 @@ export default function DataGrid({
   const sorted = useMemo(() => {
     if (!sort.key) return filtered;
     const col = columns.find((c) => c.key === sort.key);
-    const get = (r) => (col?.sortValue ? col.sortValue(r) : r[sort.key]);
-    return [...filtered].sort((a, b) => {
-      const av = get(a);
-      const bv = get(b);
-      if (av == null) return 1;
-      if (bv == null) return -1;
-      const cmp =
-        typeof av === 'number' && typeof bv === 'number'
-          ? av - bv
-          : String(av).localeCompare(String(bv), undefined, { numeric: true });
-      return sort.dir === 'asc' ? cmp : -cmp;
-    });
+    return [...filtered].sort((a, b) =>
+      compareRows(sortValueOf(col, a, sort.key), sortValueOf(col, b, sort.key), sort.dir),
+    );
   }, [filtered, sort, columns]);
 
   /*
@@ -124,6 +117,9 @@ export default function DataGrid({
 
   const toggleSort = (key) => {
     if (!sortable) return;
+    // The header cell already refuses to call this for an opted-out column,
+    // but the card view's sort control reaches it by key alone.
+    if (columns.find((c) => c.key === key)?.sortable === false) return;
     setSort((prev) =>
       prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' },
     );
@@ -199,19 +195,20 @@ export default function DataGrid({
                   />
                 </th>
               ) : null}
+              {/*
+                Through the shared header rather than a click handler on the
+                `<th>`, so these grids get the same keyboard-reachable control
+                and the same tooltip as the hand-written tables elsewhere.
+                `sortable={false}` on the grid disables the lot, which the
+                column-level flag expresses here.
+              */}
               {columns.map((c) => (
-                <th
+                <SortableHead
                   key={c.key}
-                  className={`table-head ${c.align === 'right' ? 'text-right' : ''} ${
-                    sortable && c.sortable !== false ? 'cursor-pointer select-none' : ''
-                  }`}
-                  onClick={() => c.sortable !== false && toggleSort(c.key)}
-                >
-                  {c.label}
-                  {sort.key === c.key ? (
-                    <span aria-hidden="true"> {sort.dir === 'asc' ? '▲' : '▼'}</span>
-                  ) : null}
-                </th>
+                  column={sortable ? c : { ...c, sortable: false }}
+                  sort={sort}
+                  onSort={toggleSort}
+                />
               ))}
               {/*
                 w-px + nowrap makes the actions column shrink-to-fit: the table
@@ -304,6 +301,13 @@ export default function DataGrid({
 
       {/* Card view for narrow screens */}
       {responsiveCards ? (
+        <>
+        {/* The column headings carry the sort on a wide screen, and the card
+            view has no headings — so without this the grids were sortable on
+            a desktop only. */}
+        {sortable ? (
+          <SortControl columns={columns} sort={sort} onSort={toggleSort} className="px-4 pb-2 pt-3" />
+        ) : null}
         <ul className="divide-y divide-slate-100 sm:hidden">
           {visible.map((row, i) => (
             <li key={row[idKey] ?? i} className="space-y-1 p-4">
@@ -327,6 +331,7 @@ export default function DataGrid({
             </li>
           ))}
         </ul>
+        </>
       ) : null}
 
       {pageCount > 1 ? (

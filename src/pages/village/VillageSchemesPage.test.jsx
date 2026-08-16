@@ -110,10 +110,13 @@ describe('VillageSchemesPage', () => {
     await screen.findByText('Gharkul Yojana');
     await user.click(screen.getByRole('button', { name: 'Add' }));
 
-    await user.type(await screen.findByLabelText(/scheme name/i), 'Widow Pension');
-    await user.type(screen.getByLabelText(/who can apply/i), 'Widowed women over 40');
-    await user.type(screen.getByLabelText(/amount/i), '1500');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    // Scoped to the form: the list behind it has sortable headings of the same
+    // names, so an unscoped label query matches those too.
+    const form = within(await screen.findByRole('dialog'));
+    await user.type(form.getByLabelText(/scheme name/i), 'Widow Pension');
+    await user.type(form.getByLabelText(/who can apply/i), 'Widowed women over 40');
+    await user.type(form.getByLabelText(/amount/i), '1500');
+    await user.click(form.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(onCreate).toHaveBeenCalled());
     expect(onCreate.mock.calls[0][0]).toMatchObject({

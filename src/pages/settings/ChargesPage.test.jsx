@@ -119,4 +119,89 @@ describe('ChargesPage', () => {
       active: true,
     });
   });
+
+  describe('sorting', () => {
+    /* Amounts chosen so a text sort would disagree with a numeric one: as
+       strings "1000" < "250" < "90", which is the order to guard against. */
+    const SORT_ROWS = [
+      { charge_id: 1, NatureOfCharge: 'Sinking Fund', amount: 250, charges_type: true, status: true, Date: '02 Jan 2026' },
+      { charge_id: 2, NatureOfCharge: 'Festival', amount: 1000, charges_type: false, status: false, Date: '03 Jan 2026' },
+      { charge_id: 3, NatureOfCharge: 'Water', amount: 90, charges_type: true, status: true, Date: '01 Jan 2026' },
+    ];
+
+    const chargeNames = () =>
+      screen
+        .getAllByRole('row')
+        .slice(1)
+        .map((tr) => within(tr).getAllByRole('cell')[0].textContent);
+
+    const renderSorted = async () => {
+      server.use(
+        http.get(`${BASE}/settings/charges`, () => ok({ items: SORT_ROWS, count: SORT_ROWS.length })),
+      );
+      const user = userEvent.setup();
+      render(<ChargesPage />);
+      await screen.findByText('Sinking Fund');
+      return user;
+    };
+
+    it('keeps the server order until a heading is clicked', async () => {
+      await renderSorted();
+      expect(chargeNames()).toEqual(['Sinking Fund', 'Festival', 'Water']);
+    });
+
+    it('sorts by name, and reverses on a second click', async () => {
+      const user = await renderSorted();
+
+      await user.click(screen.getByRole('button', { name: 'Sort by Nature of charge' }));
+      expect(chargeNames()).toEqual(['Festival', 'Sinking Fund', 'Water']);
+
+      await user.click(screen.getByRole('button', { name: 'Sort by Nature of charge' }));
+      expect(chargeNames()).toEqual(['Water', 'Sinking Fund', 'Festival']);
+    });
+
+    it('sorts amount as a number rather than as text', async () => {
+      const user = await renderSorted();
+
+      await user.click(screen.getByRole('button', { name: 'Sort by Amount' }));
+      // 90 < 250 < 1000. A string sort would have put 1000 first.
+      expect(chargeNames()).toEqual(['Water', 'Sinking Fund', 'Festival']);
+    });
+
+    it('sorts status by the word the pill shows, not the raw bit', async () => {
+      const user = await renderSorted();
+
+      await user.click(screen.getByRole('button', { name: 'Sort by Status' }));
+      // Active before Inactive — Festival is the only inactive head.
+      expect(chargeNames()).toEqual(['Sinking Fund', 'Water', 'Festival']);
+    });
+
+    it('sorts Created even though the server sends it pre-formatted', async () => {
+      const user = await renderSorted();
+
+      // '01 Jan 2026' … '03 Jan 2026' are display strings, not timestamps.
+      await user.click(screen.getByRole('button', { name: 'Sort by Created' }));
+      expect(chargeNames()).toEqual(['Water', 'Sinking Fund', 'Festival']);
+    });
+
+    it('marks the sorted column for assistive tech', async () => {
+      const user = await renderSorted();
+
+      const header = screen.getByRole('columnheader', { name: /Nature of charge/ });
+      expect(header).toHaveAttribute('aria-sort', 'none');
+      await user.click(screen.getByRole('button', { name: 'Sort by Nature of charge' }));
+      expect(header).toHaveAttribute('aria-sort', 'ascending');
+    });
+
+    it('survives the type filter reloading the list', async () => {
+      const user = await renderSorted();
+
+      await user.click(screen.getByRole('button', { name: 'Sort by Amount' }));
+      expect(chargeNames()).toEqual(['Water', 'Sinking Fund', 'Festival']);
+
+      // Refetching must not silently drop the chosen order.
+      await user.selectOptions(screen.getByLabelText(/filter by charge type/i), '1');
+      await waitFor(() => expect(chargeNames()).toEqual(['Water', 'Sinking Fund', 'Festival']));
+    });
+  });
 });

@@ -7,11 +7,19 @@ import {
   validateFields,
   focusFirstInvalid,
 } from '@/components/formValidation.js';
+import useSortedRows from '@/components/useSortedRows.js';
+import { SortableHead, SortControl } from '@/components/SortableHead.jsx';
 
 /* What Submit insists on, in the shape validateFields expects. */
 const WING_FIELDS = [
   { name: 'buildingId', label: 'Building', type: 'select', required: true },
   { name: 'name', label: 'Wing name', required: true },
+];
+
+/* `name` on a wing row is its building's name; the wing's own is `w_name`. */
+const COLUMNS = [
+  { key: 'w_name', label: 'Wing' },
+  { key: 'name', label: 'Building' },
 ];
 
 export default function WingsPage() {
@@ -23,6 +31,8 @@ export default function WingsPage() {
 
   const { items, loading, error, saving, create, update, remove, refresh, setError } =
     useCrudResource(wings, { params });
+
+  const { sorted, sort, toggleSort } = useSortedRows(items, COLUMNS);
 
   const [buildingOptions, setBuildingOptions] = useState([]);
   const [editing, setEditing] = useState(null);
@@ -128,17 +138,20 @@ export default function WingsPage() {
         ) : items.length === 0 ? (
           <EmptyState title="No wings found" hint="Wings belong to a building — add one to get started." />
         ) : (
+          <>
+          <SortControl columns={COLUMNS} sort={sort} onSort={toggleSort} className="px-4 pb-2 pt-3" />
           <div className="overflow-x-auto">
             <table className="min-w-full stacked-table">
               <thead>
                 <tr>
-                  <th className="table-head">Wing</th>
-                  <th className="table-head">Building</th>
+                  {COLUMNS.map((c) => (
+                    <SortableHead key={c.key} column={c} sort={sort} onSort={toggleSort} />
+                  ))}
                   <th className="table-head sr-only">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {items.map((row) => (
+                {sorted.map((row) => (
                   <tr key={row.wing_id} className="hover:bg-slate-50">
                     <td className="table-cell font-medium text-slate-800" data-label="Wing">{row.w_name}</td>
                     <td className="table-cell" data-label="Building">{row.name}</td>
@@ -155,6 +168,7 @@ export default function WingsPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 

@@ -172,6 +172,77 @@ describe('BillsPage', () => {
     expect(ids).toEqual(['#55', '#52', '#53', '#47']);
   });
 
+  describe('sorting the bill runs', () => {
+    const SORT_RUNS = [
+      { ...RUN, bill_id: 55, month_name: 'July', year: 2026, gen_date: '2026-07-20', due_date: '2026-08-04', bill_type: 0, bill_type_label: 'Add-on', Status: 'Bill Generated' },
+      { ...RUN, bill_id: 9, month_name: 'February', year: 2026, gen_date: '2026-02-01', due_date: '2026-02-16', bill_type_label: 'Regular', Status: 'Paid' },
+      { ...RUN, bill_id: 52, month_name: 'April', year: 2026, gen_date: '2026-04-01', due_date: '2026-04-16', bill_type_label: 'Regular', Status: 'Bill Generated' },
+    ];
+
+    const billIds = () =>
+      screen
+        .getAllByRole('row')
+        .slice(1)
+        .map((r) => within(r).getAllByRole('cell')[0].textContent);
+
+    const renderRuns = async () => {
+      server.use(...handlers({ runs: SORT_RUNS }));
+      const user = userEvent.setup();
+      render(<BillsPage />);
+      await screen.findByText('#55');
+      return user;
+    };
+
+    it('keeps the API order until a heading is clicked', async () => {
+      await renderRuns();
+      expect(billIds()).toEqual(['#55', '#9', '#52']);
+    });
+
+    it('sorts Period chronologically, not by the month name', async () => {
+      const user = await renderRuns();
+
+      await user.click(screen.getByRole('button', { name: 'Sort by Period' }));
+      // February, April, July. Sorting the rendered label would have put
+      // "April 2026" first and "July 2026" before "February 2026".
+      expect(billIds()).toEqual(['#9', '#52', '#55']);
+    });
+
+    it('sorts Bill no. numerically', async () => {
+      const user = await renderRuns();
+
+      await user.click(screen.getByRole('button', { name: 'Sort by Bill no.' }));
+      // 9 before 52 — as text, "9" would have sorted last.
+      expect(billIds()).toEqual(['#9', '#52', '#55']);
+    });
+
+    it('sorts the Due date by timestamp rather than its dd-mm-yyyy text', async () => {
+      const user = await renderRuns();
+
+      await user.click(screen.getByRole('button', { name: 'Sort by Due' }));
+      expect(billIds()).toEqual(['#9', '#52', '#55']);
+    });
+
+    it('sorts by Type, and reverses on a second click', async () => {
+      const user = await renderRuns();
+
+      await user.click(screen.getByRole('button', { name: 'Sort by Type' }));
+      expect(billIds()[0]).toBe('#55'); // the only Add-on
+
+      await user.click(screen.getByRole('button', { name: 'Sort by Type' }));
+      expect(billIds()[billIds().length - 1]).toBe('#55');
+    });
+
+    it('keeps the sort applied when the year filter narrows the list', async () => {
+      const user = await renderRuns();
+
+      await user.click(screen.getByRole('button', { name: 'Sort by Bill no.' }));
+      expect(billIds()).toEqual(['#9', '#52', '#55']);
+
+      await user.selectOptions(screen.getByLabelText(/filter by year/i), '2026');
+      await waitFor(() => expect(billIds()).toEqual(['#9', '#52', '#55']));
+    });
+  });
+
   it('labels each run with the button that raised it', async () => {
     server.use(
       ...handlers({

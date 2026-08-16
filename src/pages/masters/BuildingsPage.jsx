@@ -7,6 +7,27 @@ import {
   validateFields,
   focusFirstInvalid,
 } from '@/components/formValidation.js';
+import useSortedRows from '@/components/useSortedRows.js';
+import { SortableHead, SortControl } from '@/components/SortableHead.jsx';
+
+/*
+ * Address has no field of its own — the cell joins the two address lines, so
+ * the sort is given the same joined string the reader is comparing by eye.
+ */
+const COLUMNS = [
+  { key: 'name', label: 'Name' },
+  {
+    key: 'address',
+    label: 'Address',
+    sortValue: (r) => [r.address1, r.address2].filter(Boolean).join(', ') || null,
+  },
+  {
+    key: 'no_of_floore',
+    label: 'Floors',
+    sortValue: (r) => (r.no_of_floore == null || r.no_of_floore === '' ? null : Number(r.no_of_floore)),
+  },
+  { key: 'registration_no', label: 'Registration no.' },
+];
 
 // Field order follows building_search.aspx exactly:
 // name > print_name > reg > add1 > add2 > floors > bank > bank_add > branch >
@@ -58,6 +79,8 @@ export default function BuildingsPage() {
 
   const { items, loading, error, saving, create, update, remove, refresh, setError } =
     useCrudResource(buildings, { params });
+
+  const { sorted, sort, toggleSort } = useSortedRows(items, COLUMNS);
 
   const [editing, setEditing] = useState(null); // null | { id, form }
   const [confirming, setConfirming] = useState(null);
@@ -140,19 +163,20 @@ export default function BuildingsPage() {
             hint={search ? 'Try a different search term.' : 'Add the first building to get started.'}
           />
         ) : (
+          <>
+          <SortControl columns={COLUMNS} sort={sort} onSort={toggleSort} className="px-4 pb-2 pt-3" />
           <div className="overflow-x-auto">
             <table className="min-w-full stacked-table">
               <thead>
                 <tr>
-                  <th className="table-head">Name</th>
-                  <th className="table-head">Address</th>
-                  <th className="table-head">Floors</th>
-                  <th className="table-head">Registration no.</th>
+                  {COLUMNS.map((c) => (
+                    <SortableHead key={c.key} column={c} sort={sort} onSort={toggleSort} />
+                  ))}
                   <th className="table-head sr-only">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {items.map((row) => (
+                {sorted.map((row) => (
                   <tr key={row.build_id} className="hover:bg-slate-50">
                     <td className="table-cell font-medium text-slate-800" data-label="Name">{row.name}</td>
                     <td className="table-cell" data-label="Address">
@@ -173,6 +197,7 @@ export default function BuildingsPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 

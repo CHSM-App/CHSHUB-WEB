@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { render as rtlRender, screen, waitFor } from '@testing-library/react';
+import { render as rtlRender, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { http } from 'msw';
@@ -137,14 +137,17 @@ describe('InventoryMasterPage condition', () => {
     await screen.findAllByText('Water pump');
     await user.click(screen.getAllByRole('button', { name: 'Edit' })[0]);
 
-    expect(await screen.findByLabelText(/item name/i)).toHaveValue('Water pump');
+    // Scoped to the form: the grid behind it has sortable headings of the same
+    // names, so an unscoped label query matches those too.
+    const form = within(await screen.findByRole('dialog'));
+    expect(form.getByLabelText(/item name/i)).toHaveValue('Water pump');
     // The vendor is on the row but was never put on the form, so the edit
     // modal showed nothing for it.
-    expect(screen.getByLabelText(/vendor name/i)).toHaveValue('Acme Pumps');
-    expect(screen.getByLabelText(/purchase date/i)).toHaveValue('2026-01-10');
-    expect(screen.getByLabelText(/quantity/i)).toHaveValue(2);
-    expect(screen.getByLabelText(/^unit$/i)).toHaveValue('nos');
-    expect(screen.getByLabelText(/warranty \(months\)/i)).toHaveValue(6);
+    expect(form.getByLabelText(/vendor name/i)).toHaveValue('Acme Pumps');
+    expect(form.getByLabelText(/purchase date/i)).toHaveValue('2026-01-10');
+    expect(form.getByLabelText(/quantity/i)).toHaveValue(2);
+    expect(form.getByLabelText(/^unit$/i)).toHaveValue('nos');
+    expect(form.getByLabelText(/warranty \(months\)/i)).toHaveValue(6);
   });
 
   it('keeps the item attached to its vendor and bill when saved', async () => {

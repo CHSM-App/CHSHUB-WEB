@@ -134,16 +134,55 @@ export function RevealToggle({ revealed, onToggle }) {
 /**
  * The full CHS HUB lockup — the mark beside the name — used at the top of the
  * showcase panel where the mark alone would not say what the product is.
+ *
+ * The mark is the CHS HUB tile, the same one the badge over the form and the
+ * topbar wear, so the whole signed-out page carries one logo rather than a
+ * buildings glyph here and the real mark everywhere else.
  */
 export function BrandWordmark() {
   return (
     <div className="auth-wordmark">
-      <BuildingMark size={60} />
+      <ChsHubMark />
       <div>
         <p className="auth-wordmark__name">SOCIETY</p>
         <p className="auth-wordmark__sub">Management</p>
       </div>
     </div>
+  );
+}
+
+/**
+ * The CHS HUB mark — the red tile carrying the name on two lines, as the topbar
+ * wears it once you are signed in.
+ *
+ * The signed-out screens led with BuildingMark instead, so the first thing you
+ * saw at the login box was a glyph that appears nowhere in the app, and the
+ * actual mark only after signing in. This is that same tile, so the badge above
+ * the form and the one in the topbar are the same object.
+ *
+ * The whole tile is driven off ONE length, --chs-mark-size: the radius, the type
+ * and the shadow are all calc()s of it in index.css. `size` is passed as that
+ * variable rather than as a width, so a caller whose slot is a clamp() — the
+ * login badge sits in a disc that tracks viewport height — can hand in the
+ * clamp itself and every part scales together.
+ *
+ * `size` is only applied when given. Passing a default here would put the
+ * variable in the inline style of every instance, and inline custom properties
+ * outrank the stylesheet — which would make the badge's clamp dead code.
+ */
+export function ChsHubMark({ size, className = '' }) {
+  return (
+    <span
+      className={`chs-mark ${className}`.trim()}
+      style={size ? { '--chs-mark-size': typeof size === 'number' ? `${size}px` : size } : undefined}
+      aria-hidden="true"
+    >
+      <span className="chs-mark__text">
+        CHS
+        <br />
+        HUB
+      </span>
+    </span>
   );
 }
 

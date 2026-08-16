@@ -116,7 +116,7 @@ export default function HeaderIcons() {
             >
               <h6
                 className="flex items-center justify-between px-4 py-3 text-xs font-bold uppercase tracking-wide text-white"
-                style={{ background: 'linear-gradient(120deg, #5c1414 0%, #a82a2a 100%)' }}
+                style={{ background: 'linear-gradient(120deg, #1f2937 0%, #b91c1c 100%)' }}
               >
                 Alerts Center
                 {alerts.length ? (

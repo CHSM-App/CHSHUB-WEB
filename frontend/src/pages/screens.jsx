@@ -499,7 +499,7 @@ function PrintReceiptButton({ form, lookups }) {
     win.document.write(`<!doctype html><html><head><title>Receipt ${esc(form.reportNo)}</title>
 <style>
   body { font-family: system-ui, sans-serif; color: #1a1a1a; padding: 32px; }
-  h1 { color: #5c1414; font-size: 20px; margin: 0 0 24px; }
+  h1 { color: #1f2937; font-size: 20px; margin: 0 0 24px; }
   table { border-collapse: collapse; width: 100%; max-width: 520px; }
   th, td { border: 1px solid #e3e6f0; padding: 8px 12px; text-align: left; font-size: 14px; }
   th { background: #f8f9fa; width: 40%; font-weight: 600; }

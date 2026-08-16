@@ -692,7 +692,7 @@ export default function BillsPage() {
                         <span
                           className={
                             run.bill_type_label === 'Regular'
-                              ? 'rounded bg-[#fdeeee] px-2 py-0.5 text-xs font-medium text-[#a82a2a]'
+                              ? 'rounded bg-[#fef2f2] px-2 py-0.5 text-xs font-medium text-[#b91c1c]'
                               : 'rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700'
                           }
                         >

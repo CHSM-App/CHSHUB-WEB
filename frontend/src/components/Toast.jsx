@@ -123,8 +123,8 @@ const TONES = {
     defaultTitle: 'Success',
   },
   error: {
-    accent: '#a4161a',
-    ring: 'rgba(164, 22, 26, 0.18)',
+    accent: '#991b1b',
+    ring: 'rgba(153, 27, 27, 0.18)',
     icon: (
       <path d="M8 4.5v4.25M8 11.4h.01" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     ),

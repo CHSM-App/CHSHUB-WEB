@@ -654,7 +654,7 @@ function TaxReceipt({ receipt: r, villageName, bills = [] }) {
       {/* Header — who issued it, and its number and date. */}
       <div
         className="relative overflow-hidden rounded-xl px-6 py-5 text-white"
-        style={{ background: 'linear-gradient(120deg, #7d1a1a 0%, #c94040 60%, #e06060 100%)' }}
+        style={{ background: 'linear-gradient(120deg, #7d1a1a 0%, #e31b23 60%, #e06060 100%)' }}
       >
         <div
           className="pointer-events-none absolute inset-0"

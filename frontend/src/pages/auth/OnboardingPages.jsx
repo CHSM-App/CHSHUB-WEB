@@ -679,8 +679,11 @@ export function SocietyProfilePage() {
       {/* Same header shape as every other list screen: title on the left,
           search and actions on the right. */}
       <PageHeader title="Society" subtitle="Details printed on bills, receipts and reports.">
+        {/* Fluid until `sm`, fixed after. A flat `w-56` is 224px, which with
+            the button beside it does not fit a phone — the row overflowed and
+            squeezed the title. */}
         <input
-          className="field-input w-56"
+          className="field-input min-w-0 flex-1 sm:w-56 sm:flex-none"
           placeholder="Search…"
           aria-label="Search societies"
           value={search}
@@ -704,7 +707,10 @@ export function SocietyProfilePage() {
               <th className="table-head">Registration No</th>
               <th className="table-head">Address</th>
               <th className="table-head">Contact No</th>
-              <th className="table-head">Edit</th>
+              {/* sr-only, as on every other list screen: the buttons name
+                  themselves, so a visible "Edit" heading above them is a second
+                  label for the same thing. */}
+              <th className="table-head sr-only">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -715,14 +721,13 @@ export function SocietyProfilePage() {
                 <td className="table-cell" data-label="Registration No">{row.registration_no || '—'}</td>
                 <td className="table-cell" data-label="Address">{row.address || '—'}</td>
                 <td className="table-cell" data-label="Contact No">{row.contact_no || '—'}</td>
-                <td className="table-cell" data-label="Edit">
-                  <button
-                    type="button"
-                    className="text-[#a82a2a] hover:underline"
-                    aria-label="Edit society"
-                    onClick={() => setEditing(true)}
-                  >
-                    ✎
+                {/* A labelled button, as every other list screen uses — the
+                    bare ✎ glyph here was the only row action in the product
+                    that made you guess what it did, and on the phone layout it
+                    collapsed to a single character with no hit target. */}
+                <td className="table-cell whitespace-nowrap text-right" data-actions="">
+                  <button type="button" className="btn-secondary" onClick={() => setEditing(true)}>
+                    Edit
                   </button>
                 </td>
               </tr>

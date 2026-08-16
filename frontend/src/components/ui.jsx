@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 export function Spinner({ label = 'Loading…' }) {
   return (
     <div className="flex items-center justify-center gap-3 py-10 text-sm text-slate-500" role="status">
-      <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-[#c94040]" />
+      <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-[#e31b23]" />
       {label}
     </div>
   );
@@ -376,7 +376,7 @@ export function Modal({
             // Marks this as the exit, so the initial-focus pass above can skip
             // it without matching on the label text.
             data-modal-close=""
-            className="-mr-1 shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c94040]"
+            className="-mr-1 shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#e31b23]"
           >
             <svg viewBox="0 0 16 16" className="h-4 w-4" aria-hidden="true">
               <path d="m4 4 8 8M12 4l-8 8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -479,8 +479,8 @@ export function ConfirmDialog({
 
 const CONFIRM_TONES = {
   danger: {
-    accent: '#dc3545',
-    tint: '#fdeaec',
+    accent: '#e31b23',
+    tint: '#fef2f2',
     button: 'btn-danger',
     icon: (
       <path
@@ -505,7 +505,7 @@ const CONFIRM_TONES = {
     ),
   },
   info: {
-    accent: '#a82a2a',
+    accent: '#b91c1c',
     tint: '#e6efff',
     button: 'btn-primary',
     icon: (

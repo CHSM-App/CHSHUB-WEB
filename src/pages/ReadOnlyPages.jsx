@@ -4,6 +4,7 @@ import { EmptyState, ErrorNotice, Spinner } from '@/components/ui.jsx';
 import ExportToolbar from '@/components/ExportToolbar.jsx';
 import useSortedRows from '@/components/useSortedRows.js';
 import { SortableHead, SortControl } from '@/components/SortableHead.jsx';
+import Pager, { usePaging } from '@/components/Pager.jsx';
 
 const money = (v) =>
   v == null || v === '' ? '—' : Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -24,6 +25,11 @@ function DataTable({
   // the browser, as those pages' own filterTable() did — these endpoints take
   // no search parameter.
   filterRow,
+  // Same page size as DataGrid, so every list behaves alike.
+  pageSize = 25,
+  // The leading "No." column. Screens that declare their own row number — the
+  // ones whose export needs it spelled out — pass false so it is not doubled.
+  serialColumn = true,
 }) {
   const [allRows, setAllRows] = useState([]);
   const [search, setSearch] = useState('');
@@ -58,6 +64,11 @@ function DataTable({
   }, [allRows, deferred, filterRow]);
 
   const { sorted: rows, sort, toggleSort } = useSortedRows(filtered, columns);
+
+  // These pages rendered every loaded row at once. Export and print still work
+  // from `rows`, so paging narrows the screen only, never the output.
+  const paging = usePaging(rows.length, pageSize);
+  const visible = rows.slice(paging.first, paging.first + paging.size);
 
   return (
     <section>
@@ -110,14 +121,29 @@ function DataTable({
             <table className="min-w-full stacked-table">
               <thead>
                 <tr>
+                  {/* Row number, as DataGrid prepends on the screens it backs —
+                      every list numbers its rows the same way. */}
+                  {serialColumn ? (
+                    <th className="table-head w-px whitespace-nowrap">No.</th>
+                  ) : null}
                   {columns.map((c) => (
                     <SortableHead key={c.key} column={c} sort={sort} onSort={toggleSort} />
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row, i) => (
+                {visible.map((row, i) => (
                   <tr key={row.id ?? i} className="hover:bg-slate-50">
+                    {/* Counts from the row's place in the whole list, so page 2
+                        carries on from page 1 rather than restarting at 1. */}
+                    {serialColumn ? (
+                      <td
+                        className="table-cell w-px whitespace-nowrap text-slate-500"
+                        data-label="No."
+                      >
+                        {paging.first + i + 1}
+                      </td>
+                    ) : null}
                     {columns.map((c, ci) => (
                       <td
                         key={c.key}
@@ -128,8 +154,11 @@ function DataTable({
                       >
                         {/* `i` is passed for the legacy grids' serial-number
                             column, which numbered rows off the grid position
-                            rather than any field on the row. */}
-                        {c.format ? c.format(row[c.key], row, i) : (row[c.key] ?? '—')}
+                            rather than any field on the row. It is the position
+                            in the whole list, so paging does not restart it. */}
+                        {c.format
+                          ? c.format(row[c.key], row, paging.first + i)
+                          : (row[c.key] ?? '—')}
                       </td>
                     ))}
                   </tr>
@@ -137,6 +166,14 @@ function DataTable({
               </tbody>
             </table>
             </div>
+            <Pager
+              page={paging.page}
+              pageCount={paging.pageCount}
+              first={paging.first}
+              last={paging.last}
+              total={rows.length}
+              onPage={paging.setPage}
+            />
           </>
         )}
       </div>
@@ -455,6 +492,8 @@ export const VillageHistoryPage = () => (
         .toLowerCase()
         .includes(term)
     }
+    // This screen declares its own row number below.
+    serialColumn={false}
     columns={[
       // No backing field — the number is the row's position, so the exports
       // need it spelled out as well as the cell.

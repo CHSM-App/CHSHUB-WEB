@@ -129,11 +129,12 @@ describe('ChargesPage', () => {
       { charge_id: 3, NatureOfCharge: 'Water', amount: 90, charges_type: true, status: true, Date: '01 Jan 2026' },
     ];
 
+    // Cell 0 is the row number the table prepends, so the name is cell 1.
     const chargeNames = () =>
       screen
         .getAllByRole('row')
         .slice(1)
-        .map((tr) => within(tr).getAllByRole('cell')[0].textContent);
+        .map((tr) => within(tr).getAllByRole('cell')[1].textContent);
 
     const renderSorted = async () => {
       server.use(

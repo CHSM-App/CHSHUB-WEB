@@ -3,37 +3,11 @@ import { EmptyState, Spinner } from './ui.jsx';
 import ExportToolbar from './ExportToolbar.jsx';
 import { SortableHead, SortControl } from './SortableHead.jsx';
 import { compareRows, sortValueOf } from './useSortedRows.js';
+import Pager, { pageItems, usePrinting } from './Pager.jsx';
 
-/**
- * True while the browser is preparing a printed page.
- *
- * `print` is a CSS media, so a stylesheet can hide things — but it cannot make
- * a component render rows it decided not to render. Paging is exactly that
- * case, so the state has to reach JavaScript.
- */
-function usePrinting() {
-  const [printing, setPrinting] = useState(false);
-
-  useEffect(() => {
-    const mql = window.matchMedia?.('print');
-    const onChange = (e) => setPrinting(e.matches);
-
-    // Safari and older browsers fire the window events but not the media query.
-    const before = () => setPrinting(true);
-    const after = () => setPrinting(false);
-
-    mql?.addEventListener?.('change', onChange);
-    window.addEventListener('beforeprint', before);
-    window.addEventListener('afterprint', after);
-    return () => {
-      mql?.removeEventListener?.('change', onChange);
-      window.removeEventListener('beforeprint', before);
-      window.removeEventListener('afterprint', after);
-    };
-  }, []);
-
-  return printing;
-}
+// Re-exported: both were defined here before the hand-written tables needed
+// them too, and tests and callers import them from the grid.
+export { pageItems };
 
 /**
  * Production data grid — replaces asp:GridView.
@@ -75,6 +49,19 @@ export default function DataGrid({
   footer,
   responsiveCards = true,
   dense = false,
+  /*
+   * The leading row-number column the legacy grids carried as "Sr.No", headed
+   * "No." here. On by default, so every list numbers its rows the same way —
+   * screens used to differ, some hand-rolling the column and most having none.
+   *
+   * Numbering continues across pages — page 2 of a 25-row grid starts at 26,
+   * not 1 — so the number identifies a row in the whole list rather than in the
+   * visible slice. It counts the sorted-and-filtered rows, so it stays 1..n
+   * with no gaps after a search, and follows the order actually on screen.
+   *
+   * Screens that already render their own serial column pass `false`.
+   */
+  serialColumn = true,
 }) {
   const [sort, setSort] = useState({ key: null, dir: 'asc' });
   const [page, setPage] = useState(0);
@@ -114,6 +101,29 @@ export default function DataGrid({
   const safePage = Math.min(page, pageCount - 1);
   const visible =
     pageSize && !printing ? sorted.slice(safePage * pageSize, (safePage + 1) * pageSize) : sorted;
+
+  /*
+   * The caller's columns are what search, sort and export work from — the
+   * serial number is derived from position, so it is prepended for rendering
+   * only. Searching it would be meaningless and sorting by it would sort by the
+   * current order, hence `sortable: false`.
+   *
+   * The offset is the row's index in `sorted`, so the count runs unbroken
+   * across pages. `visible` is a slice of `sorted`, so a row's position within
+   * the page plus the page's start gives its number without an indexOf scan.
+   */
+  const firstOnPage = pageSize && !printing ? safePage * pageSize : 0;
+  const renderColumns = serialColumn
+    ? [
+        {
+          key: '__sr',
+          label: 'No.',
+          sortable: false,
+          render: (_v, _row, i) => firstOnPage + i + 1,
+        },
+        ...columns,
+      ]
+    : columns;
 
   const toggleSort = (key) => {
     if (!sortable) return;
@@ -202,7 +212,7 @@ export default function DataGrid({
                 `sortable={false}` on the grid disables the lot, which the
                 column-level flag expresses here.
               */}
-              {columns.map((c) => (
+              {renderColumns.map((c) => (
                 <SortableHead
                   key={c.key}
                   column={sortable ? c : { ...c, sortable: false }}
@@ -242,7 +252,7 @@ export default function DataGrid({
               <tr>
                 <td
                   className="table-cell px-4 py-6 text-center text-sm text-slate-500"
-                  colSpan={columns.length + (selectable ? 1 : 0) + (actions ? 1 : 0)}
+                  colSpan={renderColumns.length + (selectable ? 1 : 0) + (actions ? 1 : 0)}
                 >
                   No records match “{search}”.
                 </td>
@@ -261,14 +271,16 @@ export default function DataGrid({
                     />
                   </td>
                 ) : null}
-                {columns.map((c, ci) => (
+                {renderColumns.map((c, ci) => (
                   <td
                     key={c.key}
                     className={`table-cell ${cellPad} ${c.align === 'right' ? 'text-right' : ''} ${
-                      ci === 0 ? 'font-medium text-slate-800' : ''
-                    }`}
+                      // The serial number is a row label, not the row's subject:
+                      // when it leads, the emphasis belongs to the column after.
+                      ci === (serialColumn ? 1 : 0) ? 'font-medium text-slate-800' : ''
+                    } ${c.key === '__sr' ? 'w-px whitespace-nowrap text-slate-500' : ''}`}
                   >
-                    {c.render ? c.render(row[c.key], row) : (row[c.key] ?? "—")}
+                    {c.render ? c.render(row[c.key], row, i) : (row[c.key] ?? "—")}
                   </td>
                 ))}
                 {/*
@@ -311,6 +323,12 @@ export default function DataGrid({
         <ul className="divide-y divide-slate-100 sm:hidden">
           {visible.map((row, i) => (
             <li key={row[idKey] ?? i} className="space-y-1 p-4">
+              {/* As a heading rather than another label/value row: on a card
+                  the number says which record this is, and a "Sr.No — 4" line
+                  in among the data reads as one more field. */}
+              {serialColumn ? (
+                <div className="text-xs font-medium text-slate-400">#{firstOnPage + i + 1}</div>
+              ) : null}
               {columns.map((c) => (
                 <div key={c.key} className="flex justify-between gap-3 text-sm">
                   {/* The label holds its width and the value takes the rest:
@@ -334,31 +352,17 @@ export default function DataGrid({
         </>
       ) : null}
 
-      {pageCount > 1 ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-4 py-2 text-sm print:hidden">
-          <span className="text-slate-500">
-            {safePage * pageSize + 1}–{Math.min((safePage + 1) * pageSize, sorted.length)} of{' '}
-            {sorted.length}
-          </span>
-          <div className="flex shrink-0 gap-2">
-            <button
-              type="button"
-              className="btn-secondary px-3 py-1 text-xs"
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-              disabled={safePage === 0}
-            >
-              Previous
-            </button>
-            <button
-              type="button"
-              className="btn-secondary px-3 py-1 text-xs"
-              onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
-              disabled={safePage >= pageCount - 1}
-            >
-              Next
-            </button>
-          </div>
-        </div>
+      {/* Not while printing: the whole set is on the paper, so a "1–25 of 200"
+          footer would contradict it. */}
+      {!printing ? (
+        <Pager
+          page={safePage}
+          pageCount={pageCount}
+          first={firstOnPage}
+          last={Math.min((safePage + 1) * pageSize, sorted.length)}
+          total={sorted.length}
+          onPage={setPage}
+        />
       ) : null}
     </div>
   );

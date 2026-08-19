@@ -15,6 +15,7 @@ import ExportToolbar from '@/components/ExportToolbar.jsx';
 import { useToast } from '@/components/Toast.jsx';
 import useSortedRows from '@/components/useSortedRows.js';
 import { SortableHead, SortControl } from '@/components/SortableHead.jsx';
+import Pager, { usePaging } from '@/components/Pager.jsx';
 
 // The New Maintenance modal's own fields. Bill period is how many months the
 // add-on charges are spread over — txt_period on the legacy form; the date is
@@ -560,6 +561,10 @@ export default function BillsPage() {
   // which interleaves add-on runs with the regular ones — is what shows first.
   const { sorted: sortedRuns, sort, toggleSort } = useSortedRows(visible, RUN_COLUMNS);
 
+  // 25 to a page, as every other list — this table used to render every run.
+  const paging = usePaging(sortedRuns.length, 25);
+  const pagedRuns = sortedRuns.slice(paging.first, paging.first + paging.size);
+
   /**
    * gen_bill runs on a schedule when auto generation is on, so the manual
    * button is hidden then — showHideGenerateBillBtn() did the same. Running it
@@ -709,6 +714,8 @@ export default function BillsPage() {
             <table className="min-w-full stacked-table">
               <thead>
                 <tr>
+                  {/* Row number, as every other list carries. */}
+                  <th className="table-head w-px whitespace-nowrap">No.</th>
                   {RUN_COLUMNS.map((c) => (
                     <SortableHead key={c.key} column={c} sort={sort} onSort={toggleSort} />
                   ))}
@@ -716,8 +723,13 @@ export default function BillsPage() {
                 </tr>
               </thead>
               <tbody>
-                {sortedRuns.map((run) => (
+                {pagedRuns.map((run, i) => (
                   <tr key={run.bill_id} className="hover:bg-slate-50">
+                    {/* Counts from the row's place in the whole list, so page 2
+                        carries on rather than restarting at 1. */}
+                    <td className="table-cell w-px whitespace-nowrap text-slate-500" data-label="No.">
+                      {paging.first + i + 1}
+                    </td>
                     <td className="table-cell font-medium text-slate-800" data-label="Bill no.">#{run.bill_id}</td>
                     <td className="table-cell" data-label="Period">
                       {run.month_name} {run.year}
@@ -757,6 +769,14 @@ export default function BillsPage() {
               </tbody>
             </table>
             </div>
+            <Pager
+              page={paging.page}
+              pageCount={paging.pageCount}
+              first={paging.first}
+              last={paging.last}
+              total={sortedRuns.length}
+              onPage={paging.setPage}
+            />
           </>
         )}
       </div>

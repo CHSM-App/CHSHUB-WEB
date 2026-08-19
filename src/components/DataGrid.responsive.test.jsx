@@ -71,7 +71,9 @@ describe('DataGrid responsive views', () => {
     for (const c of COLUMNS) {
       expect(cards.getAllByText(c.label).length).toBe(ROWS.length);
     }
+    // The grid prepends its own row-number column ahead of the caller's.
     expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual([
+      'No.',
       'Flat',
       'Owner',
       'Reference',
@@ -91,7 +93,7 @@ describe('DataGrid responsive views', () => {
     }));
     const { container } = render(<DataGrid columns={COLUMNS} rows={rows} pageSize={10} />);
 
-    const pager = screen.getByRole('button', { name: 'Next' }).closest('div').parentElement;
+    const pager = screen.getByRole('navigation', { name: 'Pagination' }).parentElement;
     expect(pager.className).toContain('flex-wrap');
     expect(container.textContent).toContain('1–10 of 30');
   });

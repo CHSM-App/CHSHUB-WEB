@@ -9,6 +9,7 @@ import {
 } from '@/components/formValidation.js';
 import useSortedRows from '@/components/useSortedRows.js';
 import { SortableHead, SortControl } from '@/components/SortableHead.jsx';
+import Pager, { usePaging } from '@/components/Pager.jsx';
 
 const EMPTY = { name: '', amount: '', chargesType: '1', active: true };
 
@@ -77,6 +78,10 @@ export default function ChargesPage() {
     useCrudResource(charges, { params });
 
   const { sorted, sort, toggleSort } = useSortedRows(items, COLUMNS);
+
+  // 25 to a page, as every other list — this table used to render every row.
+  const paging = usePaging(sorted.length, 25);
+  const visible = sorted.slice(paging.first, paging.first + paging.size);
 
   const [editing, setEditing] = useState(null);
   const [confirming, setConfirming] = useState(null);
@@ -189,6 +194,8 @@ export default function ChargesPage() {
             <table className="min-w-full stacked-table">
               <thead>
                 <tr>
+                  {/* Row number, as every other list carries. */}
+                  <th className="table-head w-px whitespace-nowrap">No.</th>
                   {COLUMNS.map((c) => (
                     <SortableHead key={c.key} column={c} sort={sort} onSort={toggleSort} />
                   ))}
@@ -196,10 +203,15 @@ export default function ChargesPage() {
                 </tr>
               </thead>
               <tbody>
-                {sorted.map((row) => {
+                {visible.map((row, i) => {
                   const isActive = row.status === true || Number(row.status) === 1;
                   return (
                     <tr key={row.charge_id} className="hover:bg-slate-50">
+                      {/* Counts from the row's place in the whole list, so page
+                          2 carries on rather than restarting at 1. */}
+                      <td className="table-cell w-px whitespace-nowrap text-slate-500" data-label="No.">
+                        {paging.first + i + 1}
+                      </td>
                       <td className="table-cell font-medium text-slate-800" data-label="Nature of charge">{row.NatureOfCharge}</td>
                       <td className="table-cell" data-label="Type">{TYPE_LABEL[typeOf(row)]}</td>
                       <td className="table-cell" data-label="Amount">{Number(row.amount ?? 0).toFixed(2)}</td>
@@ -240,6 +252,14 @@ export default function ChargesPage() {
               </tbody>
             </table>
           </div>
+          <Pager
+            page={paging.page}
+            pageCount={paging.pageCount}
+            first={paging.first}
+            last={paging.last}
+            total={sorted.length}
+            onPage={paging.setPage}
+          />
           </>
         )}
       </div>

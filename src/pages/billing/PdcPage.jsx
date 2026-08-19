@@ -8,6 +8,7 @@ import ExportToolbar from '@/components/ExportToolbar.jsx';
 import { useToast } from '@/components/Toast.jsx';
 import useSortedRows from '@/components/useSortedRows.js';
 import { SortableHead, SortControl } from '@/components/SortableHead.jsx';
+import Pager, { usePaging } from '@/components/Pager.jsx';
 import {
   countErrors,
   validateFields,
@@ -175,6 +176,11 @@ export function PdcPage() {
 
   const { sorted, sort, toggleSort } = useSortedRows(visible, COLUMNS);
 
+  // 25 to a page, as every other list — this table used to render every row.
+  // `visible` above is the search-filtered set; this is the page cut from it.
+  const paging = usePaging(sorted.length, 25);
+  const paged = sorted.slice(paging.first, paging.first + paging.size);
+
   return (
     <section>
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -228,6 +234,8 @@ export function PdcPage() {
             <table className="min-w-full stacked-table">
               <thead>
                 <tr>
+                  {/* Row number, as every other list carries. */}
+                  <th className="table-head w-px whitespace-nowrap">No.</th>
                   {COLUMNS.map((c) => (
                     <SortableHead key={c.key} column={c} sort={sort} onSort={toggleSort} />
                   ))}
@@ -235,8 +243,13 @@ export function PdcPage() {
                 </tr>
               </thead>
               <tbody>
-                {sorted.map((row) => (
+                {paged.map((row, i) => (
                   <tr key={row.pdc_rem_id} className="hover:bg-slate-50">
+                    {/* Counts from the row's place in the whole list, so page 2
+                        carries on rather than restarting at 1. */}
+                    <td className="table-cell w-px whitespace-nowrap text-slate-500" data-label="No.">
+                      {paging.first + i + 1}
+                    </td>
                     <td className="table-cell font-medium text-slate-800" data-label="Cheque no.">{row.chqno}</td>
                     <td className="table-cell" data-label="Resident">{row.name}</td>
                     <td className="table-cell" data-label="Unit">{row.Unit}</td>
@@ -290,6 +303,14 @@ export function PdcPage() {
               </tbody>
             </table>
             </div>
+            <Pager
+              page={paging.page}
+              pageCount={paging.pageCount}
+              first={paging.first}
+              last={paging.last}
+              total={sorted.length}
+              onPage={paging.setPage}
+            />
           </>
         )}
       </div>
@@ -497,6 +518,10 @@ const CLEARING_COLUMNS = [
 function ClearingTable({ rows, busyId, onPick }) {
   const { sorted, sort, toggleSort } = useSortedRows(rows, CLEARING_COLUMNS);
 
+  // 25 to a page, as every other list — this table used to render every row.
+  const paging = usePaging(sorted.length, 25);
+  const paged = sorted.slice(paging.first, paging.first + paging.size);
+
   return (
     <>
       <SortControl
@@ -509,6 +534,8 @@ function ClearingTable({ rows, busyId, onPick }) {
         <table className="min-w-full stacked-table">
           <thead>
             <tr>
+              {/* Row number, as every other list carries. */}
+              <th className="table-head w-px whitespace-nowrap">No.</th>
               {CLEARING_COLUMNS.map((c) => (
                 <SortableHead
                   key={c.key}
@@ -521,10 +548,15 @@ function ClearingTable({ rows, busyId, onPick }) {
             </tr>
           </thead>
           <tbody>
-            {sorted.map((r) => {
+            {paged.map((r, i) => {
               const current = stateOf(r);
               return (
                 <tr key={r.pdc_rem_id}>
+                  {/* Counts from the row's place in the whole list, so page 2
+                      carries on rather than restarting at 1. */}
+                  <td className="table-cell w-px whitespace-nowrap text-slate-500" data-label="No.">
+                    {paging.first + i + 1}
+                  </td>
                   <td className="table-cell font-medium text-slate-800" data-label="Cheque no.">{r.chqno}</td>
                   <td className="table-cell" data-label="Resident">{r.owner_name}</td>
                   <td className="table-cell" data-label="Cheque date">{day(r.che_date)}</td>
@@ -551,6 +583,14 @@ function ClearingTable({ rows, busyId, onPick }) {
           </tbody>
         </table>
       </div>
+      <Pager
+        page={paging.page}
+        pageCount={paging.pageCount}
+        first={paging.first}
+        last={paging.last}
+        total={sorted.length}
+        onPage={paging.setPage}
+      />
     </>
   );
 }

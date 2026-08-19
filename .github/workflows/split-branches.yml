@@ -1,0 +1,100 @@
+name: Split component branches
+
+# Keeps one branch per component in sync with main.
+#
+#   folder            -> branch
+#   -------------------------------------------
+#   CHSHUB_APP        -> CHSHUB_resident_app
+#   security_app      -> security_app
+#   Society_dotNet    -> society_dotNet
+#   frontend          -> Society_web
+#   backend           -> backend        (shared by every client)
+#
+# Each branch contains ONLY that folder, with the folder as the repo root,
+# so `pubspec.yaml` / `package.json` / `Society2024.sln` sit at the top level
+# and any deploy target (Vercel, Codemagic, Azure, ...) can build it directly.
+#
+# These branches are GENERATED. Do not commit to them by hand — the next push
+# to main overwrites them. All work happens on main (or a PR into main).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: split-branches
+  cancel-in-progress: false
+
+jobs:
+  split:
+    name: ${{ matrix.folder }} -> ${{ matrix.branch }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - folder: CHSHUB_APP
+            branch: CHSHUB_resident_app
+          - folder: security_app
+            branch: security_app
+          - folder: Society_dotNet
+            branch: society_dotNet
+          - folder: frontend
+            branch: Society_web
+          - folder: backend
+            branch: backend
+
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Split ${{ matrix.folder }} into ${{ matrix.branch }}
+        env:
+          FOLDER: ${{ matrix.folder }}
+          BRANCH: ${{ matrix.branch }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          # A component is splittable only if main records it as a real directory.
+          # An empty result means the path is absent; "commit" means it is still a
+          # stale submodule/gitlink and its code is not in this repository yet.
+          KIND="$(git ls-tree "$AFTER" -- "$FOLDER" | awk '{print $2}')"
+          case "$KIND" in
+            tree) ;;
+            commit)
+              echo "::warning::'$FOLDER' is a submodule/gitlink on main, not tracked files — cannot split it into '$BRANCH'. Commit the folder contents into the repo first (see docs/BRANCHING.md)."
+              exit 0
+              ;;
+            *)
+              echo "::warning::'$FOLDER' does not exist on main — nothing to split into '$BRANCH'."
+              exit 0
+              ;;
+          esac
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Skip the (slow) split when this push did not touch the folder and the
+          # branch already exists. workflow_dispatch has no "before", so it always runs.
+          if [ -n "${BEFORE:-}" ] \
+             && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
+             && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null \
+             && git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1 \
+             && git diff --quiet "$BEFORE" "$AFTER" -- "$FOLDER"; then
+            echo "No changes under $FOLDER in this push — $BRANCH already up to date."
+            exit 0
+          fi
+
+          SPLIT_SHA="$(git subtree split --prefix="$FOLDER" "$AFTER")"
+          echo "Split $FOLDER -> $SPLIT_SHA"
+
+          # Generated branch: force-push is intentional and safe.
+          git push --force origin "${SPLIT_SHA}:refs/heads/${BRANCH}"
+          echo "### \`$FOLDER\` → \`$BRANCH\` @ \`${SPLIT_SHA:0:8}\`" >> "$GITHUB_STEP_SUMMARY"

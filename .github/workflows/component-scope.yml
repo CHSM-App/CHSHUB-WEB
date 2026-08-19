@@ -1,0 +1,62 @@
+name: Component scope
+
+# Reports which components a pull request touches, so cross-component changes
+# are visible before they land on main. Advisory only — it never fails the PR,
+# because a backend contract change legitimately touches its clients too.
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  scope:
+    name: Report touched components
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: List touched components
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          CHANGED="$(git diff --name-only "$BASE" "$HEAD")"
+
+          declare -A COMPONENTS=(
+            [CHSHUB_APP]="Resident app (Flutter)  -> CHSHUB_resident_app"
+            [security_app]="Security app (Flutter)  -> security_app"
+            [Society_dotNet]="Legacy .NET            -> society_dotNet"
+            [frontend]="Web frontend (React)   -> Society_web"
+            [backend]="Backend (shared)       -> backend"
+          )
+
+          touched=()
+          for folder in "${!COMPONENTS[@]}"; do
+            if grep -qE "^${folder}/" <<<"$CHANGED"; then
+              touched+=("$folder")
+            fi
+          done
+
+          {
+            echo "## Components touched by this PR"
+            echo
+            if [ "${#touched[@]}" -eq 0 ]; then
+              echo "_None — repo-level files only (docs, SQL, CI)._"
+            else
+              for folder in "${touched[@]}"; do
+                echo "- \`$folder\` — ${COMPONENTS[$folder]}"
+              done
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "${#touched[@]}" -gt 1 ]; then
+            echo "::warning::This PR spans ${#touched[@]} components: ${touched[*]}. Split it unless the change is genuinely shared (e.g. a backend API change plus its clients)."
+          fi

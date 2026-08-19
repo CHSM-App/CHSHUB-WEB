@@ -14,15 +14,11 @@ const admin = require('firebase-admin');
 const { query, getPool, sql } = require('./db');
 
 /**
- * routes/notify.js already calls initializeApp at require time, and calling it
- * twice throws. Reuse the default app when one exists.
+ * routes/firebase.js owns initialisation and is idempotent, so it does not
+ * matter whether routes/notify.js got there first.
  */
 function messaging() {
-  if (!admin.apps.length) {
-    const serviceAccount = require('../../routes/serviceAccountKey.json');
-    admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-  }
-  return admin.messaging();
+  return require('../../routes/firebase').messaging();
 }
 
 /**

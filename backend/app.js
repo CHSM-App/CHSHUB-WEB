@@ -1,8 +1,8 @@
  var createError = require('http-errors');
 var express = require('express');
 const cron = require('node-cron');
-const admin = require("firebase-admin");
-const serviceAccount = require("./serviceAccountKey.json");
+const firebase = require('./routes/firebase');
+const admin = { messaging: () => firebase.messaging() };
 
 require('dotenv').config({ path: __dirname + '/.env' });
 var path = require('path');
@@ -33,7 +33,26 @@ var app = express();
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'pug');
-app.use(cors());
+/*
+ * Was app.use(cors()), which allows every origin. Browsers may now only call
+ * this API from the origins named in CORS_ORIGINS. The mobile apps are not
+ * browsers and do not enforce CORS, so they are unaffected either way.
+ */
+const allowedOrigins = (process.env.CORS_ORIGINS || "")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin(origin, callback) {
+    // No Origin header: same-origin, curl, or a native app. Not a browser
+    // cross-origin request, so there is nothing for CORS to protect against.
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error("Origin not allowed by CORS"));
+  },
+  credentials: true,
+}));
 
 
 app.set('trust proxy', true);  
@@ -42,18 +61,33 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/',   indexRouter);
-app.use('/insert', protect, insertRouter);    //should add protected here 
+/*
+ * Every mobile router now requires a valid token.
+ *
+ * deleteapi, users, uploadfile and fileAccess were mounted bare: roughly 85
+ * endpoints — including fifteen DELETEs sitting at the root — served anyone
+ * who could reach the host. `protect` is the floor, not the whole fix: it
+ * establishes who is calling, but most of these handlers still act on any id
+ * they are handed, so per-record ownership checks are still needed.
+ *
+ * /login stays public by necessity — it is where a token comes from — and
+ * applies `auth` to the routes inside it that need it.
+ */
+// deleteapi is mounted at the root, so middleware placed here would run for
+// every request on the server — including /login, which has to stay reachable.
+// Its routes carry `protect` individually instead; see routes/deleteapi.js.
+app.use('/', indexRouter);
+app.use('/insert', protect, insertRouter);
 app.use('/test', protect, testRouter);
 app.use('/login', loginRouter);
-app.use('/users', usersRouter);
-app.use('/upload', uploadRouter);
-app.use('/data',protect, dataRouter);          //should add protected here
-app.use('/community',protect, communityRouter);
-app.use('/insert/gate', protect,insertGate);    //should add protected here 
+app.use('/users', protect, usersRouter);
+app.use('/upload', protect, uploadRouter);
+app.use('/data', protect, dataRouter);
+app.use('/community', protect, communityRouter);
+app.use('/insert/gate', protect, insertGate);
 app.use('/insert/community', protect, insertCommunity);
-app.use('/notify', protect, notifyRouter);    //should add protected here
-app.use('/file', fileAccess);
+app.use('/notify', protect, notifyRouter);
+app.use('/file', protect, fileAccess);
 
 // Website (admin) API. Self-contained: brings its own auth, validation and
 // error handling, so it cannot affect the mobile routes mounted above.
@@ -64,7 +98,16 @@ app.get('/privacy-policy', (req, res) => {
 app.get('/delete-account', (req, res) => {
   res.sendFile(path.join(__dirname, 'routes', 'delete-account.html'));
 });
-//catch 404 and forward to error handler
+/*
+ * 404. The comment here has always said "catch 404 and forward to error
+ * handler" with no code under it, so an unknown path fell through to
+ * Express's HTML default page instead of this API's JSON.
+ *
+ * Registered after every route but before the error handler at the bottom.
+ */
+app.use((req, res, next) => {
+  next(createError(404, "Not found"));
+});
 
 
 async function sendMaintenancePaymentNotifications() {
@@ -172,14 +215,19 @@ async function GenerateBill() {
 }
  
 app.use((err, req, res, next) => {
-  console.error("Unhandled Error:", err);
+  // 404s are routine and would otherwise fill the log with noise.
+  if (!err.status || err.status >= 500) console.error("Unhandled Error:", err);
 
   // If response already sent (like 401), do nothing
   if (res.headersSent) {
     return next(err);
   }
 
-  return res.status(500).json({ msg: "Internal Server Error" });
+  // Client errors carry a safe message; anything else stays opaque so that
+  // stack traces and SQL text do not reach the caller.
+  const status = err.status || 500;
+  const msg = status < 500 ? err.message : "Internal Server Error";
+  return res.status(status).json({ msg });
 });
 
 

@@ -11,7 +11,7 @@ name: Resident app (Flutter)
 # not mint releases the way the original workflow would have.
 
 on:
-  push:
+  push: 
     branches: [main]
     paths: ['CHSHUB_APP/**', '.github/workflows/resident-app.yml']
   pull_request:

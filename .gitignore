@@ -47,3 +47,13 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 .DS_Store
+
+# Firebase service-account keys — supply via FIREBASE_SERVICE_ACCOUNT or
+# FIREBASE_SERVICE_ACCOUNT_PATH instead. Never commit these.
+serviceAccountKey.json
+**/serviceAccountKey.json
+*serviceAccount*.json
+
+# Env backups. The bare .env rule above misses these.
+.env.*
+!.env.example

@@ -101,7 +101,9 @@ if (!id) return res.status(400).json({ error: 'SocietyId required' });
 });
 router.get('/staffList/:society', function(req, res, next) {
     
-     db.query("select * from staff_master where  active_status=0 and  society_id='"+req.params.society+"'",function(err,rows){
+     db.request()
+            .input("society_id", req.params.society)
+            .query("select * from staff_master where active_status=0 and society_id=@society_id", function(err,rows){
          if(err)
             return res.status(500).json({error:err.message});      
         res.json(rows.recordset);

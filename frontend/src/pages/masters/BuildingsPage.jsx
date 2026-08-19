@@ -9,6 +9,7 @@ import {
 } from '@/components/formValidation.js';
 import useSortedRows from '@/components/useSortedRows.js';
 import { SortableHead, SortControl } from '@/components/SortableHead.jsx';
+import Pager, { usePaging } from '@/components/Pager.jsx';
 
 /*
  * Address has no field of its own — the cell joins the two address lines, so
@@ -81,6 +82,10 @@ export default function BuildingsPage() {
     useCrudResource(buildings, { params });
 
   const { sorted, sort, toggleSort } = useSortedRows(items, COLUMNS);
+
+  // 25 to a page, as every other list — this table used to render every row.
+  const paging = usePaging(sorted.length, 25);
+  const visible = sorted.slice(paging.first, paging.first + paging.size);
 
   const [editing, setEditing] = useState(null); // null | { id, form }
   const [confirming, setConfirming] = useState(null);
@@ -169,6 +174,8 @@ export default function BuildingsPage() {
             <table className="min-w-full stacked-table">
               <thead>
                 <tr>
+                  {/* Row number, as every other list carries. */}
+                  <th className="table-head w-px whitespace-nowrap">No.</th>
                   {COLUMNS.map((c) => (
                     <SortableHead key={c.key} column={c} sort={sort} onSort={toggleSort} />
                   ))}
@@ -176,8 +183,13 @@ export default function BuildingsPage() {
                 </tr>
               </thead>
               <tbody>
-                {sorted.map((row) => (
+                {visible.map((row, i) => (
                   <tr key={row.build_id} className="hover:bg-slate-50">
+                    {/* Counts from the row's place in the whole list, so page 2
+                        carries on rather than restarting at 1. */}
+                    <td className="table-cell w-px whitespace-nowrap text-slate-500" data-label="No.">
+                      {paging.first + i + 1}
+                    </td>
                     <td className="table-cell font-medium text-slate-800" data-label="Name">{row.name}</td>
                     <td className="table-cell" data-label="Address">
                       {[row.address1, row.address2].filter(Boolean).join(', ') || '—'}
@@ -197,6 +209,14 @@ export default function BuildingsPage() {
               </tbody>
             </table>
           </div>
+          <Pager
+            page={paging.page}
+            pageCount={paging.pageCount}
+            first={paging.first}
+            last={paging.last}
+            total={sorted.length}
+            onPage={paging.setPage}
+          />
           </>
         )}
       </div>

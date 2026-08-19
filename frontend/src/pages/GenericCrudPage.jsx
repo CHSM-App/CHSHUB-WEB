@@ -20,6 +20,7 @@ import ExportToolbar from '@/components/ExportToolbar.jsx';
 import RichTextField from '@/components/RichTextField.jsx';
 import useSortedRows from '@/components/useSortedRows.js';
 import { SortableHead, SortControl } from '@/components/SortableHead.jsx';
+import Pager, { usePaging } from '@/components/Pager.jsx';
 
 /**
  * One implementation behind most list/edit screens.
@@ -66,6 +67,11 @@ export default function GenericCrudPage({
   emptyHint,
   lookups: lookupLoaders,
   formActions,
+  // Same page size as DataGrid, so the two table implementations behave alike.
+  pageSize = 25,
+  // The leading "No." column. Screens that declare their own row number — the
+  // ones whose export needs it spelled out — pass false so it is not doubled.
+  serialColumn = true,
 }) {
   const [search, setSearch] = useState('');
   const deferred = useDeferredValue(search);
@@ -89,6 +95,12 @@ export default function GenericCrudPage({
   }, [items, deferred, filterRow]);
 
   const { sorted: rows, sort, toggleSort } = useSortedRows(filtered, columns);
+
+  // These screens used to render every row at once — a few hundred flats made
+  // an unreadable page. The export toolbar and the printed sheet still work
+  // from `rows`, so paging narrows the screen only, never the output.
+  const paging = usePaging(rows.length, pageSize);
+  const visible = rows.slice(paging.first, paging.first + paging.size);
 
   const [lookups, setLookups] = useState({});
   const [editing, setEditing] = useState(null);
@@ -289,6 +301,11 @@ export default function GenericCrudPage({
             <table className="min-w-full stacked-table">
               <thead>
                 <tr>
+                  {/* Row number, as DataGrid prepends on the screens it backs —
+                      both table implementations number their rows the same. */}
+                  {serialColumn ? (
+                    <th className="table-head w-px whitespace-nowrap">No.</th>
+                  ) : null}
                   {columns.map((c) => (
                     <SortableHead key={c.key} column={c} sort={sort} onSort={toggleSort} />
                   ))}
@@ -300,8 +317,18 @@ export default function GenericCrudPage({
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row, i) => (
+                {visible.map((row, i) => (
                   <tr key={row[idKey] ?? i} className="hover:bg-slate-50">
+                    {/* Counts from the row's place in the whole list, so page 2
+                        carries on from page 1 rather than restarting at 1. */}
+                    {serialColumn ? (
+                      <td
+                        className="table-cell w-px whitespace-nowrap text-slate-500"
+                        data-label="No."
+                      >
+                        {paging.first + i + 1}
+                      </td>
+                    ) : null}
                     {columns.map((c, ci) => (
                       <td
                         key={c.key}
@@ -312,7 +339,10 @@ export default function GenericCrudPage({
                            column that titles it on a wide screen. */
                         data-label={c.label}
                       >
-                        {renderCell(c, row, i)}
+                        {/* The index is the row's place in the whole list, not
+                            in the page: a column numbering off it must not
+                            restart when the user turns the page. */}
+                        {renderCell(c, row, paging.first + i)}
                       </td>
                     ))}
                     {(canEdit && fields.length) || canDelete ? (
@@ -338,6 +368,14 @@ export default function GenericCrudPage({
               </tbody>
             </table>
             </div>
+            <Pager
+              page={paging.page}
+              pageCount={paging.pageCount}
+              first={paging.first}
+              last={paging.last}
+              total={rows.length}
+              onPage={paging.setPage}
+            />
           </>
         )}
       </div>

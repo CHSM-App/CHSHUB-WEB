@@ -165,9 +165,11 @@ describe('BillsPage', () => {
     render(<BillsPage />);
 
     await screen.findByText('#47');
+    // The first cell is the row number the table prepends; the bill no. is the
+    // one after it.
     const ids = screen
       .getAllByRole('row')
-      .map((r) => r.querySelector('td')?.textContent)
+      .map((r) => r.querySelectorAll('td')[1]?.textContent)
       .filter(Boolean);
     expect(ids).toEqual(['#55', '#52', '#53', '#47']);
   });
@@ -179,11 +181,12 @@ describe('BillsPage', () => {
       { ...RUN, bill_id: 52, month_name: 'April', year: 2026, gen_date: '2026-04-01', due_date: '2026-04-16', bill_type_label: 'Regular', Status: 'Bill Generated' },
     ];
 
+    // Cell 0 is the row number the table prepends, so the bill no. is cell 1.
     const billIds = () =>
       screen
         .getAllByRole('row')
         .slice(1)
-        .map((r) => within(r).getAllByRole('cell')[0].textContent);
+        .map((r) => within(r).getAllByRole('cell')[1].textContent);
 
     const renderRuns = async () => {
       server.use(...handlers({ runs: SORT_RUNS }));
@@ -263,9 +266,10 @@ describe('BillsPage', () => {
     const cellsOf = (id) =>
       within(rows.find((r) => within(r).queryByText(`#${id}`))).getAllByRole('cell');
 
-    expect(cellsOf(12)[2]).toHaveTextContent('Regular');
-    expect(cellsOf(20)[2]).toHaveTextContent('Add-on');
-    expect(cellsOf(21)[2]).toHaveTextContent('Add-on');
+    // Cell 0 is the row number the table prepends, so Type shifts to cell 3.
+    expect(cellsOf(12)[3]).toHaveTextContent('Regular');
+    expect(cellsOf(20)[3]).toHaveTextContent('Add-on');
+    expect(cellsOf(21)[3]).toHaveTextContent('Add-on');
   });
 
   it('filters the loaded runs as you type', async () => {

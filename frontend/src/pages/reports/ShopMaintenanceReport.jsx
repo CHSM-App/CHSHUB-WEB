@@ -54,10 +54,10 @@ export default function ShopMaintenanceReport() {
   const items = data?.items ?? [];
 
   const columns = [
-    // DataGrid's render gets (value, row) with no index, and the grid sorts and
-    // pages the rows itself — so the serial number comes off the row's position
-    // in the loaded list rather than the rendered one. ledger.rdlc numbered its
-    // rows the same way, off the dataset order.
+    // Kept rather than using DataGrid's built-in serial column (switched off
+    // below): the export needs the number too, and this one comes off the row's
+    // position in the loaded list rather than the rendered one — ledger.rdlc
+    // numbered its rows the same way, off the dataset order.
     {
       key: '_sr',
       label: 'Sr.No',
@@ -157,6 +157,8 @@ export default function ShopMaintenanceReport() {
         rows={items}
         idKey="shop_maint_id"
         loading={loading}
+        // This screen supplies its own Sr.No above.
+        serialColumn={false}
         emptyTitle="No shop maintenance records found"
         emptyHint="Try clearing the payment method or date filter."
         exportName="shop-maintenance-report"

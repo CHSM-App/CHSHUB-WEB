@@ -626,10 +626,13 @@ export const OtherCreditsPage = () => (
     // other_credits.aspx had no delete path — its DeleteCredit() was commented
     // out and the grid carried an Edit icon only.
     canDelete={false}
+    // This screen declares its own row number below.
+    serialColumn={false}
     columns={[
       // No backing field — the legacy grid numbered rows by grid position.
-      // exportValue keeps the CSV/PDF columns in step with what is displayed,
-      // since the export reads the row rather than the rendered cell.
+      // Kept rather than using the page's built-in column, because exportValue
+      // keeps the CSV/PDF in step with what is displayed: the export reads the
+      // row rather than the rendered cell.
       {
         key: 'no',
         label: 'No',
@@ -845,6 +848,8 @@ export const SuggestionsPage = () => (
     title="Suggestion/Request"
     resource={M.suggestions}
     idKey="sug_id"
+    // This screen declares its own row number below.
+    serialColumn={false}
     columns={[
       { key: 'sug_id', label: 'No', format: (_v, _r, i) => i + 1 },
       { key: 'subject', label: 'Subject' },

@@ -1782,15 +1782,9 @@ export function CommitteeMembersPage() {
       <div className="card overflow-hidden">
         <DataGrid
           // The legacy grid shows No, Name and Designation only — its User Id
-          // column is Visible="false". The row number comes off the record
-          // itself rather than the render index, which restarts on each page.
+          // column is Visible="false". The row number is DataGrid's own leading
+          // column, so it is not repeated here.
           columns={[
-            {
-              key: '__no',
-              label: 'No',
-              sortable: false,
-              render: (_v, r) => rows.findIndex((x) => x.user_id === r.user_id) + 1,
-            },
             { key: 'name', label: 'Name' },
             { key: 'UserTypeName', label: 'Designation' },
           ]}

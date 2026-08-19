@@ -10,6 +10,7 @@ import {
   Spinner,
 } from '@/components/ui.jsx';
 import { useToast } from '@/components/Toast.jsx';
+import Pager, { usePaging } from '@/components/Pager.jsx';
 import {
   countErrors,
   validateFields,
@@ -204,6 +205,9 @@ export default function HouseChargesPage() {
     return houses.filter((h) => String(h.house_no ?? '').toLowerCase().includes(term));
   }, [houses, search]);
 
+  const paging = usePaging(visible.length, 25);
+  const pageRows = visible.slice(paging.first, paging.first + paging.size);
+
   const save = async (houseId, paymentType, body) => {
     const key = `${houseId}:${paymentType}`;
     setSavingKey(key);
@@ -328,10 +332,13 @@ export default function HouseChargesPage() {
         {visible.length === 0 ? (
           <EmptyState title="No houses found" hint="Houses added to this village appear here." />
         ) : (
+          <>
           <div className="overflow-x-auto">
             <table className="min-w-full stacked-table">
               <thead>
                 <tr>
+                  {/* Row number, as every other list carries. */}
+                  <th className="table-head w-px whitespace-nowrap">No.</th>
                   <th className="table-head">House</th>
                   <th className="table-head">Area</th>
                   <th className="table-head">Taps</th>
@@ -346,8 +353,13 @@ export default function HouseChargesPage() {
                 </tr>
               </thead>
               <tbody>
-                {visible.map((h) => (
+                {pageRows.map((h, i) => (
                   <tr key={h.house_id} className="hover:bg-slate-50">
+                    {/* Counts from the row's place in the whole list, so page 2
+                        carries on rather than restarting at 1. */}
+                    <td className="table-cell w-px whitespace-nowrap text-slate-500" data-label="No.">
+                      {paging.first + i + 1}
+                    </td>
                     <td className="table-cell font-medium text-slate-800" data-label="House">{h.house_no}</td>
                     <td className="table-cell" data-label="Area">{h.area ?? '—'}</td>
                     <td className="table-cell" data-label="Taps">{h.no_of_tab ?? 0}</td>
@@ -431,6 +443,15 @@ export default function HouseChargesPage() {
               </tbody>
             </table>
           </div>
+          <Pager
+            page={paging.page}
+            pageCount={paging.pageCount}
+            first={paging.first}
+            last={paging.last}
+            total={visible.length}
+            onPage={paging.setPage}
+          />
+          </>
         )}
       </div>
 

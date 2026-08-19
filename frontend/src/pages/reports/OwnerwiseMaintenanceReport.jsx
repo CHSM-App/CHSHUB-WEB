@@ -4,6 +4,7 @@ import { buildings as buildingsApi, residents as ownersApi } from '@/api/masters
 import ExportToolbar from '@/components/ExportToolbar.jsx';
 import ReportHeader, { ReportFooter, useSocietyInfo } from '@/components/ReportDocument.jsx';
 import { EmptyState, ErrorNotice, Field, Spinner } from '@/components/ui.jsx';
+import Pager, { usePaging } from '@/components/Pager.jsx';
 
 const money = (v) =>
   v == null || v === ''
@@ -101,6 +102,21 @@ export default function OwnerwiseMaintenanceReport() {
 
   const items = data?.items ?? [];
   const ready = Boolean(buildingId && ownerId);
+
+  /*
+   * The opening, total and closing rows frame the statement, so they are held
+   * out of the paging and kept on every page — a closing balance stranded on
+   * page 1 of 6 would read as the balance after 25 transactions. Only seq 2,
+   * the transactions themselves, pages. Export and print still take `items`,
+   * so the file and the paper keep the whole statement.
+   */
+  const entries = items.filter((r) => Number(r.seq) === 2);
+  const balances = items.filter((r) => Number(r.seq) !== 2);
+  const opening = balances.filter((r) => Number(r.seq) === 1);
+  const closing = balances.filter((r) => Number(r.seq) !== 1);
+
+  const paging = usePaging(entries.length, 25);
+  const pageRows = entries.slice(paging.first, paging.first + paging.size);
 
   // Used by the export toolbar and the printed heading.
   const buildingName = useMemo(
@@ -266,7 +282,7 @@ export default function OwnerwiseMaintenanceReport() {
                 </tr>
               </thead>
               <tbody>
-                {items.map((r, i) => (
+                {[...opening, ...pageRows, ...closing].map((r, i) => (
                   /*
                     The labels come from `columns`, which is also what draws
                     the headers above — the two cannot drift apart, and the
@@ -289,6 +305,14 @@ export default function OwnerwiseMaintenanceReport() {
               </tbody>
             </table>
           </div>
+          <Pager
+            page={paging.page}
+            pageCount={paging.pageCount}
+            first={paging.first}
+            last={paging.last}
+            total={entries.length}
+            onPage={paging.setPage}
+          />
           <div className="px-4 print:px-0">
             <ReportFooter />
           </div>

@@ -3,6 +3,7 @@ import { village } from '@/api/modules';
 import { EmptyState, ErrorNotice, Spinner } from '@/components/ui.jsx';
 import ExportToolbar from '@/components/ExportToolbar.jsx';
 import { useToast } from '@/components/Toast.jsx';
+import Pager, { usePaging } from '@/components/Pager.jsx';
 
 /*
  * Raising a period's bills.
@@ -126,6 +127,11 @@ export default function BillRunPage() {
   const items = preview?.items ?? [];
   const periodLabel = `${MONTHS[month - 1]} ${year}`;
 
+  // The bill and charge counts above stay over the whole run — paging changes
+  // what is listed, not what will be raised.
+  const paging = usePaging(items.length, 25);
+  const pageRows = items.slice(paging.first, paging.first + paging.size);
+
   return (
     <section>
       <header className="mb-4 print:w-full print:text-center">
@@ -240,7 +246,7 @@ export default function BillRunPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((row, i) => (
+                  {pageRows.map((row, i) => (
                     <Fragment key={row.house_id}>
                       <tr
                         className="cursor-pointer hover:bg-slate-50"
@@ -287,6 +293,14 @@ export default function BillRunPage() {
                 </tbody>
               </table>
             </div>
+            <Pager
+              page={paging.page}
+              pageCount={paging.pageCount}
+              first={paging.first}
+              last={paging.last}
+              total={items.length}
+              onPage={paging.setPage}
+            />
           </>
         )}
       </div>

@@ -2,12 +2,77 @@ import { Fragment } from 'react';
 import { extraReports } from '@/api/onboarding';
 import DateRangeReport, { money, day } from '../DateRangeReport.jsx';
 import { EmptyState } from '@/components/ui.jsx';
+import Pager, { usePaging } from '@/components/Pager.jsx';
 
 /**
  * The financial reports that replace the RDLC report definitions:
  * Paid_amountreport, agm_report, Profit_loss_report / v_profite_loss,
  * BalanceSheet. Each renders inside DateRangeReport and prints via the browser.
  */
+
+/*
+ * `render` is a prop, not a component, so paging state cannot live inside it —
+ * the collections grid is its own component so it can hold the hook.
+ */
+function CollectionsGrid({ d }) {
+  const paging = usePaging(d.items.length, 25);
+  const pageRows = d.items.slice(paging.first, paging.first + paging.size);
+
+  return (
+    <div className="card overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="min-w-full stacked-table">
+          <thead>
+            <tr>
+              {/* Row number, as every other list carries. */}
+              <th className="table-head w-px whitespace-nowrap">No.</th>
+              <th className="table-head">Receipt</th>
+              <th className="table-head">Date</th>
+              <th className="table-head">Resident</th>
+              <th className="table-head">Unit</th>
+              <th className="table-head">Bill</th>
+              <th className="table-head">Mode</th>
+              <th className="table-head text-right">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pageRows.map((r, i) => (
+              <tr key={paging.first + i}>
+                {/* Counts from the row's place in the whole list, so page 2
+                    carries on rather than restarting at 1. */}
+                <td className="table-cell w-px whitespace-nowrap text-slate-500" data-label="No.">
+                  {paging.first + i + 1}
+                </td>
+                <td className="table-cell font-medium text-slate-800" data-label="Receipt">{r.receipt_no}</td>
+                <td className="table-cell" data-label="Date">{day(r.date)}</td>
+                <td className="table-cell" data-label="Resident">{r.name}</td>
+                <td className="table-cell" data-label="Unit">{r.unit}</td>
+                <td className="table-cell" data-label="Bill">{r.Billno || '—'}</td>
+                <td className="table-cell" data-label="Mode">{r.pay_mode}</td>
+                <td className="table-cell text-right" data-label="Amount">{money(r.paid_amount)}</td>
+              </tr>
+            ))}
+            {/* The total is the period's, not the page's — it stays put. */}
+            <tr className="bg-slate-50 font-semibold">
+              <td className="table-cell" colSpan={7}>
+                Total collected ({d.count} receipts)
+              </td>
+              <td className="table-cell text-right" data-label="Total">{money(d.total)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <Pager
+        page={paging.page}
+        pageCount={paging.pageCount}
+        first={paging.first}
+        last={paging.last}
+        total={d.items.length}
+        onPage={paging.setPage}
+      />
+    </div>
+  );
+}
 
 export function PaidAmountsPage() {
   return (
@@ -19,42 +84,7 @@ export function PaidAmountsPage() {
         d.items.length === 0 ? (
           <EmptyState title="No receipts in this period" />
         ) : (
-          <div className="card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="min-w-full stacked-table">
-                <thead>
-                  <tr>
-                    <th className="table-head">Receipt</th>
-                    <th className="table-head">Date</th>
-                    <th className="table-head">Resident</th>
-                    <th className="table-head">Unit</th>
-                    <th className="table-head">Bill</th>
-                    <th className="table-head">Mode</th>
-                    <th className="table-head text-right">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {d.items.map((r, i) => (
-                    <tr key={i}>
-                      <td className="table-cell font-medium text-slate-800" data-label="Receipt">{r.receipt_no}</td>
-                      <td className="table-cell" data-label="Date">{day(r.date)}</td>
-                      <td className="table-cell" data-label="Resident">{r.name}</td>
-                      <td className="table-cell" data-label="Unit">{r.unit}</td>
-                      <td className="table-cell" data-label="Bill">{r.Billno || '—'}</td>
-                      <td className="table-cell" data-label="Mode">{r.pay_mode}</td>
-                      <td className="table-cell text-right" data-label="Amount">{money(r.paid_amount)}</td>
-                    </tr>
-                  ))}
-                  <tr className="bg-slate-50 font-semibold">
-                    <td className="table-cell" colSpan={6}>
-                      Total collected ({d.count} receipts)
-                    </td>
-                    <td className="table-cell text-right" data-label="Total">{money(d.total)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <CollectionsGrid d={d} />
         )
       }
     />

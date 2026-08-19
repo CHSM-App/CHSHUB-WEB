@@ -9,6 +9,7 @@ import {
 } from '@/components/formValidation.js';
 import useSortedRows from '@/components/useSortedRows.js';
 import { SortableHead, SortControl } from '@/components/SortableHead.jsx';
+import Pager, { usePaging } from '@/components/Pager.jsx';
 
 /*
  * Flat numbers are text but read as numbers — the comparison is numeric-aware,
@@ -61,6 +62,9 @@ export default function FlatsPage() {
     useCrudResource(flats, { params });
 
   const { sorted, sort, toggleSort } = useSortedRows(items, COLUMNS);
+
+  const paging = usePaging(sorted.length, 25);
+  const visible = sorted.slice(paging.first, paging.first + paging.size);
 
   const [lookups, setLookups] = useState({ wings: [], flatTypes: [], usages: [], bedrooms: [] });
   const [editing, setEditing] = useState(null);
@@ -176,6 +180,8 @@ export default function FlatsPage() {
             <table className="min-w-full stacked-table">
               <thead>
                 <tr>
+                  {/* Row number, as every other list carries. */}
+                  <th className="table-head w-px whitespace-nowrap">No.</th>
                   {COLUMNS.map((c) => (
                     <SortableHead key={c.key} column={c} sort={sort} onSort={toggleSort} />
                   ))}
@@ -183,8 +189,13 @@ export default function FlatsPage() {
                 </tr>
               </thead>
               <tbody>
-                {sorted.map((row) => (
+                {visible.map((row, i) => (
                   <tr key={row.flat_id} className="hover:bg-slate-50">
+                    {/* Counts from the row's place in the whole list, so page 2
+                        carries on rather than restarting at 1. */}
+                    <td className="table-cell w-px whitespace-nowrap text-slate-500" data-label="No.">
+                      {paging.first + i + 1}
+                    </td>
                     <td className="table-cell font-medium text-slate-800" data-label="Flat no.">{row.flat_no}</td>
                     <td className="table-cell" data-label="Building / wing">{row.build_wing}</td>
                     <td className="table-cell" data-label="Type">{row.flat_type}</td>
@@ -203,6 +214,14 @@ export default function FlatsPage() {
               </tbody>
             </table>
           </div>
+          <Pager
+            page={paging.page}
+            pageCount={paging.pageCount}
+            first={paging.first}
+            last={paging.last}
+            total={sorted.length}
+            onPage={paging.setPage}
+          />
           </>
         )}
       </div>

@@ -23,6 +23,7 @@ import {
   revokeBlobUrl,
 } from '@/lib/storedFile';
 import { useToast } from '@/components/Toast.jsx';
+import Pager, { usePaging } from '@/components/Pager.jsx';
 import {
   countErrors,
   validateFields,
@@ -207,6 +208,11 @@ export default function ContactsPage() {
     load();
   }, [load]);
 
+  // 24 a page, not the 25 the tables use: the grid runs four to a row, and 25
+  // would leave a single card stranded on the last line.
+  const paging = usePaging(rows.length, 24);
+  const pageRows = rows.slice(paging.first, paging.first + paging.size);
+
   // Types do not depend on the search term, so they load once.
   useEffect(() => {
     M.lookups
@@ -309,8 +315,9 @@ export default function ContactsPage() {
       ) : (
         // Four to a row on a wide screen, two on a tablet, one on a phone —
         // the legacy breakpoints.
+        <>
         <ul className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
-          {rows.map((c) => (
+          {pageRows.map((c) => (
             <ContactCard
               key={c.usefull_contact_id}
               contact={c}
@@ -320,6 +327,17 @@ export default function ContactsPage() {
             />
           ))}
         </ul>
+        {/* The cards are not in a card container of their own, so the pager
+            carries the border the table pages get from theirs. */}
+        <Pager
+          page={paging.page}
+          pageCount={paging.pageCount}
+          first={paging.first}
+          last={paging.last}
+          total={rows.length}
+          onPage={paging.setPage}
+        />
+        </>
       )}
 
       <Modal

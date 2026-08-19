@@ -1,0 +1,71 @@
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
+part of 'visitors.dart';
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+Visitors _$VisitorsFromJson(Map<String, dynamic> json) => Visitors(
+  nameCommittee: json['name'] as String?,
+  userTypeId: (json['user_type_id'] as num?)?.toInt(),
+  inUserId: (json['in_user_id'] as num?)?.toInt(),
+  wName: json['w_name'] as String?,
+  outUserId: (json['out_user_id'] as num?)?.toInt(),
+  details: json['details'] as String?,
+  visitorId: (json['visitor_id'] as num?)?.toInt(),
+  name: json['v_name'] as String?,
+  flatId: (json['flat_id'] as num?)?.toInt(),
+  inDate: json['in_date'] as String?,
+  outDate: json['out_date'] as String?,
+  inTime: json['in_time'] as String?,
+  outTime: json['out_time'] as String?,
+  societyId: json['society_id'] as String?,
+  type: json['type'] as String?,
+  vehicleNo: json['vehicle_no'] as String?,
+  preDate: json['pre_date'] as String?,
+  contactNo: json['contact_no'] as String?,
+  image: json['image'] as String?,
+  purpose: json['purpose'] as String?,
+  unit: json['unit'] as String?,
+  userName: json['UserName'] as String?,
+  buildName: json['build_name'] as String?,
+  buildId: (json['build_id'] as num?)?.toInt(),
+  ownerType: json['owner_type'] as String?,
+  status: (json['status'] as num?)?.toInt(),
+  company: json['company'] as String?,
+  isRented: json['is_rented'] as bool?,
+  gateOtp: (json['gateOtp'] as num?)?.toInt(),
+);
+
+Map<String, dynamic> _$VisitorsToJson(Visitors instance) => <String, dynamic>{
+  'visitor_id': instance.visitorId,
+  'v_name': instance.name,
+  'flat_id': instance.flatId,
+  'in_date': instance.inDate,
+  'out_date': instance.outDate,
+  'in_time': instance.inTime,
+  'out_time': instance.outTime,
+  'society_id': instance.societyId,
+  'type': instance.type,
+  'vehicle_no': instance.vehicleNo,
+  'pre_date': instance.preDate,
+  'contact_no': instance.contactNo,
+  'image': instance.image,
+  'purpose': instance.purpose,
+  'unit': instance.unit,
+  'UserName': instance.userName,
+  'build_name': instance.buildName,
+  'build_id': instance.buildId,
+  'owner_type': instance.ownerType,
+  'status': instance.status,
+  'company': instance.company,
+  'is_rented': instance.isRented,
+  'in_user_id': instance.inUserId,
+  'out_user_id': instance.outUserId,
+  'gateOtp': instance.gateOtp,
+  'w_name': instance.wName,
+  'details': instance.details,
+  'user_type_id': instance.userTypeId,
+  'name': instance.nameCommittee,
+};

@@ -62,7 +62,25 @@ as ordinary files under `CHSHUB_APP/` and `security_app/`. If either app is
 ever moved back out into its own repository, remove its entry from the split
 matrix as well.
 
-`CHSHUB_APP/.github/workflows/dart.yml` is an existing Flutter CI workflow. It
-is inert in the monorepo (GitHub only reads workflows from the repo root) and
-inert on the `CHSHUB_resident_app` branch too, because it triggers on `main`.
-Point its trigger at `CHSHUB_resident_app` if you want it to run there.
+## Workflow files inside a component folder
+
+A component folder may not carry its own `.github/workflows/`. On the component
+branch that folder is the root, so `CHSHUB_APP/.github/workflows/dart.yml`
+lands as `.github/workflows/dart.yml` — and `GITHUB_TOKEN` is not permitted to
+create or update workflow files, so the split push is rejected:
+
+```
+! [remote rejected] ... (refusing to allow a GitHub App to create or update
+  workflow `.github/workflows/dart.yml` without `workflows` permission)
+```
+
+The split job now detects this before pushing and fails with that explanation.
+Two ways out:
+
+1. **Move the workflow to the repo root** (what was done for the resident app —
+   see [.github/workflows/resident-app.yml](../.github/workflows/resident-app.yml)).
+   It belongs there anyway: GitHub only reads workflows from the root, so a
+   nested one never ran in the first place.
+2. **Add a PAT** with the `workflow` scope as the `SPLIT_PAT` repository secret.
+   The split workflow uses it for checkout and push when present, and skips the
+   guard. Only needed if you genuinely want workflow files on component branches.

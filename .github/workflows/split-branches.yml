@@ -52,6 +52,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # A component folder carrying its own .github/workflows/ can only be
+          # pushed by a PAT with the "workflow" scope — GITHUB_TOKEN is refused.
+          # Optional: with no SPLIT_PAT secret this falls back to GITHUB_TOKEN.
+          token: ${{ secrets.SPLIT_PAT || github.token }}
 
       - name: Split ${{ matrix.folder }} into ${{ matrix.branch }}
         env:
@@ -59,6 +63,7 @@ jobs:
           BRANCH: ${{ matrix.branch }}
           BEFORE: ${{ github.event.before }}
           AFTER: ${{ github.sha }}
+          HAS_PAT: ${{ secrets.SPLIT_PAT != '' }}
         run: |
           set -euo pipefail
 
@@ -94,6 +99,16 @@ jobs:
 
           SPLIT_SHA="$(git subtree split --prefix="$FOLDER" "$AFTER")"
           echo "Split $FOLDER -> $SPLIT_SHA"
+
+          # $FOLDER/.github/workflows/x.yml becomes .github/workflows/x.yml at the
+          # root of the component branch, and GITHUB_TOKEN is not permitted to write
+          # workflow files — the push would be rejected with an opaque error. Fail
+          # here instead, with the two remedies spelled out.
+          if [ "$HAS_PAT" != "true" ] \
+             && git ls-tree -r --name-only "$SPLIT_SHA" | grep -q '^\.github/workflows/'; then
+            echo "::error::$FOLDER carries its own .github/workflows/, which lands as a root workflow on $BRANCH, and GITHUB_TOKEN cannot push workflow files. Either move those workflows to the repo root (see .github/workflows/resident-app.yml for how that was done), or add a PAT with the 'workflow' scope as the SPLIT_PAT secret."
+            exit 1
+          fi
 
           # Generated branch: force-push is intentional and safe.
           git push --force origin "${SPLIT_SHA}:refs/heads/${BRANCH}"

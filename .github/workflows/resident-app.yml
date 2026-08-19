@@ -1,0 +1,108 @@
+name: Resident app (Flutter)
+
+# Was CHSHUB_APP/.github/workflows/dart.yml. GitHub only reads workflows from
+# the repository root, so it never ran there — and once CHSHUB_APP/ became the
+# root of the CHSHUB_resident_app branch, that nested file made the split push
+# fail (GITHUB_TOKEN may not write workflow files). Moved here and pointed at
+# the app folder.
+#
+# Checks and builds run on any change to the app. Publishing a GitHub Release
+# is opt-in per run (Actions -> Run workflow -> release), so ordinary pushes do
+# not mint releases the way the original workflow would have.
+
+on:
+  push:
+    branches: [main]
+    paths: ['CHSHUB_APP/**', '.github/workflows/resident-app.yml']
+  pull_request:
+    branches: [main]
+    paths: ['CHSHUB_APP/**', '.github/workflows/resident-app.yml']
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'Publish a GitHub Release with the APK and AAB'
+        type: boolean
+        default: false
+
+defaults:
+  run:
+    working-directory: CHSHUB_APP
+
+jobs:
+  build:
+    name: Build Flutter app
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Build AAB
+        run: flutter build appbundle --release
+
+      - name: Build web
+        run: flutter build web --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: CHSHUB_APP/build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-aab
+          path: CHSHUB_APP/build/app/outputs/bundle/release/app-release.aab
+
+      - name: Upload web build
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-web
+          path: CHSHUB_APP/build/web
+
+  release:
+    name: Publish release
+    needs: build
+    if: inputs.release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-release-apk
+          path: release-files
+
+      - name: Download AAB artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-release-aab
+          path: release-files
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: resident-v${{ github.run_number }}
+          name: "Resident app #${{ github.run_number }}"
+          files: |
+            release-files/app-release.apk
+            release-files/app-release.aab

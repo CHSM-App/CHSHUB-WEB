@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { accounts } from '@/api/modules';
 import { EmptyState, ErrorNotice, Field, Spinner } from '@/components/ui.jsx';
 import ExportToolbar from '@/components/ExportToolbar.jsx';
+import Pager, { usePaging } from '@/components/Pager.jsx';
 
 const money = (v) =>
   v == null || v === '' ? '' : Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -72,6 +73,19 @@ export default function CashbookPage() {
     [rows],
   );
 
+  /*
+   * Opening and closing balances (seq 1 and 3) frame the period, so they are
+   * held out of the paging and pinned to the top and bottom — a closing
+   * balance stranded on page 1 of 6 would read as the balance after 25 rows.
+   * Only the transactions between them page.
+   */
+  const opening = rows.filter((r) => Number(r.seq) === 1);
+  const closing = rows.filter((r) => Number(r.seq) === 3);
+  const entries = rows.filter((r) => Number(r.seq) === 2);
+
+  const paging = usePaging(entries.length, 25);
+  const pageRows = entries.slice(paging.first, paging.first + paging.size);
+
   return (
     <section>
       <header className="mb-4">
@@ -123,7 +137,9 @@ export default function CashbookPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row, i) => {
+                {/* Opening balance, then this page of transactions, then the
+                    closing balance — the frame stays on every page. */}
+                {[...opening, ...pageRows, ...closing].map((row, i) => {
                   // seq 1 and 3 are the opening and closing balances.
                   const isBalance = Number(row.seq) !== 2;
                   return (
@@ -149,6 +165,16 @@ export default function CashbookPage() {
               </tfoot>
             </table>
             </div>
+            {/* The totals in the foot stay over the whole period — paging
+                changes what is listed, not what the period came to. */}
+            <Pager
+              page={paging.page}
+              pageCount={paging.pageCount}
+              first={paging.first}
+              last={paging.last}
+              total={entries.length}
+              onPage={paging.setPage}
+            />
           </>
         )}
       </div>

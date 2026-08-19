@@ -1,6 +1,7 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { bills } from '@/api/billing';
 import { EmptyState, ErrorNotice, Spinner } from '@/components/ui.jsx';
+import Pager, { usePaging } from '@/components/Pager.jsx';
 
 const money = (v) => Number(v ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -47,6 +48,11 @@ export default function DefaultersPage() {
 
   const visibleTotal = visible.reduce((sum, r) => sum + Number(r.due || 0), 0);
 
+  // The count and the outstanding total above stay over the whole filtered
+  // list — paging changes what is on screen, not what is owed.
+  const paging = usePaging(visible.length, 25);
+  const pageRows = visible.slice(paging.first, paging.first + paging.size);
+
   return (
     <section>
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -77,10 +83,13 @@ export default function DefaultersPage() {
             hint={items.length ? 'Try a different search term.' : 'All dues are settled.'}
           />
         ) : (
+          <>
           <div className="overflow-x-auto">
             <table className="min-w-full stacked-table">
               <thead>
                 <tr>
+                  {/* Row number, as every other list carries. */}
+                  <th className="table-head w-px whitespace-nowrap">No.</th>
                   <th className="table-head">Resident</th>
                   <th className="table-head">Unit</th>
                   <th className="table-head">Mobile</th>
@@ -89,8 +98,13 @@ export default function DefaultersPage() {
                 </tr>
               </thead>
               <tbody>
-                {visible.map((row) => (
+                {pageRows.map((row, i) => (
                   <tr key={row.flat_id} className="hover:bg-slate-50">
+                    {/* Counts from the row's place in the whole list, so page 2
+                        carries on rather than restarting at 1. */}
+                    <td className="table-cell w-px whitespace-nowrap text-slate-500" data-label="No.">
+                      {paging.first + i + 1}
+                    </td>
                     <td className="table-cell font-medium text-slate-800" data-label="Resident">{row.owner_name}</td>
                     <td className="table-cell" data-label="Unit">{row.Unit}</td>
                     <td className="table-cell" data-label="Mobile">{row.pre_mob || '—'}</td>
@@ -101,6 +115,15 @@ export default function DefaultersPage() {
               </tbody>
             </table>
           </div>
+          <Pager
+            page={paging.page}
+            pageCount={paging.pageCount}
+            first={paging.first}
+            last={paging.last}
+            total={visible.length}
+            onPage={paging.setPage}
+          />
+          </>
         )}
       </div>
     </section>

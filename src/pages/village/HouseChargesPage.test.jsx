@@ -75,15 +75,16 @@ function handlers({ houses = HOUSES, types = chargeTypeRows(), onSave, onCreate,
 }
 
 /*
- * The house grid's row for one house. Matched on the first cell rather than
+ * The house grid's row for one house. Matched on the house cell rather than
  * the row's accessible name: that name is every cell's text run together, so
- * it changes whenever a cell gains a label such as "from Sep 2026".
+ * it changes whenever a cell gains a label such as "from Sep 2026". The row
+ * opens with a serial number, so the house is the second cell.
  */
 const rowFor = (houseNo) => {
   const grid = screen.getAllByRole('table').at(-1);
   const row = within(grid)
     .getAllByRole('row')
-    .find((r) => r.querySelector('td')?.textContent === String(houseNo));
+    .find((r) => r.querySelectorAll('td')[1]?.textContent === String(houseNo));
   if (!row) throw new Error(`No row for house ${houseNo}`);
   return row;
 };

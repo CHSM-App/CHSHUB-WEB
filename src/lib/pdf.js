@@ -18,12 +18,41 @@ async function loadJsPdf() {
 const stamp = () => new Date().toISOString().slice(0, 10);
 
 /**
+ * How every exporter here finishes: save the document, or send that same
+ * document to the printer.
+ *
+ * Printing the page's own DOM instead would mean maintaining a second,
+ * screen-derived layout that has to be kept looking like this one — which is
+ * how printed receipts ended up clipped down the right-hand edge, and how a
+ * Print button next to a Download button came to produce a different sheet.
+ *
+ * The iframe stays in the document: removing it revokes the blob and cancels
+ * the job before the dialog can finish.
+ */
+function deliver(pdf, filename, print) {
+  if (!print) {
+    pdf.save(`${filename}-${stamp()}.pdf`);
+    return;
+  }
+
+  const frame = document.createElement('iframe');
+  frame.setAttribute('aria-hidden', 'true');
+  frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+  frame.src = pdf.output('bloburl');
+  frame.onload = () => {
+    frame.contentWindow?.focus();
+    frame.contentWindow?.print();
+  };
+  document.body.appendChild(frame);
+}
+
+/**
  * Render a DOM node into a PDF and download it.
  *
  * Used for report and print views, where the on-screen layout *is* the
  * document — the same thing html2canvas did on the legacy pages.
  */
-export async function elementToPdf(node, filename = 'report') {
+export async function elementToPdf(node, filename = 'report', { print = false } = {}) {
   if (!node) throw new Error('Nothing to export');
 
   const [{ default: html2canvas }, JsPDF] = await Promise.all([
@@ -54,7 +83,7 @@ export async function elementToPdf(node, filename = 'report') {
     offset += pageH - margin * 2;
   }
 
-  pdf.save(`${filename}-${stamp()}.pdf`);
+  deliver(pdf, filename, print);
 }
 
 /**
@@ -67,7 +96,7 @@ export async function elementToPdf(node, filename = 'report') {
  *
  * A sheet taller than a page is still split, but only that sheet.
  */
-export async function elementsToPdf(nodes, filename = 'report') {
+export async function elementsToPdf(nodes, filename = 'report', { print = false } = {}) {
   const sheets = Array.from(nodes ?? []).filter(Boolean);
   if (!sheets.length) throw new Error('Nothing to export');
 
@@ -100,7 +129,7 @@ export async function elementsToPdf(nodes, filename = 'report') {
     }
   }
 
-  pdf.save(`${filename}-${stamp()}.pdf`);
+  deliver(pdf, filename, print);
 }
 
 /**
@@ -121,8 +150,10 @@ export async function tableToPdf({
   filename = 'export',
   // Run criteria shown in the box under the title.
   filters = [],
-  // Rows the report computes rather than lists (opening / total / closing).
-  // Returns the kind so each keeps the colour it has on screen.
+  // Rows that stand out from the ones they sit among. Returns the kind, so
+  // each keeps the colour it has on screen: 'opening' | 'total' | 'closing'
+  // for the balance rows a report computes, or 'group' for a structural row
+  // that heads the ones beneath it. All are drawn bold.
   emphasiseRow,
   // A4 fits about six columns upright before text starts being clipped, so
   // wider reports ask for landscape. Nothing here scales to the screen — the
@@ -152,6 +183,11 @@ export async function tableToPdf({
   const GREEN = [232, 245, 233]; // #e8f5e9 — opening balance
   const BLUE = [227, 242, 253]; // #e3f2fd — total balance
   const ORANGE = [255, 243, 224]; // #fff3e0 — closing balance
+  // #eceff1 — a structural row that groups the ones beneath it (a balance-sheet
+  // head). Deliberately neutral: the tinted kinds above carry a meaning, and a
+  // sheet banded green down its length reads as though every head were a
+  // status.
+  const GREY = [236, 239, 241];
   const ZEBRA = [248, 249, 250]; // #f8f9fa — alternating rows
   const GRID = [222, 226, 230]; // #dee2e6 — cell borders
 
@@ -232,8 +268,14 @@ export async function tableToPdf({
      "Paid Maintenance" into 0.62 of a share wrapped it onto two lines. The
      floor scales the share back up for a long label. */
   const isNum = (c) => c.align === 'right' || c.numeric;
+  // An explicit `width` overrides the heuristic, as a share of the same total.
+  // The floor below is generous for a short heading like "Amount", which is
+  // right for a grid of mostly-text columns but wasteful on a report that is
+  // half figures — the balance sheet's two description columns want that room.
   const weights = columns.map((c) =>
-    isNum(c) ? Math.max(0.62, String(c.label).length / 17) : 1,
+    c.width != null ? c.width
+    : isNum(c) ? Math.max(0.62, String(c.label).length / 17)
+    : 1,
   );
   const totalWeight = weights.reduce((s, w) => s + w, 0) || 1;
   const widths = weights.map((w) => (w / totalWeight) * usableW);
@@ -335,6 +377,7 @@ export async function tableToPdf({
       kind === 'opening' ? GREEN
       : kind === 'total' ? BLUE
       : kind === 'closing' ? ORANGE
+      : kind === 'group' ? GREY
       : kind ? BLUE
       : rowIndex % 2 === 1 ? ZEBRA
       : null;
@@ -381,28 +424,5 @@ export async function tableToPdf({
     pdf.text(`Page ${i} of ${pages}`, pageW - margin, pageH - margin + 8, { align: 'right' });
   }
 
-  /*
-   * `print` sends the same document to the printer instead of saving it, so a
-   * Print button and a Download button produce identical output. Printing the
-   * page's own DOM instead would mean maintaining a second, screen-derived
-   * layout that has to be kept looking like this one — which is how printed
-   * receipts ended up clipped down the right-hand edge.
-   *
-   * The iframe stays in the document: removing it revokes the blob and cancels
-   * the job before the dialog can finish.
-   */
-  if (print) {
-    const frame = document.createElement('iframe');
-    frame.setAttribute('aria-hidden', 'true');
-    frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
-    frame.src = pdf.output('bloburl');
-    frame.onload = () => {
-      frame.contentWindow?.focus();
-      frame.contentWindow?.print();
-    };
-    document.body.appendChild(frame);
-    return;
-  }
-
-  pdf.save(`${filename}-${stamp()}.pdf`);
+  deliver(pdf, filename, print);
 }

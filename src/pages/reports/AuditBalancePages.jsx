@@ -18,6 +18,7 @@ import {
   TextField,
 } from '@/components/FormControls.jsx';
 import { useToast } from '@/components/Toast.jsx';
+import { useSocietyInfo } from '@/components/ReportDocument.jsx';
 import {
   countErrors,
   validateFields,
@@ -364,13 +365,20 @@ export function AuditPage() {
 
   const shownQuestions = grouped.reduce((n, s) => n + s.questions.length, 0);
 
-  // The legacy modal's "Download PDF", which captured #auditFormContent with
-  // html2canvas. elementToPdf does the same, sliced across A4 pages.
-  const downloadPdf = async () => {
+  /*
+   * The legacy modal's "Download PDF", which captured #auditFormContent with
+   * html2canvas. elementToPdf does the same, sliced across A4 pages.
+   *
+   * Print goes through the same capture rather than window.print(), so both
+   * buttons produce one document. This sheet stays image-based where the grids
+   * use tableToPdf: it is set in Devanagari, and jsPDF's built-in Helvetica has
+   * no Devanagari glyphs — drawing it as text would print the Marathi blank.
+   */
+  const buildPdf = async ({ print = false } = {}) => {
     setPdfBusy(true);
     try {
       const { elementToPdf } = await import('@/lib/pdf');
-      await elementToPdf(formRef.current, 'audit-report');
+      await elementToPdf(formRef.current, 'audit-report', { print });
     } catch (err) {
       setError(err);
     } finally {
@@ -747,10 +755,20 @@ export function AuditPage() {
         onClose={() => setViewingForm(false)}
         footer={
           <>
-            <button type="button" className="btn-secondary" onClick={() => window.print()}>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => buildPdf({ print: true })}
+              disabled={pdfBusy}
+            >
               Print
             </button>
-            <button type="button" className="btn-primary" onClick={downloadPdf} disabled={pdfBusy}>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => buildPdf()}
+              disabled={pdfBusy}
+            >
               {pdfBusy ? 'Preparing…' : 'Download PDF'}
             </button>
           </>
@@ -893,6 +911,10 @@ export function BalanceSheetEditorPage() {
   const [busy, setBusy] = useState(false);
   const [headForm, setHeadForm] = useState(null);
   const [confirming, setConfirming] = useState(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  // Names the society on the exported sheet, the way every other report says
+  // whose records it carries.
+  const societyInfo = useSocietyInfo();
   const toast = useToast();
   // name -> message, for the fields the last submit found empty.
   const [fieldErrors, setFieldErrors] = useState({});
@@ -1033,6 +1055,127 @@ export function BalanceSheetEditorPage() {
   const liabilityTotal = grandTotal(LIABILITY);
   const assetTotal = grandTotal(ASSET);
 
+  /**
+   * The sheet as a PDF, saved or printed.
+   *
+   * Laid out the way a balance sheet is read and the way the screen shows it —
+   * Liabilities down the left, Assets down the right, the two sides running in
+   * step. An earlier version stacked the sides into one list under a "Side"
+   * column; that column was blank on all but two rows, and reading a liability
+   * against its matching asset meant paging back and forth.
+   *
+   * Each side contributes a particulars/amount pair, so the four columns are
+   * Liabilities | Amount | Assets | Amount. Sides rarely have the same number
+   * of rows, so the shorter one runs out into blanks — which is exactly how a
+   * ruled balance sheet looks on paper.
+   */
+  const buildPdf = async ({ print = false } = {}) => {
+    setPdfBusy(true);
+    try {
+      const { tableToPdf } = await import('@/lib/pdf');
+
+      /**
+       * One side as a flat list of lines: each head, its sub-points beneath,
+       * then the head's total. Sub-points are indented, and the head line is
+       * marked so the row can be drawn in bold — between them that is what
+       * separates a head from what sits under it.
+       */
+      const sideLines = (compId) => {
+        const lines = [];
+        columnHeads(compId).forEach((head) => {
+          const total =
+            Number(head.amount || 0) + head.subs.reduce((s, x) => s + Number(x.amount || 0), 0);
+          lines.push({ text: head.bal_header_desc ?? '', amount: head.amount, head: true });
+          head.subs.forEach((sub) => {
+            lines.push({ text: `  ${sub.bal_sub_desc ?? ''}`, amount: sub.amount });
+          });
+          // Only worth stating when it differs from the head's own figure —
+          // a head with no sub-points would otherwise repeat itself.
+          if (head.subs.length) {
+            lines.push({ text: '  Total', amount: total });
+          }
+        });
+        return lines;
+      };
+
+      const left = sideLines(LIABILITY);
+      const right = sideLines(ASSET);
+
+      const rows = [];
+      for (let i = 0; i < Math.max(left.length, right.length); i += 1) {
+        const l = left[i];
+        const r = right[i];
+        rows.push({
+          liability: l?.text ?? '',
+          liabilityAmount: l ? money(l.amount) : '',
+          asset: r?.text ?? '',
+          assetAmount: r ? money(r.amount) : '',
+          // Heads are the structure of the sheet, so they carry the emphasis;
+          // a row is banded if either side has a head on it. 'group' is the
+          // neutral grey — the tinted kinds mean opening/total/closing.
+          kind: l?.head || r?.head ? 'group' : null,
+        });
+      }
+
+      // The closing pair of totals, which is what the sheet is checked on.
+      rows.push({
+        liability: 'Total Liabilities',
+        liabilityAmount: money(liabilityTotal),
+        asset: 'Total Assets',
+        assetAmount: money(assetTotal),
+        kind: 'total',
+      });
+
+      // A balance sheet is meant to balance; the gap is the useful figure, and
+      // it is only worth a row when there is one.
+      const difference = liabilityTotal - assetTotal;
+      if (Math.abs(difference) >= 0.005) {
+        rows.push({
+          liability: 'Difference',
+          liabilityAmount: money(difference),
+          asset: '',
+          assetAmount: '',
+          kind: 'closing',
+        });
+      }
+
+      await tableToPdf({
+        // Roughly 2:1 — the descriptions are what run long; an amount needs
+        // only enough for a lakh figure and two decimals.
+        columns: [
+          { key: 'liability', label: 'Liabilities', width: 1 },
+          { key: 'liabilityAmount', label: 'Amount', align: 'right', width: 0.5 },
+          { key: 'asset', label: 'Assets', width: 1 },
+          { key: 'assetAmount', label: 'Amount', align: 'right', width: 0.5 },
+        ],
+        rows,
+        title: 'Balance Sheet',
+        subtitle: societyInfo?.name ?? '',
+        filters: [
+          { label: 'Liabilities', value: money(liabilityTotal) },
+          { label: 'Assets', value: money(assetTotal) },
+          {
+            label: 'Status',
+            value:
+              Math.abs(difference) < 0.005
+                ? 'Balanced'
+                : `Out by ${money(Math.abs(difference))}`,
+          },
+        ],
+        filename: 'balance-sheet',
+        // Four columns of figures need the width; portrait squeezed the
+        // descriptions into two and three wrapped lines each.
+        orientation: 'landscape',
+        emphasiseRow: (r) => r.kind,
+        print,
+      });
+    } catch (err) {
+      setError(err);
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
   // The legacy modal edited a head together with all of its sub-points — one
   // Save wrote the header, then every sub-point under it (btnSave_Click).
   const openEditor = (head) =>
@@ -1152,7 +1295,20 @@ export function BalanceSheetEditorPage() {
         title="Balance sheet — Liabilities & Assets"
         subtitle={`${heads.length} head(s) · ${subPoints.length} sub-point(s)`}
       >
-        <button type="button" className="btn-secondary" onClick={() => window.print()}>
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={() => buildPdf()}
+          disabled={pdfBusy || !grouped.length}
+        >
+          {pdfBusy ? 'Preparing…' : 'Download PDF'}
+        </button>
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={() => buildPdf({ print: true })}
+          disabled={pdfBusy || !grouped.length}
+        >
           Print
         </button>
         <button

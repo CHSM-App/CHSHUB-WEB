@@ -116,6 +116,7 @@ export default function ReceiptEntryPage() {
   const [selectedBills, setSelectedBills] = useState([]);
   const [loadingBills, setLoadingBills] = useState(false);
   const [viewing, setViewing] = useState(null);
+  const [receiptPdfBusy, setReceiptPdfBusy] = useState(false);
   const [confirming, setConfirming] = useState(null);
   // name -> message, for the fields the last submit found empty.
   const [fieldErrors, setFieldErrors] = useState({});
@@ -176,6 +177,74 @@ export default function ReceiptEntryPage() {
       setError(err);
     } finally {
       setLoadingBills(false);
+    }
+  };
+
+  /**
+   * The open receipt as a PDF, saved or printed.
+   *
+   * tableToPdf draws a title, a subtitle, a tinted criteria box and a table,
+   * which maps onto a receipt: the society in the heading, the receipt number
+   * and amount in the box that leads, and the details as rows. The same routine
+   * every grid and the village receipt use, so a printed receipt from here
+   * carries the same letterhead and footer as everything else in the app —
+   * where window.print() gave the modal's own markup, clipped at the dialog.
+   */
+  const buildReceiptPdf = async ({ print = false } = {}) => {
+    const r = viewing?.receipt;
+    if (!r) return;
+    setReceiptPdfBusy(true);
+    try {
+      const { tableToPdf } = await import('@/lib/pdf');
+
+      const rows = [
+        ['Resident', r.name],
+        ['Unit', r.unit],
+        ['Pay Mode', r.pay_mode],
+        ['Cheque / Reference', r.transaction_ref],
+        ['Bank', r.bank_name],
+      ]
+        .filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '')
+        .map(([field, value]) => ({ field, value: String(value) }));
+
+      /*
+       * The bills the receipt settled, listed under the details so the sheet
+       * says what was paid for and not just the total — the modal's "Bills
+       * settled" table, as Detail/Value pairs.
+       */
+      if (viewing.lines?.length) {
+        rows.push({ field: '', value: '' });
+        rows.push({ field: 'Bills settled', value: '' });
+        for (const l of viewing.lines) {
+          const label = [l.Billno, l.bill_ref].filter(Boolean).join(' — ');
+          rows.push({ field: `   ${label}`.trimEnd(), value: `Rs. ${money(l.amount)}` });
+        }
+      }
+
+      await tableToPdf({
+        columns: [
+          { key: 'field', label: 'Detail' },
+          { key: 'value', label: 'Value' },
+        ],
+        rows,
+        title: 'Maintenance Receipt',
+        subtitle: r.society_name ?? '',
+        // "Rs." rather than ₹: jsPDF's built-in Helvetica has no rupee glyph
+        // and prints it as a blank or a stray quote.
+        filters: [
+          { label: 'Receipt No.', value: r.receipt_no ?? '' },
+          { label: 'Receipt Date', value: r.date ? day(r.date) : '' },
+          { label: 'Amount Paid', value: `Rs. ${money(r.paid_amount)}` },
+          { label: 'Status', value: r.bill_status ?? '' },
+        ],
+        filename: `receipt-${r.receipt_no || 'maintenance'}`,
+        orientation: 'portrait',
+        print,
+      });
+    } catch (err) {
+      window.alert(`Could not ${print ? 'print' : 'create'} the PDF: ${err.message}`);
+    } finally {
+      setReceiptPdfBusy(false);
     }
   };
 
@@ -703,9 +772,28 @@ export default function ReceiptEntryPage() {
         onClose={() => setViewing(null)}
         footer={
           <>
-            <button type="button" className="btn-secondary" onClick={() => window.print()}>
-              Print
-            </button>
+            {/* Both offered only once the receipt is loaded: there is nothing
+                to lay out while it is still being fetched. */}
+            {viewing?.receipt ? (
+              <>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => buildReceiptPdf()}
+                  disabled={receiptPdfBusy}
+                >
+                  {receiptPdfBusy ? 'Preparing…' : 'Download PDF'}
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => buildReceiptPdf({ print: true })}
+                  disabled={receiptPdfBusy}
+                >
+                  Print
+                </button>
+              </>
+            ) : null}
             <button type="button" className="btn-secondary" onClick={() => setViewing(null)}>
               Close
             </button>

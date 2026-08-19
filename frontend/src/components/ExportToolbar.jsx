@@ -72,8 +72,16 @@ export default function ExportToolbar({
     URL.revokeObjectURL(a.href);
   };
 
-  /** PDF export — the legacy pages' "Download PDF" button. */
-  const exportPdf = async () => {
+  /**
+   * The PDF, either saved or sent to the printer.
+   *
+   * Both buttons build the *same* document. Print used to call window.print(),
+   * which prints the screen's DOM instead — a different layout, without the
+   * report heading or the page footer, and carrying whatever chrome the print
+   * stylesheet failed to hide. Two buttons side by side produced two different
+   * sheets. Routing both through tableToPdf makes Print the download, on paper.
+   */
+  const buildPdf = async ({ print = false } = {}) => {
     setPdfBusy(true);
     try {
       const { tableToPdf } = await import('@/lib/pdf');
@@ -86,10 +94,11 @@ export default function ExportToolbar({
         filters,
         emphasiseRow,
         ...(accent ? { accent } : {}),
+        print,
       });
     } catch (err) {
       // A failed export should report itself, not disappear into the console.
-      window.alert(`Could not create the PDF: ${err.message}`);
+      window.alert(`Could not ${print ? 'print' : 'create'} the PDF: ${err.message}`);
     } finally {
       setPdfBusy(false);
     }
@@ -100,10 +109,20 @@ export default function ExportToolbar({
       <button type="button" className="btn-secondary text-xs" onClick={exportCsv}>
         Export to Excel
       </button>
-      <button type="button" className="btn-secondary text-xs" onClick={exportPdf} disabled={pdfBusy}>
+      <button
+        type="button"
+        className="btn-secondary text-xs"
+        onClick={() => buildPdf()}
+        disabled={pdfBusy}
+      >
         {pdfBusy ? 'Preparing…' : 'Download PDF'}
       </button>
-      <button type="button" className="btn-secondary text-xs" onClick={() => window.print()}>
+      <button
+        type="button"
+        className="btn-secondary text-xs"
+        onClick={() => buildPdf({ print: true })}
+        disabled={pdfBusy}
+      >
         Print
       </button>
     </div>

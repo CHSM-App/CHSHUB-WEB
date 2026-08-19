@@ -80,6 +80,17 @@ export function PaidAmountsPage() {
       title="Collections"
       subtitle="Receipts recorded in the selected period"
       load={extraReports.paidAmounts}
+      exportName="collections"
+      exportColumns={[
+        { key: 'sr', label: 'No.', exportValue: (_r, i) => i + 1 },
+        { key: 'receipt_no', label: 'Receipt' },
+        { key: 'date', label: 'Date', exportValue: (r) => day(r.date) },
+        { key: 'name', label: 'Resident' },
+        { key: 'unit', label: 'Unit' },
+        { key: 'Billno', label: 'Bill' },
+        { key: 'pay_mode', label: 'Mode' },
+        { key: 'paid_amount', label: 'Amount', align: 'right', exportValue: (r) => money(r.paid_amount) },
+      ]}
       render={(d) =>
         d.items.length === 0 ? (
           <EmptyState title="No receipts in this period" />
@@ -107,6 +118,11 @@ export function AgmReportPage() {
       title="AGM report"
       subtitle="Charge heads collected in the period"
       load={extraReports.agm}
+      exportName="agm-report"
+      exportColumns={[
+        { key: 'charges', label: 'Charge head' },
+        { key: 'total', label: 'Total', align: 'right', exportValue: (r) => money(r.total) },
+      ]}
       render={(d) =>
         d.items.length === 0 ? (
           <EmptyState title="No AGM data for this period" />
@@ -149,7 +165,21 @@ export function BalanceSheetPage() {
     <DateRangeReport
       title="Balance sheet"
       load={() => extraReports.balanceSheet()}
-      printable
+      exportName="balance-sheet"
+      exportColumns={[
+        { key: 'particulars', label: 'Head / sub-point' },
+        { key: 'amount', label: 'Amount', align: 'right' },
+      ]}
+      /* Heads and sub-points arrive as two lists; the export flattens them into
+         the one order the table shows, each sub-point indented under its head. */
+      exportRows={(d) =>
+        (d?.heads ?? []).flatMap((h) => [
+          { particulars: h.bal_header_desc, amount: money(h.amount) },
+          ...(d.subPoints ?? [])
+            .filter((s) => Number(s.bal_head_id) === Number(h.bal_head_id))
+            .map((s) => ({ particulars: `   ${s.bal_sub_desc}`, amount: money(s.amount) })),
+        ])
+      }
       render={(d) => {
         const subsFor = (headId) =>
           (d.subPoints ?? []).filter((s) => Number(s.bal_head_id) === Number(headId));

@@ -1656,14 +1656,14 @@ export function VillageTaxPage({ kind = 'house' }) {
 
   return (
     <section>
+      {/* No Print button here: the grid's own toolbar carries Export, Download
+          PDF and Print, all three building the one standard document. A second
+          button up here printed the screen instead, so the same page offered
+          two different sheets. */}
       <PageHeader
         title={isWater ? 'Water tax' : 'House tax'}
         subtitle={`${rows.length} record(s) · ${money(totalDue)} outstanding`}
-      >
-        <button type="button" className="btn-secondary" onClick={() => window.print()}>
-          Print
-        </button>
-      </PageHeader>
+      />
 
       <ErrorNotice error={error} onRetry={load} />
 

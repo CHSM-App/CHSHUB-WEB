@@ -7,6 +7,10 @@ const saved = [];
 const text = [];
 const added = [];
 const pageBreaks = [];
+// Cell rectangles as [x, y, w, h], and the fills set before them — enough to
+// read back the column widths and which rows were emphasised.
+const rects = [];
+const fills = [];
 
 vi.mock('jspdf', () => ({
   jsPDF: class {
@@ -19,12 +23,16 @@ vi.mock('jspdf', () => ({
     };
     setFontSize() {}
     setTextColor() {}
-    setFillColor() {}
+    setFillColor(...rgb) {
+      fills.push(rgb);
+    }
     setDrawColor() {}
     setLineWidth() {}
     setFont() {}
     line() {}
-    rect() {}
+    rect(x, y, w, h) {
+      rects.push([x, y, w, h]);
+    }
     // Real jsPDF measures glyphs against the column width; the tests only care
     // that each value reaches the page, so one line per value is enough.
     splitTextToSize(text) {
@@ -65,6 +73,8 @@ describe('tableToPdf', () => {
   beforeEach(() => {
     saved.length = 0;
     text.length = 0;
+    rects.length = 0;
+    fills.length = 0;
   });
 
   it('writes headers, rows and a dated filename', async () => {
@@ -96,6 +106,42 @@ describe('tableToPdf', () => {
       filename: 'x',
     });
     expect(text).toContain('Rs 500');
+  });
+
+  it('splits the width by a column\'s explicit weight', async () => {
+    // The balance sheet asks for 2:1 between a description and its amount;
+    // without `width` the numeric floor gives the amount far more than a
+    // currency figure needs.
+    await tableToPdf({
+      columns: [
+        { key: 'a', label: 'Liabilities', width: 1 },
+        { key: 'b', label: 'Amount', align: 'right', width: 0.5 },
+      ],
+      rows: [{ a: 'Share Capital', b: '100.00' }],
+      filename: 'weighted',
+    });
+
+    // The header fills its full width first, then rules one rect per column —
+    // so the cell widths start at index 1.
+    const [desc, amount] = rects.slice(1, 3).map(([, , w]) => w);
+    expect(desc / amount).toBeCloseTo(2, 5);
+    // And together they still span the printable width, rather than the
+    // explicit weights being applied against some other total.
+    expect(desc + amount).toBeCloseTo(rects[0][2], 5);
+  });
+
+  it('shades a group row apart from the tinted balance kinds', async () => {
+    await tableToPdf({
+      columns: [{ key: 'a', label: 'A' }],
+      rows: [{ a: 'Share Capital', kind: 'group' }, { a: 'Total', kind: 'total' }],
+      filename: 'kinds',
+      emphasiseRow: (r) => r.kind,
+    });
+
+    // Grey for the structural row, blue for the computed total — a head banded
+    // in a status colour would read as though it meant something it does not.
+    expect(fills).toContainEqual([236, 239, 241]);
+    expect(fills).toContainEqual([227, 242, 253]);
   });
 
   it('handles an empty row set without throwing', async () => {

@@ -577,7 +577,12 @@ export default function BillsPage() {
   const billSheetsRef = useRef(null);
   const [billsPdfBusy, setBillsPdfBusy] = useState(false);
 
-  const downloadBills = async () => {
+  /*
+   * The bill sheets, saved or printed. Print goes through the same capture
+   * rather than window.print(), so both buttons hand over one document —
+   * printing the DOM gave a sheet cut wherever the scroll box happened to end.
+   */
+  const buildBillsPdf = async ({ print = false } = {}) => {
     const node = billSheetsRef.current;
     if (!node) return;
     setBillsPdfBusy(true);
@@ -593,7 +598,9 @@ export default function BillsPage() {
       const period = [detail?.run?.month_name, detail?.run?.year].filter(Boolean).join('-');
       // One sheet per page: capturing the stack as a single image would cut
       // bills wherever the page happened to end.
-      await elementsToPdf(node.children, `maintenance-bills${period ? `-${period}` : ''}`);
+      await elementsToPdf(node.children, `maintenance-bills${period ? `-${period}` : ''}`, {
+        print,
+      });
     } catch (err) {
       window.alert(`Could not create the PDF: ${err.message}`);
     } finally {
@@ -795,12 +802,17 @@ export default function BillsPage() {
                 <button
                   type="button"
                   className="btn-secondary"
-                  onClick={downloadBills}
+                  onClick={() => buildBillsPdf()}
                   disabled={billsPdfBusy}
                 >
                   {billsPdfBusy ? 'Preparing…' : 'Download'}
                 </button>
-                <button type="button" className="btn-primary" onClick={() => window.print()}>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => buildBillsPdf({ print: true })}
+                  disabled={billsPdfBusy}
+                >
                   Print
                 </button>
               </>
@@ -851,12 +863,12 @@ export default function BillsPage() {
             >
               Cancel
             </button>
-            {/* The legacy footer was Generate Bill, Email and Print. */}
+            {/* The legacy footer was Generate Bill, Email and Print. Print is
+                dropped: this is the entry form, so it had nothing to print but
+                the unsaved inputs. The generated bill prints from the run's
+                detail dialog, where Download and Print build the one document. */}
             <button type="button" className="btn-secondary" onClick={openEmail}>
               Email
-            </button>
-            <button type="button" className="btn-secondary" onClick={() => window.print()}>
-              Print
             </button>
             <button
               type="submit"

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { EmptyState, ErrorNotice, Field, Spinner } from '@/components/ui.jsx';
+import ExportToolbar from '@/components/ExportToolbar.jsx';
 
 export const money = (v) =>
   v == null || v === '' ? '—' : Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -10,10 +11,27 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 /**
  * Shared shell for the date-range reports (paid amounts, AGM, P&L, PDC
- * clearing). Handles the from/to form, loading and printing; the caller
+ * clearing). Handles the from/to form, loading and exporting; the caller
  * supplies how to render the result.
+ *
+ * `exportColumns` opts a report into the standard toolbar — Export to Excel,
+ * Download PDF and Print, all three built by tableToPdf, with the period the
+ * report was run for printed in the criteria box. A report that renders its own
+ * ExportToolbar (cheque clearing) leaves it unset and keeps that one; nothing
+ * here calls window.print(), which used to print the screen instead and so gave
+ * a different sheet from the Download button beside it.
  */
-export default function DateRangeReport({ title, subtitle, load, render, printable = true }) {
+export default function DateRangeReport({
+  title,
+  subtitle,
+  load,
+  render,
+  exportColumns,
+  // Rows to export, picked out of the loaded payload. Defaults to `items`,
+  // which is the shape every one of these reports returns.
+  exportRows = (d) => d?.items ?? [],
+  exportName,
+}) {
   const [from, setFrom] = useState(firstOfYear);
   const [to, setTo] = useState(today);
   const [data, setData] = useState(null);
@@ -68,12 +86,21 @@ export default function DateRangeReport({ title, subtitle, load, render, printab
         <button type="submit" className="btn-primary" disabled={loading}>
           {loading ? 'Loading…' : 'Show'}
         </button>
-        {printable ? (
-          <button type="button" className="btn-secondary" onClick={() => window.print()}>
-            Print
-          </button>
-        ) : null}
       </form>
+
+      {/* Below the form, so the criteria box carries the period actually
+          loaded rather than whatever the date boxes have been changed to. */}
+      {exportColumns && data ? (
+        <div className="card mb-4 overflow-hidden">
+          <ExportToolbar
+            columns={exportColumns}
+            rows={exportRows(data)}
+            exportName={exportName || 'report'}
+            exportTitle={title}
+            filters={[{ label: 'Period', value: `${day(from)} to ${day(to)}` }]}
+          />
+        </div>
+      ) : null}
 
       <ErrorNotice error={error} />
 

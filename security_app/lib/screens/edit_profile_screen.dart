@@ -573,7 +573,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
           if (imageResult != null && imageResult['success'] == true) {
             updatedImagePath =
-                "https://app.chshub.co.in/upload/ProfilePhoto/${widget.gateKeeperId}/${_selectedImageFile!.path.split('/').last}";
+                "https://chshub.co.in/upload/ProfilePhoto/${widget.gateKeeperId}/${_selectedImageFile!.path.split('/').last}";
           }
         }
 

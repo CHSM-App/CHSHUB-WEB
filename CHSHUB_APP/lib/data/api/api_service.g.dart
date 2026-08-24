@@ -14,7 +14,7 @@ class _ApiService implements ApiService {
     this.baseUrl,
     this.errorLogger,
   }) {
-    baseUrl ??= 'https://app.chshub.co.in/';
+    baseUrl ??= 'https://chshub.co.in/';
   }
 
   final Dio _dio;

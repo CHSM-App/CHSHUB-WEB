@@ -34,6 +34,16 @@ var app = express();
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'pug');
 /*
+ * The React build (vite build.outDir -> public/) is served ahead of cors on
+ * purpose. Vite marks its module scripts and stylesheet `crossorigin`, so the
+ * browser sends an Origin header even for same-origin asset requests; the cors
+ * check below rejects any origin missing from CORS_ORIGINS, which turned every
+ * /assets/* request into a 500 and left a blank page. Same-origin static files
+ * need no CORS check, so they are answered before it runs.
+ */
+app.use(express.static(path.join(__dirname, 'public')));
+
+/*
  * Was app.use(cors()), which allows every origin. Browsers may now only call
  * this API from the origins named in CORS_ORIGINS. The mobile apps are not
  * browsers and do not enforce CORS, so they are unaffected either way.
@@ -60,7 +70,6 @@ app.use(logger('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
 /*
  * Every mobile router now requires a valid token.
  *
@@ -98,6 +107,17 @@ app.get('/privacy-policy', (req, res) => {
 app.get('/delete-account', (req, res) => {
   res.sendFile(path.join(__dirname, 'routes', 'delete-account.html'));
 });
+// SPA fallback. The React build is emitted into public/ (vite build.outDir),
+// so express.static above already answers "/" and the hashed assets. Anything
+// the routers did not claim and that prefers HTML — a deep link like
+// /dashboard reloaded in the browser — gets index.html and the client router
+// resolves it. Clients that prefer JSON (the mobile app) fall through to the
+// 404 below and still get a JSON error.
+app.get('*', (req, res, next) => {
+  if (req.accepts(['json', 'html']) !== 'html') return next();
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 /*
  * 404. The comment here has always said "catch 404 and forward to error
  * handler" with no code under it, so an unknown path fell through to

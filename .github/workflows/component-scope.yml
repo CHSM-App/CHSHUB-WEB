@@ -33,6 +33,7 @@ jobs:
           declare -A COMPONENTS=(
             [CHSHUB_APP]="Resident app (Flutter)  -> CHSHUB_resident_app"
             [security_app]="Security app (Flutter)  -> security_app"
+            [Secretary_app]="Secretary app (Flutter) -> secretary_app"
             [Society_dotNet]="Legacy .NET            -> society_dotNet"
             [frontend]="Web frontend (React)   -> Society_web"
             [backend]="Backend (shared)       -> backend"

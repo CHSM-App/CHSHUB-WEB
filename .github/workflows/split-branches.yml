@@ -6,6 +6,7 @@ name: Split component branches
 #   -------------------------------------------
 #   CHSHUB_APP        -> CHSHUB_resident_app
 #   security_app      -> security_app
+#   Secretary_app     -> secretary_app
 #   Society_dotNet    -> society_dotNet
 #   frontend          -> Society_web
 #   backend           -> backend        (shared by every client)
@@ -40,6 +41,8 @@ jobs:
             branch: CHSHUB_resident_app
           - folder: security_app
             branch: security_app
+          - folder: Secretary_app
+            branch: secretary_app
           - folder: Society_dotNet
             branch: society_dotNet
           - folder: frontend

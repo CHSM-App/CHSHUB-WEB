@@ -1,0 +1,152 @@
+name: Manual app builds
+
+# One-click builder for the three Flutter apps (resident, security, secretary).
+# Check whichever APK/AAB boxes you want on "Run workflow" - only those get
+# built. Optionally publish everything built in this run as one GitHub Release.
+#
+# Automatic per-push build/test for the resident app already lives in
+# resident-app.yml; this workflow is for on-demand ad-hoc builds across apps,
+# not routine CI.
+
+on:
+  workflow_dispatch:
+    inputs:
+      resident_apk:
+        description: 'Resident app (CHSHUB_APP): build APK'
+        type: boolean
+        default: false
+      resident_aab:
+        description: 'Resident app (CHSHUB_APP): build AAB'
+        type: boolean
+        default: false
+      security_apk:
+        description: 'Security app: build APK'
+        type: boolean
+        default: false
+      security_aab:
+        description: 'Security app: build AAB'
+        type: boolean
+        default: false
+      secretary_apk:
+        description: 'Secretary app: build APK'
+        type: boolean
+        default: false
+      secretary_aab:
+        description: 'Secretary app: build AAB'
+        type: boolean
+        default: false
+      release:
+        description: 'Publish a GitHub Release with whichever artifacts were built above'
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    runs-on: ubuntu-latest
+    if: ${{ inputs[format('{0}_apk', matrix.key)] || inputs[format('{0}_aab', matrix.key)] }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - key: resident
+            folder: CHSHUB_APP
+            label: Resident app
+          - key: security
+            folder: security_app
+            label: Security app
+          - key: secretary
+            folder: Secretary_app
+            label: Secretary app
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.folder }}
+        run: flutter pub get
+
+      - name: Build APK
+        if: ${{ inputs[format('{0}_apk', matrix.key)] }}
+        working-directory: ${{ matrix.folder }}
+        run: flutter build apk --release
+
+      - name: Build AAB
+        if: ${{ inputs[format('{0}_aab', matrix.key)] }}
+        working-directory: ${{ matrix.folder }}
+        run: flutter build appbundle --release
+
+      - name: Upload APK
+        if: ${{ inputs[format('{0}_apk', matrix.key)] }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.key }}-apk
+          path: ${{ matrix.folder }}/build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload AAB
+        if: ${{ inputs[format('{0}_aab', matrix.key)] }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.key }}-aab
+          path: ${{ matrix.folder }}/build/app/outputs/bundle/release/app-release.aab
+
+  release:
+    name: Publish release
+    needs: build
+    if: >-
+      ${{ always() && inputs.release &&
+      (inputs.resident_apk || inputs.resident_aab ||
+       inputs.security_apk || inputs.security_aab ||
+       inputs.secretary_apk || inputs.secretary_aab) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download resident APK
+        if: ${{ inputs.resident_apk }}
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with: { name: resident-apk, path: release-files/resident }
+
+      - name: Download resident AAB
+        if: ${{ inputs.resident_aab }}
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with: { name: resident-aab, path: release-files/resident }
+
+      - name: Download security APK
+        if: ${{ inputs.security_apk }}
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with: { name: security-apk, path: release-files/security }
+
+      - name: Download security AAB
+        if: ${{ inputs.security_aab }}
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with: { name: security-aab, path: release-files/security }
+
+      - name: Download secretary APK
+        if: ${{ inputs.secretary_apk }}
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with: { name: secretary-apk, path: release-files/secretary }
+
+      - name: Download secretary AAB
+        if: ${{ inputs.secretary_aab }}
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with: { name: secretary-aab, path: release-files/secretary }
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: manual-build-${{ github.run_number }}
+          name: "Manual build #${{ github.run_number }}"
+          files: release-files/**/*

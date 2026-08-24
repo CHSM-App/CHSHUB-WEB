@@ -40,7 +40,13 @@ router.get(
     if (!rows[0] || String(rows[0].society_id) !== String(req.societyId)) {
       throw ApiError.notFound('Expense not found');
     }
-    return ok(res, { expense: rows[0] });
+    // Approvers live in vendor_bill_approval keyed by the expense id — see
+    // saveExpenseApprovers — so the same GET_APPROVALS read serves both.
+    const approvals = await query('sp_vendor_bills', {
+      operation: 'GET_APPROVALS',
+      bill_id: { type: sql.Int, value: id },
+    });
+    return ok(res, { expense: rows[0], approvals });
   }),
 );
 
@@ -60,6 +66,32 @@ function expenseParams(body) {
   };
 }
 
+/*
+ * Approvers for an expense. society_expense.aspx.cs looped the approver grid
+ * after saving and called sp_approvar for each row, passing the expense id in
+ * the SP's bill_id parameter (see DA_Society_Expense.Update_Approver) — the
+ * same vendor_bill_approval table vendor bills use. Kept that way so both
+ * pages read back through the one GET_APPROVALS path.
+ */
+async function saveExpenseApprovers(expenseId, body) {
+  const ids = Array.isArray(body?.approverIds) ? body.approverIds : [];
+  const errors = [];
+  for (const userId of ids) {
+    try {
+      await exec('sp_approvar', {
+        operation: 'Update',
+        approver_id: { type: sql.Int, value: 0 },
+        user_id: { type: sql.Int, value: int(userId, 'approverIds', { min: 1 }) },
+        bill_id: { type: sql.Int, value: Number(expenseId) },
+        approval_status: { type: sql.Int, value: 1 },
+      });
+    } catch (err) {
+      errors.push({ userId, error: err.message });
+    }
+  }
+  return errors;
+}
+
 router.post(
   '/expenses',
   asyncHandler(async (req, res) => {
@@ -70,7 +102,9 @@ router.post(
       society_id: SOC(req.societyId),
       ...expenseParams(req.body),
     });
-    return ok(res, { expense_id: created?.expense_id ?? null }, 201);
+    const expenseId = created?.expense_id ?? null;
+    const approverErrors = expenseId ? await saveExpenseApprovers(expenseId, req.body) : [];
+    return ok(res, { expense_id: expenseId, approverErrors }, 201);
   }),
 );
 
@@ -94,7 +128,8 @@ router.put(
       society_id: SOC(req.societyId),
       ...expenseParams(req.body),
     });
-    return ok(res, { expense_id: id });
+    const approverErrors = await saveExpenseApprovers(id, req.body);
+    return ok(res, { expense_id: id, approverErrors });
   }),
 );
 

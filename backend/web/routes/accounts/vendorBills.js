@@ -339,19 +339,55 @@ router.post(
 );
 
 /**
- * POST /accounts/vendor-bills/approvals/:approvalId — approve or reject.
+ * POST /accounts/vendor-bills/:id/approvals/:approvalId — approve or reject.
  * status 2 = approved, 4 = rejected. When every approval is done the SP moves
  * the bill itself to approved; a rejection rejects the bill immediately.
+ *
+ * A decision may only be recorded by the approver it was asked of. Without
+ * that, any member of the society could approve in someone else's name, which
+ * defeats the point of asking for approval at all and writes the wrong person
+ * into the audit trail. The bill is in the path so its approvals can be read
+ * and the row matched against the caller — the SP offers no lookup by
+ * approval_id alone.
  */
 router.post(
-  '/approvals/:approvalId',
+  '/:id/approvals/:approvalId',
   asyncHandler(async (req, res) => {
+    const billId = int(req.params.id, 'id', { min: 1 });
     const approvalId = int(req.params.approvalId, 'approvalId', { min: 1 });
     const decision = oneOf(req.body?.decision, 'decision', ['approve', 'reject']);
     const remarks = optionalStr(req.body?.remarks, 'remarks', { max: 500 });
 
     if (decision === 'reject' && !remarks) {
       throw ApiError.badRequest('A remark is required when rejecting a bill');
+    }
+
+    // SELECT ignores society_id, so the bill is matched here — same as GET /:id.
+    const bills = await query('sp_vendor_bills', {
+      operation: 'SELECT',
+      bill_id: { type: sql.Int, value: billId },
+    });
+    if (!bills.some((r) => String(r.society_id) === String(req.societyId))) {
+      throw ApiError.notFound('Vendor bill not found');
+    }
+
+    const approvals = await query('sp_vendor_bills', {
+      operation: 'GET_APPROVALS',
+      bill_id: { type: sql.Int, value: billId },
+    });
+    const approval = approvals.find(
+      (a) => String(a.approval_id) === String(approvalId),
+    );
+    if (!approval) throw ApiError.notFound('Approval not found on this bill');
+
+    if (String(approval.user_id) !== String(req.user.userId)) {
+      throw ApiError.forbidden('This approval was asked of someone else');
+    }
+
+    // Already decided. Re-deciding would overwrite the recorded answer and,
+    // on a bill the SP has already settled, move it back out of that state.
+    if (Number(approval.approval_status) !== 1) {
+      throw ApiError.conflict('This approval has already been answered');
     }
 
     await exec('sp_vendor_bills', {
@@ -428,9 +464,24 @@ router.post(
     const bill = rows.find((r) => String(r.society_id) === String(req.societyId));
     if (!bill) throw ApiError.notFound('Vendor bill not found');
 
+    // A rejected bill is not payable. sp_Vendor_Bill_Payments' own fill_bills
+    // excludes status 4 from what can be settled, but nothing stopped a
+    // payment being posted straight at one through this route.
+    if (Number(bill.status) === 4) {
+      throw ApiError.conflict('This bill was rejected and cannot be paid');
+    }
+
     // vendor_id is a comma-separated list for staff bills; the payment row
     // takes a single id, and the legacy handler took the first likewise.
-    const vendorId = int(String(bill.vendor_id ?? '').split(',')[0] || 0, 'vendorId', {
+    //
+    // The SELECT operation returns that column as `original_vendor_ids` — it
+    // reserves `vendor_name` for the resolved names. Reading `bill.vendor_id`
+    // yielded undefined, which `String()` turned into the literal "undefined";
+    // that is not empty, so `|| 0` did not catch it and int() threw on every
+    // payment against a bill that had a vendor at all.
+    const rawVendorIds = String(bill.original_vendor_ids ?? bill.vendor_id ?? '');
+    const firstVendorId = rawVendorIds.split(',')[0].trim();
+    const vendorId = int(firstVendorId || 0, 'vendorId', {
       min: 0,
       required: false,
       default: 0,

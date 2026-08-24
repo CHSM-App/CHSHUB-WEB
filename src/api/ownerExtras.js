@@ -41,6 +41,9 @@ export const vendorBills = {
   remove: (id) => api.delete(`/accounts/vendor-bills/${id}`),
   approvals: (id) => api.get(`/accounts/vendor-bills/${id}/approvals`),
   addApprovers: (id, userIds) => api.post(`/accounts/vendor-bills/${id}/approvers`, { userIds }),
-  decide: (approvalId, body) => api.post(`/accounts/vendor-bills/approvals/${approvalId}`, body),
+  // The bill is in the path so the API can check the approval belongs to the
+  // caller — only the approver it was asked of may answer it.
+  decide: (billId, approvalId, body) =>
+    api.post(`/accounts/vendor-bills/${billId}/approvals/${approvalId}`, body),
   pay: (id, body) => api.post(`/accounts/vendor-bills/${id}/payments`, body),
 };

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { vendorBills } from '@/api/ownerExtras';
 import { vendors } from '@/api/modules';
+import { useOptionalUser } from '@/auth/AuthContext.jsx';
 import DataGrid from '@/components/DataGrid.jsx';
 import {
   ConfirmDialog,
@@ -176,6 +177,7 @@ function printBill(detail) {
         <td>${esc(a.name)}</td>
         <td>${esc(approvalLabel(a.approval_status))}</td>
         <td>${esc(a.approval_date ? day(a.approval_date) : '—')}</td>
+        <td>${esc(a.remarks || '—')}</td>
       </tr>`,
     )
     .join('');
@@ -217,7 +219,7 @@ ${
 }
 ${
   approvalRows
-    ? `<h2>Approvals</h2><table><thead><tr><th>Approver</th><th>Status</th><th>Date</th></tr></thead>
+    ? `<h2>Approvals</h2><table><thead><tr><th>Approver</th><th>Status</th><th>Date</th><th>Reason</th></tr></thead>
        <tbody>${approvalRows}</tbody></table>`
     : ''
 }
@@ -460,6 +462,9 @@ export default function VendorBillsPage() {
   const [vendorForm, setVendorForm] = useState(null); // quick-add vendor
   const [confirming, setConfirming] = useState(null);
   const toast = useToast();
+  // Whose decisions these are: an approval may only be answered by the
+  // approver it was asked of.
+  const user = useOptionalUser();
   // name -> message, for the fields the last submit found empty.
   const [fieldErrors, setFieldErrors] = useState({});
   // The payment section's own complaints, kept apart from the bill's because
@@ -796,7 +801,7 @@ export default function VendorBillsPage() {
   const decide = async (approvalId, decision, remarks) => {
     setBusy(true);
     try {
-      await vendorBills.decide(approvalId, { decision, remarks });
+      await vendorBills.decide(detail.bill.bill_id, approvalId, { decision, remarks });
       if (detail?.bill) await openDetail(detail.bill);
       await load();
       toast.success(`Bill ${String(decision).toLowerCase() === 'reject' ? 'rejected' : 'approved'}.`, {
@@ -877,8 +882,10 @@ export default function VendorBillsPage() {
           emptyHint="Raise the first bill to get started."
           actions={(row) => (
             <>
-              {/* VendorBill.aspx showed Pay only while something was owed. */}
-              {Number(row.remaining_amount ?? 0) > 0 ? (
+              {/* VendorBill.aspx showed Pay only while something was owed —
+                  and never on a bill the society rejected (status 4), which
+                  the API refuses outright. */}
+              {Number(row.remaining_amount ?? 0) > 0 && Number(row.status) !== 4 ? (
                 <button type="button" className="btn-primary" onClick={() => openPay(row)}>
                   Pay
                 </button>
@@ -1485,6 +1492,10 @@ export default function VendorBillsPage() {
                       <th className="table-head">Approver</th>
                       <th className="table-head">Status</th>
                       <th className="table-head">Date</th>
+                      {/* A rejection cannot be saved without one, and it was
+                          being stored and then never shown — leaving a bill
+                          marked Rejected with nothing saying why. */}
+                      <th className="table-head">Reason</th>
                       <th className="table-head sr-only">Actions</th>
                     </tr>
                   </thead>
@@ -1494,8 +1505,14 @@ export default function VendorBillsPage() {
                         <td className="table-cell font-medium text-slate-800" data-label="Approver">{a.name}</td>
                         <td className="table-cell" data-label="Status">{approvalLabel(a.approval_status)}</td>
                         <td className="table-cell" data-label="Date">{day(a.approval_date)}</td>
+                        <td className="table-cell" data-label="Reason">{a.remarks || '—'}</td>
                         <td className="table-cell text-right" data-actions="">
-                          {Number(a.approval_status) === 1 ? (
+                          {/* Only the approver it was asked of may answer —
+                              the API refuses anyone else, so offering the
+                              buttons to everyone promised something that
+                              would fail on click. */}
+                          {Number(a.approval_status) === 1 &&
+                          String(a.user_id) === String(user?.user_id) ? (
                             <>
                               <button
                                 type="button"

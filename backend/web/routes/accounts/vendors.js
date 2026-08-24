@@ -22,8 +22,17 @@ router.get(
       operation: search ? 'SEARCH' : 'Grid_Show',
       ...(search ? { search_text: { type: sql.NVarChar(200), value: search } } : {}),
     });
-    // Grid_Show is not society-scoped in the SP, so filter here.
-    const scoped = rows.filter((r) => !r.society_id || String(r.society_id) === String(req.societyId));
+    // Neither Grid_Show nor SEARCH is society-scoped in the SP, so the rows
+    // are filtered here.
+    //
+    // The society must match — a row with no society_id is not "shared", it
+    // is unattributed, and letting it through showed one society's vendor to
+    // every other, editable and deletable by all of them. sp_vendor_bills'
+    // vendor_fill has always scoped this way, so the bill form's dropdown and
+    // this list disagreed: a vendor visible here could not be billed against.
+    const scoped = rows.filter(
+      (r) => String(r.society_id) === String(req.societyId),
+    );
     return ok(res, { items: scoped, count: scoped.length });
   }),
 );
@@ -57,10 +66,28 @@ router.post(
   }),
 );
 
+/**
+ * The vendor, if it belongs to this society.
+ *
+ * Neither UPDATE nor DELETE is society-scoped in the SP — DELETE takes only a
+ * vendor_id — so ownership is established here before either runs. Without
+ * it, an id typed into the URL reached another society's vendor.
+ */
+async function requireOwnVendor(societyId, vendorId) {
+  const rows = await query('sp_vendor_master', { operation: 'Grid_Show' });
+  const vendor = rows.find((r) => String(r.vendor_id) === String(vendorId));
+  if (!vendor || String(vendor.society_id) !== String(societyId)) {
+    throw ApiError.notFound('Vendor not found');
+  }
+  return vendor;
+}
+
 router.put(
   '/:id',
   asyncHandler(async (req, res) => {
     const id = int(req.params.id, 'id', { min: 1 });
+    await requireOwnVendor(req.societyId, id);
+
     await exec('sp_vendor_master', {
       operation: 'UPDATE',
       vendor_id: { type: sql.Int, value: id },
@@ -75,6 +102,8 @@ router.delete(
   '/:id',
   asyncHandler(async (req, res) => {
     const id = int(req.params.id, 'id', { min: 1 });
+    await requireOwnVendor(req.societyId, id);
+
     await exec('sp_vendor_master', {
       operation: 'DELETE',
       vendor_id: { type: sql.Int, value: id },

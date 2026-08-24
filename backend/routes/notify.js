@@ -1,12 +1,14 @@
 const express = require("express");
 const app = express();
 var db = require("./db")
-const admin = require("firebase-admin");
-const serviceAccount = require("./serviceAccountKey.json");
-
-admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
+// Credentials come from the environment via routes/firebase.js; the key is no
+// longer a JSON file committed inside the repository.
+//
+// Resolved per call rather than at require time. Initialising here meant a
+// deployment with no Firebase credentials — a local dev machine, typically —
+// could not boot the API at all, even to serve routes that send no push.
+const firebase = require("./firebase");
+const admin = { messaging: () => firebase.messaging() };
 var router = express.Router();
 
 
@@ -187,12 +189,16 @@ router.post('/GateKeeperApp/Insert/NewToken', async (req, res) => {
   }
 });
 router.post('/OwnerApp/Insert/NewToken', function (req, res) {
-  var sql = "";
-  if(req.query.type=="Owner")
-      sql="Update owner_master set token='"+req.query.token+"' where owner_id="+req.query.owner_id
-  else
-  sql="Update owner_extension set token='"+req.query.token+"' where o_ex_id="+req.query.owner_id
-  db.query(sql, function (err, result) {
+    // The table differs by caller type, so it is chosen here rather than
+  // interpolated — a table name cannot be a bound parameter.
+  const sql = req.query.type == "Owner"
+    ? "Update owner_master set token=@token where owner_id=@id"
+    : "Update owner_extension set token=@token where o_ex_id=@id";
+
+  db.request()
+    .input("token", req.query.token)
+    .input("id", req.query.owner_id)
+    .query(sql, function (err, result) {
       if (err)
           return res.status(500).json({ error: err.message });
       else{
@@ -202,9 +208,10 @@ router.post('/OwnerApp/Insert/NewToken', function (req, res) {
   });
 });
 router.post('/AdminApp/Insert/NewToken', function (req, res) {
- 
-  sql="Update UserLogin set token='"+req.body.token+"' where user_id="+req.body.user_id
-  db.query(sql, function (err, result) {
+  db.request()
+    .input("token", req.body.token)
+    .input("user_id", req.body.user_id)
+    .query("Update UserLogin set token=@token where user_id=@user_id", function (err, result) {
       if (err)
           return res.status(500).json({ error: err.message });
       else{
@@ -216,15 +223,20 @@ router.post('/AdminApp/Insert/NewToken', function (req, res) {
 router.get('/Gatekeeper/Token/:staff_id', function(req, res, next) {
   // const table=req.params.tablename
   
-   db.query("select * from Staff_master where  active_status=0 and staff_id= '"+req.params.staff_id+"'",function(err,rows){
+      db.request()
+     .input("staff_id", req.params.staff_id)
+     .query("select * from Staff_master where active_status=0 and staff_id=@staff_id", function(err,rows){
        if(err)
           return res.status(500).json({error:err.message});      
       res.json(rows.recordset);
 });
 });
 router.get('/Owner/Society/GetAllToken/:society/:type', function(req, res, next) {
-  var sql="Exec sp_owner_master @operation='get_users' , @recipients_id='"+req.params.type+"', @society_id='"+req.params.society+"'"
-   db.query(sql,function(err,rows){
+     db.request()
+     .input("operation", "get_users")
+     .input("recipients_id", req.params.type)
+     .input("society_id", req.params.society)
+     .execute("sp_owner_master", function(err,rows){
        if(err)   
           return res.status(500).json({error:err.message});      
       res.json(rows.recordset);
@@ -232,17 +244,34 @@ router.get('/Owner/Society/GetAllToken/:society/:type', function(req, res, next)
 });
 
 router.get('/Admin/Society/GetAllToken/:society', function(req, res, next) {
-  var sql="select web_token,token,user_id from UserLogin where  active_status=0 and  token is not null or web_token is not null and society_id= '"+req.params.society+"'"
-   db.query(sql,function(err,rows){
+     // Brackets added: "a and b or c and d" bound as "(a and b) or (c and d)",
+   // so rows from other societies came back whenever web_token was set.
+   db.request()
+     .input("society_id", req.params.society)
+     .query(
+       "select web_token,token,user_id from UserLogin " +
+       " where active_status=0 and society_id=@society_id " +
+       "   and (token is not null or web_token is not null)",
+       function(err,rows){
        if(err) 
           return res.status(500).json({error:err.message});      
       res.json(rows.recordset);
 });
 });
 router.post("/insert/notification",function(req,res,next){
-  var sql="Exec sp_notification @operation='Update',@notification_id="+req.body.notification_id+",@notification_type='"+req.body.notification_type+"',@user_id="+req.body.user_id+",@user_type='"+req.body.user_type+"', @seen_status=0, @society_id='"+req.body.society_id+"',@title='"+req.body.title+"', @body='"+req.body.body+"'"
-
-  db.query(sql,function(err,rows){
+    // Title and body are free text written by a user; both closed the quoted
+  // literal they sat in.
+  db.request()
+    .input("operation", "Update")
+    .input("notification_id", req.body.notification_id)
+    .input("notification_type", req.body.notification_type)
+    .input("user_id", req.body.user_id)
+    .input("user_type", req.body.user_type)
+    .input("seen_status", 0)
+    .input("society_id", req.body.society_id)
+    .input("title", req.body.title)
+    .input("body", req.body.body)
+    .execute("sp_notification", function(err,rows){
   if (err)
     return res.status(500).json({ error: err.message });
 else{

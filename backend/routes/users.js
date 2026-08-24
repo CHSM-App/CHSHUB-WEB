@@ -526,7 +526,9 @@ router.get('/NotificationDetails/:society/:type/:id',  async (req, res) => {
   }
 });
 router.get('/SelectPanicAlert/:owner_id', function (req, res,next) {
-    db.query("SELECT name,contact,type from panic_alert where owner_id='"+req.params.owner_id+"'",function(err,rows){
+    db.request()
+      .input("owner_id", req.params.owner_id)
+      .query("SELECT name,contact,type from panic_alert where owner_id=@owner_id", function(err,rows){
         if(err)
            return res.status(500).json({error:err.message});      
        res.json(rows.recordset);
@@ -609,7 +611,11 @@ router.get('/VehicleList/:flat_id/:society_id',  async (req, res) => {
 });
 
 router.get('/Checkcontact/:pre_mob/:society_id/:build_wing_id', function (req, res,next) {
-    db.query("SELECT * from userdata where active_status=0 and pre_mob='"+req.params.pre_mob+"' and society_id='"+req.params.society_id+"' and w_id="+req.params.build_wing_id+"",function(err,rows){
+    db.request()
+      .input("pre_mob", req.params.pre_mob)
+      .input("society_id", req.params.society_id)
+      .input("w_id", req.params.build_wing_id)
+      .query("SELECT * from userdata where active_status=0 and pre_mob=@pre_mob and society_id=@society_id and w_id=@w_id", function(err,rows){
         if(err)
            return res.status(500).json({error:err.message}); 
         else
@@ -618,7 +624,11 @@ router.get('/Checkcontact/:pre_mob/:society_id/:build_wing_id', function (req, r
 });
 });
 router.get('/AllReadyExistMember/:Mobile/:society_id/:build_wing_id', function (req, res,next) {
-    db.query("SELECT * from UserLogin  where active_status=0 and Mobile='"+req.params.Mobile+"' and society_id='"+req.params.society_id+"' and build_wing_id="+req.params.build_wing_id+" ",function(err,rows){
+    db.request()
+      .input("Mobile", req.params.Mobile)
+      .input("society_id", req.params.society_id)
+      .input("build_wing_id", req.params.build_wing_id)
+      .query("SELECT * from UserLogin where active_status=0 and Mobile=@Mobile and society_id=@society_id and build_wing_id=@build_wing_id", function(err,rows){
         if(err)
            return res.status(500).json({error:err.message});      
        res.json(rows.recordset);
@@ -627,7 +637,10 @@ router.get('/AllReadyExistMember/:Mobile/:society_id/:build_wing_id', function (
 
 router.get('/SearchFlat/:society_id/:build_wing_id', function(req, res, next) {
     
-    db.query(" select distinct flat_no from customer_flat where active_status=0 and society_id='"+req.params.society_id+"' and build_wing_id="+req.params.build_wing_id+"",function(err,rows){
+    db.request()
+      .input("society_id", req.params.society_id)
+      .input("build_wing_id", req.params.build_wing_id)
+      .query("select distinct flat_no from customer_flat where active_status=0 and society_id=@society_id and build_wing_id=@build_wing_id", function(err,rows){
         if(err)
            return res.status(500).json({error:err.message});      
        res.json(rows.recordset);

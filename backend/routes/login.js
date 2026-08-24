@@ -30,17 +30,131 @@ function createRefreshTokenPayload(mobile) {
   return token;
 }
 
+/*
+ * Login OTP.
+ *
+ * The code is generated, sent and checked here. It used to be generated in
+ * the app and compared in the app, while /login/Createlogin issued a token to
+ * anyone who asked — so the check could be skipped entirely by calling
+ * Createlogin directly. See SQL/ADD_login_otp.sql.
+ */
+const OTP_TTL_MINUTES = Number(process.env.OTP_TTL_MINUTES || 5);
+const OTP_MAX_PER_HOUR = Number(process.env.OTP_MAX_PER_HOUR || 5);
+
+/** Six digits, from the CSPRNG rather than Math.random. */
+function generateOtp() {
+  return String(crypto.randomInt(0, 1000000)).padStart(6, "0");
+}
+
+/*
+ * Stored salted, so a leaked table cannot be replayed. The pepper is held in
+ * the environment; falling back to JWT_SECRET_KEY keeps this working on a
+ * deployment that has not set OTP_PEPPER yet.
+ */
+function hashOtp(mobile, otp) {
+  const pepper = process.env.OTP_PEPPER || process.env.JWT_SECRET_KEY || "";
+  return crypto.createHash("sha256").update(mobile + ":" + otp + ":" + pepper).digest("hex");
+}
+
+/** Digits only, 10-15 of them — E.164 without the plus, as the app dials. */
+function normaliseMobile(value) {
+  const digits = String(value || "").replace(/[^0-9]/g, "");
+  return /^[0-9]{10,15}$/.test(digits) ? digits : null;
+}
+
+/** Send one SMS through MessageBot. Throws on a transport failure. */
+async function sendSms(phone, messageText, dltEntityId, dltTemplateId) {
+  if (!API_TOKEN) throw new Error("MSGBOT_API_KEY is not configured");
+  const payload = [{
+    apiToken: API_TOKEN,
+    messageType: "3",
+    messageEncoding: "1",
+    destinationAddress: phone,
+    sourceAddress: SOURCE_ID,
+    messageText: messageText,
+    dltEntityId: dltEntityId,
+    dltEntityTemplateId: dltTemplateId,
+  }];
+  const response = await axios.post(API_URL, payload, {
+    headers: { "Content-Type": "application/json" },
+    timeout: 15000,
+  });
+  return response.data;
+}
+
 /**
- * Login (creates access + refresh token)
- * Expect mobile in req.body
+ * Step 1 of login: send a code to the number.
+ *
+ * Answers the same way whether or not the number is registered, so it cannot
+ * be used to enumerate which residents exist.
+ */
+router.post('/otp/request', async (req, res) => {
+  const mobile = normaliseMobile(req.body && req.body.mobile);
+  if (!mobile) return res.status(400).json({ error: 'A valid mobile number is required' });
+
+  try {
+    const otp = generateOtp();
+    const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
+
+    const issued = await db.request()
+      .input('operation', 'issue')
+      .input('mobile', mobile)
+      .input('otp_hash', hashOtp(mobile, otp))
+      .input('expires_at', expiresAt)
+      .execute('sp_login_otp');
+
+    const recent = (issued.recordset && issued.recordset[0] && issued.recordset[0].recent_count) || 0;
+    if (recent > OTP_MAX_PER_HOUR) {
+      // Issuing already voided the previous code, so the one just minted is
+      // dead too. Nothing is sent.
+      return res.status(429).json({ error: 'Too many code requests. Try again later.' });
+    }
+
+    await sendSms(
+      mobile,
+      otp + " is your CHS Hub verification code. It expires in " + OTP_TTL_MINUTES + " minutes.",
+      process.env.MSGBOT_DLT_ENTITY_ID,
+      process.env.MSGBOT_DLT_TEMPLATE_ID
+    );
+
+    return res.json({ success: true, expiresIn: OTP_TTL_MINUTES * 60 });
+  } catch (err) {
+    console.error('OTP request failed:', err.message);
+    return res.status(500).json({ error: 'Could not send the verification code' });
+  }
+});
+
+/**
+ * Step 2 of login: exchange a valid code for tokens.
+ *
+ * The code is required. Without it this endpoint minted a token for any
+ * number supplied, which made every authenticated mobile endpoint reachable
+ * by anyone who knew a resident phone number.
  */
 router.post('/Createlogin', async (req, res) => {
   try {
-    const { mobile, deviceDetails } = req.body;
-	 
-    //const ip = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress || req.socket.remoteAddress|| null;
+    const { otp, deviceDetails } = req.body;
+    const mobile = normaliseMobile(req.body && req.body.mobile);
 
-    if (!mobile) return res.status(400).json({ error: 'Mobile number required' });
+    if (!mobile) return res.status(400).json({ error: 'A valid mobile number is required' });
+    if (!otp) return res.status(400).json({ error: 'Verification code required' });
+
+    const verified = await db.request()
+      .input('operation', 'verify')
+      .input('mobile', mobile)
+      .input('otp_hash', hashOtp(mobile, String(otp).trim()))
+      .execute('sp_login_otp');
+
+    const result = (verified.recordset && verified.recordset[0] && verified.recordset[0].result) || 'invalid';
+    if (result !== 'ok') {
+      const message = {
+        expired: 'That code has expired. Request a new one.',
+        used: 'That code has already been used.',
+        attempts: 'Too many incorrect attempts. Request a new code.',
+        invalid: 'That code is not correct.',
+      }[result];
+      return res.status(401).json({ error: message || 'That code is not correct.' });
+    }
 
     // Create Access Token (short)
     const accessToken = createAccessToken({ mobile });
@@ -49,22 +163,18 @@ router.post('/Createlogin', async (req, res) => {
     const refreshToken = createRefreshTokenPayload(mobile);
     const expiresAt = new Date(Date.now() + 7 * 24 * 3600 * 1000); // 7 days
 
-    // Insert into DB (using stored proc or parameterized query)
     await db.request()
-	   .input('operation', 'insert')
+      .input('operation', 'insert')
       .input('user_mobile', mobile)
       .input('refresh_token', refreshToken)
       .input('device_info', deviceDetails)
-     // .input('ip_address', ip)
       .input('expires_at', expiresAt)
-      .execute('ManageRefreshToken'); // or .query(...) if you didn't create proc
+      .execute('ManageRefreshToken');
 
-    // Send tokens to client (client stores refresh token in secure storage)
-    // Optionally set access token in response header
     return res.json({ accessToken, refreshToken, expiresAt });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Login failed' });
   }
 });
 
@@ -161,18 +271,16 @@ router.get('/Gatekeeper/checkUser', async (req, res) => {
   }
 });
 
-router.get('/:table',  async function(req, res) {
-   
-     db.query("select * from "+req.params.table,function(err,rows){
-         if(err)
-
-           return res.status(500).json({error:err.message}); 
-           
-      
-        res.json(rows.recordset);
-        
- }); 
- });
+/*
+ * GET /login/:table was here: it ran "select * from " + req.params.table with
+ * no authentication, so GET /login/UserLogin returned the user table and
+ * GET /login/owner_master returned every resident on the system. Removed —
+ * it had no caller that a named endpoint does not already serve.
+ *
+ * It also shadowed every later GET on this router, because /:table matches
+ * any single segment. /Home/CheckPhone and /Otp/CheckUser below are two
+ * segments and were reachable; a one-segment route added here would not be.
+ */
 
 router.get('/Home/CheckPhone', async function(req, res, next) {
      try {
@@ -204,44 +312,36 @@ router.get('/Otp/CheckUser' ,async function(req, res, next) {
 });
 
 const API_URL = "http://papi.messagebot.in/SendSmsV2";
-const API_TOKEN = "L2Uj2dK9ARQrfUy2";
-const SOURCE_ID = "SMSALA"; // your approved sender ID
+// Was hardcoded here, which published the SMS account token with the source.
+const API_TOKEN = process.env.MSGBOT_API_KEY;
+const SOURCE_ID = process.env.MSGBOT_SOURCE_ID || "SMSALA"; // approved sender ID
 
-router.post("/send-sms", async (req, res) => {
+/*
+ * Was unauthenticated and sent whatever text the caller supplied to whatever
+ * number it named — an open SMS relay billed to this account, usable for
+ * phishing under the approved sender ID. Now behind `auth`.
+ *
+ * Login codes do not come through here any more; /otp/request owns that and
+ * composes its own message.
+ */
+router.post("/send-sms", auth, async (req, res) => {
   const { phone, message, dltEntityId, dltTemplateId } = req.body;
 
   if (!phone || !message) {
     return res.status(400).json({ error: "phone and message are required" });
   }
 
-  const payload = [
-    {
-      apiToken: API_TOKEN,
-      messageType: "3",            // Transactional
-      messageEncoding: "1",        // Text
-      destinationAddress: phone,   // e.g. 91XXXXXXXXXX
-      sourceAddress: SOURCE_ID,
-      messageText: message,
-      dltEntityId,
-      dltEntityTemplateId: dltTemplateId
-    }
-  ];
+  const destination = normaliseMobile(phone);
+  if (!destination) {
+    return res.status(400).json({ error: "phone is not a valid mobile number" });
+  }
 
   try {
-    const response = await axios.post(API_URL, payload, {
-      headers: { "Content-Type": "application/json" }
-    });
-
-    return res.json({
-      success: true,
-      providerResponse: response.data
-    });
+    const providerResponse = await sendSms(destination, String(message), dltEntityId, dltTemplateId);
+    return res.json({ success: true, providerResponse });
   } catch (err) {
-    return res.status(500).json({
-      success: false,
-      error: err.message,
-      details: err.response?.data
-    });
+    console.error("SMS send failed:", err.message);
+    return res.status(500).json({ success: false, error: "Could not send the message" });
   }
 });
 

@@ -4,8 +4,8 @@ const sql = require('mssql');
 //const { pool } = require('mssql');
 var router = express.Router();
 const auth = require('./middleware/auth');
-const admin = require("firebase-admin");
-const serviceAccount = require("./serviceAccountKey.json");
+const firebase = require("./firebase");
+const admin = { messaging: () => firebase.messaging() };
 
 function timeStringToUtcDate(timeStr) {
   if (!timeStr) return null;

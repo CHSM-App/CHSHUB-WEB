@@ -9,11 +9,16 @@ name: Split component branches
 #   Secretary_app     -> secretary_app
 #   Society_dotNet    -> society_dotNet
 #   frontend          -> Society_web
-#   backend           -> backend        (shared by every client)
 #
 # Each branch contains ONLY that folder, with the folder as the repo root,
 # so `pubspec.yaml` / `package.json` / `Society2024.sln` sit at the top level
 # and any deploy target (Vercel, Codemagic, Azure, ...) can build it directly.
+#
+# `backend` is handled by the separate sync-backend job below instead of this
+# matrix: it needs the React frontend built into backend/public/ first (a real
+# build step, not a verbatim copy), then the whole backend/ folder — build
+# output included — is published to the `backend` branch so that branch alone
+# is deployable.
 #
 # These branches are GENERATED. Do not commit to them by hand — the next push
 # to main overwrites them. All work happens on main (or a PR into main).
@@ -47,8 +52,6 @@ jobs:
             branch: society_dotNet
           - folder: frontend
             branch: Society_web
-          - folder: backend
-            branch: backend
 
     steps:
       - name: Checkout full history
@@ -116,3 +119,43 @@ jobs:
           # Generated branch: force-push is intentional and safe.
           git push --force origin "${SPLIT_SHA}:refs/heads/${BRANCH}"
           echo "### \`$FOLDER\` → \`$BRANCH\` @ \`${SPLIT_SHA:0:8}\`" >> "$GITHUB_STEP_SUMMARY"
+
+  sync-backend:
+    name: Build frontend + sync backend branch
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build frontend (outputs to backend/public/)
+        run: npm run build
+        working-directory: frontend
+
+      - name: Install backend production dependencies
+        run: npm ci --omit=dev
+        working-directory: backend
+
+      - name: Remove backend/public/ exclusion so it gets deployed
+        run: sed -i '/^backend\/public\//d' .gitignore
+
+      - name: Push backend folder to backend branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: backend
+          publish_dir: ./backend
+          force_orphan: true
+          commit_message: "sync: backend + frontend build from ${{ github.ref_name }} @ ${{ github.sha }}"

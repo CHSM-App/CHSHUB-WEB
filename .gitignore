@@ -10,6 +10,10 @@ node_modules/
 dist/
 build/
 
+# React frontend build output, generated into backend/public/ by CI on every
+# push so the backend branch can serve it directly — never commit it to main.
+backend/public/
+
 # .NET build output / IDE cruft (Society_dotNet)
 [Bb]in/
 [Oo]bj/

@@ -13,6 +13,10 @@ export default defineConfig({
     },
   },
   build: {
+    // Built straight into the backend so the backend branch can serve the SPA
+    // itself — see .github/workflows/split-branches.yml (sync-backend job).
+    outDir: '../backend/public',
+    emptyOutDir: true,
     // Vite 8 bundles with rolldown, which exposes chunking under
     // rolldownOptions rather than rollupOptions. Splitting the framework out
     // keeps the app chunk small and lets the vendor chunk stay cached across

@@ -26,8 +26,17 @@ function loadCredentials() {
     return JSON.parse(text);
   }
 
-  const path = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
-  if (path) return require(path);
+  const configured = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
+  if (configured) {
+    // Resolved against the backend directory, not this file's. require() would
+    // otherwise read './serviceAccountKey.json' as routes/serviceAccountKey.json,
+    // which is a different file from the one the path appears to name.
+    const nodePath = require('path');
+    const resolved = nodePath.isAbsolute(configured)
+      ? configured
+      : nodePath.resolve(__dirname, '..', configured);
+    return require(resolved);
+  }
 
   throw new Error(
     'Firebase credentials are not configured — set FIREBASE_SERVICE_ACCOUNT or ' +

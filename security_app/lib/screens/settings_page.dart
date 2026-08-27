@@ -624,7 +624,7 @@ String? secretaryMobile;
   }
   
 Future<void> _openPrivacyPolicy(BuildContext context) async {
-  final Uri uri = Uri.parse("https://app.chshub.co.in/privacy-policy");
+  final Uri uri = Uri.parse("https://chshub.co.in/privacy-policy");
 
   if (await canLaunchUrl(uri)) {
     await launchUrl(uri, mode: LaunchMode.externalApplication);

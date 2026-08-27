@@ -377,7 +377,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
           onPageFinished: (_) => setState(() => _isLoading = false),
         ),
       )
-      ..loadRequest(Uri.parse('https://app.chshub.co.in/privacy-policy'));
+      ..loadRequest(Uri.parse('https://chshub.co.in/privacy-policy'));
   }
 
   @override

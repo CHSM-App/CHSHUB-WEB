@@ -23,7 +23,7 @@ var crypto = require('crypto');
 const DOCUMENTS_ROOT = process.env.DOCUMENTS_ROOT ||
   'C:/Inetpub/vhosts/vengurlatech.com/chsmanagement/publish/Documents';
 
-const PUBLIC_UPLOAD_BASE = process.env.PUBLIC_UPLOAD_BASE || 'https://app.chshub.co.in/upload';
+const PUBLIC_UPLOAD_BASE = process.env.PUBLIC_UPLOAD_BASE || 'https://chshub.co.in/upload';
 
 const MAX_FILE_BYTES = Number(process.env.UPLOAD_MAX_BYTES || 10 * 1024 * 1024); // 10 MB
 const MAX_FILES_PER_REQUEST = 10;

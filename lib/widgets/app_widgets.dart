@@ -859,7 +859,10 @@ class RowsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final data = rows.value;
+    // valueOrNull, not value: on an AsyncError the latter rethrows, so the
+    // failure escaped as an unhandled exception over the page and the
+    // "Could not load" branch below could never be reached.
+    final data = rows.valueOrNull;
 
     // Show placeholders only when there is nothing cached; during a refresh
     // the existing rows stay on screen.
@@ -939,6 +942,7 @@ class AppDropdown<T> extends StatelessWidget {
     this.label,
     this.hint,
     this.icon,
+    this.iconColor,
     this.helperText,
     this.validator,
     this.isDense = true,
@@ -952,6 +956,12 @@ class AppDropdown<T> extends StatelessWidget {
   final String? label;
   final String? hint;
   final IconData? icon;
+
+  /// Tints [icon], for the one or two fields that are the point of their
+  /// screen. Left unset the icon takes the muted colour every other field's
+  /// does, which is what keeps a form from looking like a row of buttons.
+  final Color? iconColor;
+
   final String? helperText;
 
   /// Form validation, for the dropdowns that sit inside a Form and must be
@@ -1094,7 +1104,7 @@ class AppDropdown<T> extends StatelessWidget {
       hintText: hint,
       helperText: helperText,
       isDense: isDense,
-      prefixIcon: icon == null ? null : Icon(icon, size: 18),
+      prefixIcon: icon == null ? null : Icon(icon, size: 18, color: iconColor),
       // Only override the theme's padding when dense; a form field should
       // keep the same height as the TextFormFields it sits beside.
       contentPadding: isDense
@@ -1181,6 +1191,168 @@ class _MenuRow extends StatelessWidget {
             color: selected ? AppTheme.primary : Colors.transparent,
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Tabs ─────────────────────────────────────────────────────────────────
+
+/// One choice in a [TabPillBar].
+class TabPill {
+  const TabPill({
+    required this.label,
+    required this.icon,
+    this.count,
+    this.color,
+  });
+
+  final String label;
+  final IconData icon;
+
+  /// Shown in a badge beside the label. Null while the list is still loading —
+  /// a count that appears as "0" and then corrects itself reads as an answer,
+  /// so it is left off until it is true.
+  final int? count;
+
+  /// The selected fill. Defaults to the app's primary, which is what a screen
+  /// whose tabs are slices of one list wants; a screen whose tabs are
+  /// different kinds of thing gives each its own.
+  final Color? color;
+}
+
+/// The key on a tab's count badge, so tests can read it by name.
+Key tabCountKey(String label) => ValueKey('tab-count-$label');
+
+/// A row of tab pills, each carrying its own count.
+///
+/// Shared so the tabbed screens agree on what a tab looks like — the gate log
+/// and the community lists had grown separate private versions that differed
+/// in shape, colour and where the count sat.
+class TabPillBar extends StatelessWidget {
+  const TabPillBar({
+    super.key,
+    required this.tabs,
+    required this.selectedIndex,
+    required this.onSelected,
+    this.scrollable = false,
+    this.padding = const EdgeInsets.symmetric(horizontal: AppTheme.space4),
+  });
+
+  final List<TabPill> tabs;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+
+  /// Scrolls horizontally instead of splitting the width evenly. Set it once
+  /// there are more tabs than fit — four is about the limit on a phone, past
+  /// which equal shares ellipse the labels.
+  final bool scrollable;
+
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!scrollable) {
+      return Padding(
+        padding: padding,
+        child: Row(
+          children: [
+            for (var i = 0; i < tabs.length; i++) ...[
+              Expanded(child: _pill(i)),
+              if (i != tabs.length - 1) const SizedBox(width: AppTheme.space2),
+            ],
+          ],
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 38,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: padding,
+        itemCount: tabs.length,
+        separatorBuilder: (context, index) =>
+            const SizedBox(width: AppTheme.space2),
+        itemBuilder: (context, i) => _pill(i),
+      ),
+    );
+  }
+
+  Widget _pill(int i) {
+    final tab = tabs[i];
+    final selected = i == selectedIndex;
+    final accent = tab.color ?? AppTheme.primary;
+    final foreground = selected ? AppTheme.white : AppTheme.grey;
+
+    final radius = BorderRadius.circular(AppTheme.radiusPill);
+
+    // Material/InkWell rather than a bare GestureDetector: a tab is a control,
+    // and it should ripple when pressed like every other tappable surface.
+    return Material(
+      color: selected ? accent : AppTheme.cardBackground,
+      borderRadius: radius,
+      child: InkWell(
+        onTap: () => onSelected(i),
+        borderRadius: radius,
+        child: Container(
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: AppTheme.space3),
+          decoration: BoxDecoration(
+            borderRadius: radius,
+            border: Border.all(color: selected ? accent : AppTheme.border),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                tab.icon,
+                size: 15,
+                color: selected ? AppTheme.white : AppTheme.lightText,
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  tab.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: foreground,
+                  ),
+                ),
+              ),
+              if (tab.count != null && tab.count! > 0) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? Colors.white.withValues(alpha: 0.22)
+                        : AppTheme.spacer,
+                    borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                  ),
+                  child: Text(
+                    '${tab.count}',
+                    // Keyed so a test can read a tab's count outright. Finding
+                    // it by position in the subtree meant the number moved the
+                    // moment the pill's layout did.
+                    key: tabCountKey(tab.label),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: foreground,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1550,6 +1722,7 @@ class QuickAction extends StatelessWidget {
     required this.label,
     required this.color,
     required this.onTap,
+    this.expand = true,
   });
 
   final IconData icon;
@@ -1557,38 +1730,196 @@ class QuickAction extends StatelessWidget {
   final Color color;
   final VoidCallback onTap;
 
+  /// Whether the tile stretches to fill the space it is given. True for a
+  /// single [Row] of actions; false when the caller sizes each tile itself,
+  /// as a wrapping grid does.
+  final bool expand;
+
   @override
   Widget build(BuildContext context) {
+    final tile = InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppTheme.space3),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              height: 44,
+              width: 44,
+              decoration: BoxDecoration(
+                color: AppTheme.surfaceFor(color),
+                borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+              ),
+              child: Icon(icon, size: 21, color: color),
+            ),
+            const SizedBox(height: AppTheme.space2),
+            Text(
+              label,
+              maxLines: 2,
+              textAlign: TextAlign.center,
+              style: AppTheme.caption.copyWith(
+                fontWeight: FontWeight.w600,
+                color: AppTheme.darkText,
+                height: 1.2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    return expand ? Expanded(child: tile) : tile;
+  }
+}
+
+/// One choice in a [SegmentedTabBar].
+class SegmentTab {
+  const SegmentTab({required this.label, required this.icon, this.count});
+
+  final String label;
+  final IconData icon;
+
+  /// Shown in a badge after the label. Null while the list is still loading —
+  /// a count that appears as "0" and then corrects itself reads as an answer,
+  /// so it is left off until it is true.
+  final int? count;
+}
+
+/// A segmented control that switches between tabs, sized for an app bar's
+/// `bottom`.
+///
+/// The shape the post-dated cheques screen settled on and Announcements
+/// borrows: a filled pill on a tinted track, rather than underlined tabs whose
+/// labels went invisible against a light app bar. The chosen segment is lifted
+/// off the track so which one is live needs no second look.
+///
+/// Drive it from a TabController — pass its index as [selectedIndex] and
+/// `controller.animateTo` as [onSelected] — so a swipe of the TabBarView and a
+/// tap here end in the same place.
+class SegmentedTabBar extends StatelessWidget {
+  const SegmentedTabBar({
+    super.key,
+    required this.tabs,
+    required this.selectedIndex,
+    required this.onSelected,
+  });
+
+  final List<SegmentTab> tabs;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+
+  /// The height an AppBar should reserve for this.
+  static const double height = 54;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppTheme.space4,
+        0,
+        AppTheme.space4,
+        AppTheme.space3,
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: AppTheme.notWhite,
+          borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+        ),
+        child: Row(
+          children: [
+            for (var i = 0; i < tabs.length; i++)
+              _Segment(
+                tab: tabs[i],
+                selected: i == selectedIndex,
+                onTap: () => onSelected(i),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Segment extends StatelessWidget {
+  const _Segment({
+    required this.tab,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final SegmentTab tab;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = selected ? AppTheme.primary : AppTheme.lightText;
+
     return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: AppTheme.space3),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                height: 44,
-                width: 44,
-                decoration: BoxDecoration(
-                  color: AppTheme.surfaceFor(color),
-                  borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-                ),
-                child: Icon(icon, size: 21, color: color),
+      child: Material(
+        color: selected ? AppTheme.cardBackground : Colors.transparent,
+        borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+        // Lifts the chosen segment off the track it sits in; the others stay
+        // flat, so which one is live needs no second look.
+        elevation: selected ? 1 : 0,
+        shadowColor: AppTheme.primary.withValues(alpha: 0.2),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
+            // Scaled down rather than ellipsed when the segments are narrow:
+            // three of them on a small phone leave under 120pt each, and a
+            // label clipped to "Meeti…" is worse than one a point smaller.
+            // The row still lays out at its natural size, so nothing overflows.
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(tab.icon, size: 15, color: foreground),
+                  const SizedBox(width: 6),
+                  Text(
+                    tab.label,
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                      color: foreground,
+                    ),
+                  ),
+                  if (tab.count != null) ...[
+                    const SizedBox(width: 5),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? AppTheme.surfaceFor(AppTheme.primary)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusPill,
+                        ),
+                      ),
+                      child: Text(
+                        '${tab.count}',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: foreground,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
-              const SizedBox(height: AppTheme.space2),
-              Text(
-                label,
-                maxLines: 2,
-                textAlign: TextAlign.center,
-                style: AppTheme.caption.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.darkText,
-                  height: 1.2,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),

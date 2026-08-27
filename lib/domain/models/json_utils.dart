@@ -40,10 +40,53 @@ bool asBool(dynamic v) {
   return s == 'true' || s == '1' || s == 'yes';
 }
 
+/// Month names as SQL Server's style 106 writes them — "25 Aug 2026".
+const _monthNames = <String, int>{
+  'jan': 1,
+  'feb': 2,
+  'mar': 3,
+  'apr': 4,
+  'may': 5,
+  'jun': 6,
+  'jul': 7,
+  'aug': 8,
+  'sep': 9,
+  'oct': 10,
+  'nov': 11,
+  'dec': 12,
+};
+
+/// "25 Aug 2026" and "25-Aug-2026", which DateTime.tryParse rejects.
+final _style106 = RegExp(r'^(\d{1,2})[\s-]+([A-Za-z]{3,})[\s-]+(\d{4})$');
+
 DateTime? asDate(dynamic v) {
   if (v == null) return null;
   if (v is DateTime) return v;
-  return DateTime.tryParse(v.toString());
+
+  final s = v.toString().trim();
+  if (s.isEmpty) return null;
+
+  final iso = DateTime.tryParse(s);
+  if (iso != null) return iso;
+
+  /*
+   * Several views hand dates back already formatted rather than as a date:
+   * the `visitor` view selects CONVERT(varchar, in_date, 106), which is
+   * "25 Aug 2026". tryParse returns null for that, so every screen reading
+   * one of those views rendered a dash where the date should be — the gate
+   * log showed "In —" against every entry.
+   */
+  final match = _style106.firstMatch(s);
+  if (match == null) return null;
+
+  final month = _monthNames[match.group(2)!.toLowerCase().substring(0, 3)];
+  if (month == null) return null;
+
+  return DateTime(
+    int.parse(match.group(3)!),
+    month,
+    int.parse(match.group(1)!),
+  );
 }
 
 /// Rows come back from `sp_*` with whatever casing the procedure used. Models

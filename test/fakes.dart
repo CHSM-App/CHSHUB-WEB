@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:secretary_app/domain/models/auth_requests.dart';
@@ -151,6 +153,177 @@ RowList sampleRows() => RowList.fromJson({
 
 RowList emptyRows() => const RowList();
 
+/// Gate entries in all three states the visitors screen splits on.
+///
+/// sp_Visitor stamps `in_date`/`in_time` on arrival and `out_time` on the way
+/// out, so the three are told apart by which of those are set: expected has
+/// neither, inside has the first pair only, left has both.
+///
+/// The dates are strings, not ISO timestamps, because that is what arrives:
+/// the `visitor` view selects CONVERT(varchar, in_date, 106) — "25 Aug 2026" —
+/// and the time as CONVERT(varchar(15), CAST(in_time AS TIME), 100), a time of
+/// day with no date on it. Held as ISO here, the tests would pass against a
+/// shape the app never actually sees.
+RowList visitorRows() => RowList.fromJson({
+  'items': [
+    {
+      'visitor_id': 1,
+      'v_name': 'Ramesh Pawar',
+      'type': 'Guest',
+      'contact_no': '9876500011',
+      'flat_no': '101',
+      'build_wing': 'Ganesh Bhavan A',
+      'in_date': '25 Aug 2026',
+      'in_time': '9:30AM',
+    },
+    {
+      'visitor_id': 2,
+      'v_name': 'Swiggy Delivery',
+      'type': 'Delivery',
+      'contact_no': '9876500022',
+      'flat_no': '204',
+      'build_wing': 'Ganesh Bhavan B',
+      'in_date': '25 Aug 2026',
+      'in_time': '10:15AM',
+      // Stamped out, so this one has left.
+      'out_date': '25 Aug 2026',
+      'out_time': '10:40AM',
+    },
+    {
+      'visitor_id': 3,
+      'v_name': 'Anita Deshmukh',
+      'type': 'Guest',
+      'contact_no': '9876500033',
+      'flat_no': '9',
+      'build_wing': 'Shiv Kunj A',
+      // No in_date: registered ahead of arrival, still expected.
+      //
+      // in_time is set even so — sp_Visitor's insert writes it as getdate()
+      // for every visitor, so it records when the row was made rather than
+      // when anyone arrived. Only in_date stays null until they turn up.
+      'in_time': '11:00AM',
+      'pre_date': '26 Aug 2026',
+    },
+    {
+      'visitor_id': 4,
+      'v_name': 'Prakash Jadhav',
+      'type': 'Service',
+      'contact_no': '9876500044',
+      'flat_no': '101',
+      'build_wing': 'Ganesh Bhavan A',
+      // Stamped out but never stamped in — three real rows look like this.
+      // Being checked out proves they came, so Left has to win over Expected
+      // or the same visitor is counted twice.
+      'in_time': '2:00PM',
+      'out_date': '25 Aug 2026',
+      'out_time': '4:20PM',
+    },
+  ],
+  'count': 4,
+});
+
+/// Notices in the states the board splits on: still showing, ended, and one
+/// with no end date at all.
+///
+/// The valid_to dates are relative to today rather than fixed, because the
+/// screen decides Active from DateTime.now(): a hardcoded 2026 date would
+/// pass this year and silently flip to Expired later, turning the test into
+/// one that reports on the calendar rather than the code.
+/// Certificates in the two states the list chips on: one still valid and one
+/// whose end date has passed. Dated relative to today for the same reason the
+/// notices are — a fixed date would flip the test's meaning next year.
+RowList nocCertificateRows() {
+  final today = DateTime.now();
+  String iso(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-'
+      '${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
+
+  return RowList.fromJson({
+    'items': [
+      {
+        'noc_id': 1,
+        'serial_no': 'NOC/2026/00001',
+        'noc_type': 'SaleTransfer',
+        'clause':
+            'to the sale and transfer of the said flat by the member, and '
+            'holds no claim, charge or lien over the said flat.',
+        'member_name': 'Rahul Sharma',
+        'flat_no': 'A-1203',
+        'building_name': 'Building A',
+        'purpose': 'Visa Application',
+        'issued_on': iso(today.subtract(const Duration(days: 3))),
+        'valid_till': iso(today.add(const Duration(days: 300))),
+      },
+      {
+        'noc_id': 2,
+        'serial_no': 'NOC/2026/00002',
+        'noc_type': 'Other',
+        'custom_title': 'Pet ownership NOC',
+        'clause': 'to the member keeping a pet in the said flat.',
+        'member_name': 'Meera Joshi',
+        'flat_no': 'B-402',
+        'building_name': 'Building B',
+        // Lapsed last week.
+        'issued_on': iso(today.subtract(const Duration(days: 400))),
+        'valid_till': iso(today.subtract(const Duration(days: 7))),
+      },
+    ],
+    'count': 2,
+  });
+}
+
+RowList noticeRows() {
+  final today = DateTime.now();
+  String iso(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-'
+      '${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
+
+  return RowList.fromJson({
+    'items': [
+      {
+        'notice_id': 1,
+        'name': 'Water tank cleaning',
+        'description': 'Supply is off on Sunday from 9am to 2pm.',
+        'date': iso(today.subtract(const Duration(days: 2))),
+        'valid_to': iso(today.add(const Duration(days: 5))),
+        'recipients_id': 3,
+      },
+      {
+        'notice_id': 2,
+        'name': 'Diwali lighting',
+        'description': 'Committee will put the lights up on Saturday.',
+        'date': iso(today.subtract(const Duration(days: 40))),
+        // Ended last week.
+        'valid_to': iso(today.subtract(const Duration(days: 7))),
+        'recipients_id': 1,
+      },
+      {
+        'notice_id': 3,
+        'name': 'Society office hours',
+        'description': 'Open 10am to 6pm on weekdays.',
+        'date': iso(today.subtract(const Duration(days: 90))),
+        // No valid_to: a standing notice that never expires, which is what
+        // the website's blank "Valid until" writes.
+        'recipients_id': 5,
+      },
+    ],
+    'count': 3,
+  });
+}
+
+/// The audience groups, as sp_notice_master/GetAllRecipients returns them.
+RowList noticeRecipientRows() => RowList.fromJson({
+  'items': [
+    {'recipients_id': 1, 'recipients': 'Owners'},
+    {'recipients_id': 2, 'recipients': 'Tenants'},
+    {'recipients_id': 3, 'recipients': 'Owners and Tenants'},
+    {'recipients_id': 4, 'recipients': 'Members'},
+  ],
+  'count': 4,
+});
+
 // ── Fakes ────────────────────────────────────────────────────────────────
 
 class FakeAuthRepository implements AuthRepository {
@@ -182,8 +355,43 @@ class FakeAuthRepository implements AuthRepository {
   @override
   Future<void> forgotPassword(ForgotPasswordRequest request) async {}
 
+  /// Mirrors the route: the change revokes the account's other sessions and
+  /// hands this device a replacement pair.
   @override
-  Future<void> changePassword(ChangePasswordRequest request) async {}
+  Future<TokenResponse?> changePassword(ChangePasswordRequest request) async =>
+      request.refreshToken == null
+      ? null
+      : const TokenResponse(
+          accessToken: 'access-after-change',
+          refreshToken: 'refresh-after-change',
+        );
+
+  /// Answers a path shaped like the uploader's, without touching the disk.
+  @override
+  Future<String> uploadProfilePhoto(File file) async =>
+      'profile-photos/test-photo.png';
+
+  /// Echoes the edit back the way the real repository does — it re-reads
+  /// /auth/me after saving, so the caller receives the stored user rather than
+  /// the request it sent.
+  @override
+  Future<User> updateProfile(UpdateProfileRequest request) async {
+    final base = await me();
+    return User.fromJson({
+      ...base.toJson(),
+      // '' means "removed" on this endpoint, so it maps to a null photo rather
+      // than to an empty path.
+      if (request.photoPath != null)
+        'photo_path': request.photoPath!.isEmpty ? null : request.photoPath,
+      'name': [
+        request.firstName,
+        if (request.lastName != null) request.lastName,
+      ].join(' ').trim(),
+      'username': request.username,
+      'email': request.email,
+      'contact_no': request.contactNo,
+    });
+  }
 }
 
 class FakeDashboardRepository implements DashboardRepository {
@@ -378,31 +586,130 @@ class FakeAccountsRepository implements AccountsRepository {
 
 class FakeCommunityRepository implements CommunityRepository {
   @override
-  Future<RowList> getHelpdeskTickets({String? search}) async => sampleRows();
+  Future<RowList> getHelpdeskTickets() async => sampleRows();
+
+  @override
+  Future<Map<String, dynamic>> getHelpdeskLookups() async => {
+    // As sp_usefull_contact's ComplaintType branch names them — including the
+    // guidance column, which the database spells `decription`.
+    'categories': [
+      {
+        'c_type_id': 1,
+        'c_type_name': 'Maintenance Issues',
+        'decription':
+            'Water leakage, plumbing problems, electrical faults, lift '
+            'malfunction, etc.',
+      },
+      {
+        'c_type_id': 2,
+        'c_type_name': 'Cleanliness and Sanitation',
+        'decription':
+            'Unclean common areas, irregular garbage collection, pest '
+            'control issues.',
+      },
+      // The branch returns a trailing all-null row, which the picker drops
+      // rather than offering as a blank choice.
+      {'c_type_id': null, 'c_type_name': null, 'decription': null},
+    ],
+    // As sp_flat_master's Grid_Show branch names them — the `flat` view, which
+    // returns the building as `name`, the wing as `w_name`, and the two joined
+    // as `build_wing`. All three are carried here because the pickers group by
+    // the building and label by the wing, and a row missing either falls back
+    // silently rather than failing.
+    //
+    // Deliberately out of order, spanning two buildings, and with two wings in
+    // one of them, so a test can tell the picker groups, filters and sorts.
+    'flats': [
+      {
+        'flat_id': 7,
+        'flat_no': '10',
+        'name': 'Ganesh Bhavan',
+        'w_name': 'A',
+        'build_wing': 'Ganesh Bhavan A',
+      },
+      {
+        'flat_id': 8,
+        'flat_no': '2',
+        'name': 'Shiv Kunj',
+        'w_name': 'A',
+        'build_wing': 'Shiv Kunj A',
+      },
+      {
+        'flat_id': 5,
+        'flat_no': '9',
+        'name': 'Ganesh Bhavan',
+        'w_name': 'A',
+        'build_wing': 'Ganesh Bhavan A',
+      },
+      // A second wing of the first building, running its own flat 9 — the case
+      // that makes a bare flat number ambiguous.
+      {
+        'flat_id': 9,
+        'flat_no': '9',
+        'name': 'Ganesh Bhavan',
+        'w_name': 'B',
+        'build_wing': 'Ganesh Bhavan B',
+      },
+    ],
+  };
+
+  /// The tickets raised through the form, so a test can assert one was sent.
+  final List<HelpdeskCreateRequest> createdHelpdeskTickets = [];
+
+  /// The photos attached, keyed by the ticket they went to.
+  final Map<int, List<File>> attachedHelpdeskImages = {};
+
+  @override
+  Future<int?> createHelpdeskTicket(HelpdeskCreateRequest request) async {
+    createdHelpdeskTickets.add(request);
+    return 7;
+  }
+
+  @override
+  Future<void> attachHelpdeskImages(int helpdeskId, List<File> files) async {
+    attachedHelpdeskImages.putIfAbsent(helpdeskId, () => []).addAll(files);
+  }
 
   @override
   Future<RowList> getHelpdeskStatuses() async => sampleRows();
 
+  /// The thread the server would hold, so a fetch after a post returns the
+  /// posted reply — which is what makes a missing refetch visible to a test.
+  final List<Map<String, dynamic>> helpdeskComments = [];
+
+  /// Counts fetches of the detail, so a test can assert one happened.
+  int helpdeskTicketFetches = 0;
+
   @override
-  Future<Map<String, dynamic>> getHelpdeskTicket(int id) async => {
-    'ticket': {'title': 'Leaking tap', 'status': 1},
-    'comments': <dynamic>[],
-  };
+  Future<Map<String, dynamic>> getHelpdeskTicket(int id) async {
+    helpdeskTicketFetches++;
+    return {
+      'ticket': {'title': 'Leaking tap', 'status': helpdeskStatus},
+      'comments': [...helpdeskComments],
+    };
+  }
+
+  /// The status last written, echoed back by the detail fetch.
+  int helpdeskStatus = 1;
 
   @override
   Future<void> updateHelpdeskStatus(
     int id,
     HelpdeskStatusRequest request,
-  ) async {}
+  ) async {
+    helpdeskStatus = request.status;
+  }
 
   @override
   Future<void> addHelpdeskComment(
     int id,
     HelpdeskCommentRequest request,
-  ) async {}
+  ) async {
+    helpdeskComments.add({'description': request.comment, 'type': 'admin'});
+  }
 
   @override
-  Future<RowList> getVisitors({String? search}) async => sampleRows();
+  Future<RowList> getVisitors({String? search}) async => visitorRows();
 
   @override
   Future<void> createVisitor(VisitorRequest request) async {}
@@ -414,19 +721,50 @@ class FakeCommunityRepository implements CommunityRepository {
   Future<void> deleteVisitor(int id) async {}
 
   @override
-  Future<RowList> getNotices({String? search}) async => sampleRows();
+  Future<RowList> getNotices({String? search}) async => noticeRows();
 
   @override
-  Future<RowList> getNoticeRecipients() async => sampleRows();
+  Future<RowList> getNoticeRecipients() async => noticeRecipientRows();
 
   @override
-  Future<void> createNotice(NoticeRequest request) async {}
+  Future<Map<String, dynamic>> createNotice(NoticeRequest request) async =>
+      createNoticeReply;
+
+  /// What POST /community/notices answered. Overridden per test to stand in
+  /// for a push that reached everyone, nobody, or a group with no one in it.
+  Map<String, dynamic> createNoticeReply = const {
+    'notice_id': 9,
+    'notified': {'sent': 12, 'failed': 0, 'recipients': 12, 'pushable': 12},
+  };
 
   @override
   Future<void> updateNotice(int id, NoticeRequest request) async {}
 
   @override
   Future<void> deleteNotice(int id) async {}
+
+  @override
+  Future<RowList> getNocCertificates({String? search}) async => nocRows;
+
+  /// What GET /community/noc answered.
+  RowList nocRows = nocCertificateRows();
+
+  @override
+  Future<Map<String, dynamic>> createNocCertificate(NocRequest request) async =>
+      createNocReply;
+
+  /// What POST /community/noc answered — the id and the serial the server
+  /// allocated, which the form could not know in advance.
+  Map<String, dynamic> createNocReply = const {
+    'noc_id': 7,
+    'serial_no': 'NOC/2026/00007',
+  };
+
+  @override
+  Future<void> updateNocCertificate(int id, NocRequest request) async {}
+
+  @override
+  Future<void> deleteNocCertificate(int id) async {}
 
   @override
   Future<RowList> getFacilities() async => sampleRows();
@@ -450,20 +788,218 @@ class FakeCommunityRepository implements CommunityRepository {
   Future<RowList> getMessages() async => sampleRows();
 
   @override
-  Future<RowList> getPolls() async => sampleRows();
+  Future<void> markMessageRead(int id) async {}
+
+  @override
+  Future<RowList> getPolls() async => pollRows();
+
+  @override
+  Future<RowList> getPollVotes(int id) async => pollOptionRows();
+
+  /// Votes cast through the fake, as (pollId, optionId) pairs.
+  final List<({int pollId, int optionId})> votesCast = [];
+
+  /// Set to make the next vote fail, as sp_PollVoting's refusals do.
+  String? voteError;
+
+  @override
+  Future<void> votePoll(int id, int optionId) async {
+    if (voteError != null) throw Exception(voteError);
+    votesCast.add((pollId: id, optionId: optionId));
+  }
+
+  @override
+  Future<Map<String, dynamic>> createPoll(PollRequest request) async =>
+      createPollReply;
+
+  /// What POST /community/polls answered. `notified` is a plain count here,
+  /// not the `{sent, recipients, …}` summary a notice returns — the route
+  /// pushes best-effort and reports only a total.
+  Map<String, dynamic> createPollReply = const {
+    'PollId': 4,
+    'options': ['Yes', 'No'],
+    'notified': 12,
+  };
+
+  @override
+  Future<void> deletePoll(int id) async {}
 
   @override
   Future<RowList> getSuggestions({String? search}) async => sampleRows();
 
   @override
-  Future<RowList> getEvents({String? search}) async => sampleRows();
+  Future<void> createSuggestion(SuggestionRequest request) async {}
 
   @override
-  Future<RowList> getMeetings({String? search}) async => sampleRows();
+  Future<void> updateSuggestion(int id, SuggestionRequest request) async {}
 
   @override
-  Future<RowList> getDocuments({String? search}) async => sampleRows();
+  Future<void> deleteSuggestion(int id) async {}
 
   @override
-  Future<RowList> getNotifications() async => sampleRows();
+  Future<RowList> getEvents({String? search}) async => eventRows();
+
+  @override
+  Future<Map<String, dynamic>> createEvent(EventRequest request) async =>
+      createEventReply;
+
+  /// What POST /community/events answered, in the same shape a notice
+  /// returns — tests override it to stand in for a wider or emptier push.
+  Map<String, dynamic> createEventReply = const {
+    'event_id': 7,
+    'notified': {'sent': 12, 'failed': 0, 'recipients': 12, 'pushable': 12},
+  };
+
+  @override
+  Future<void> updateEvent(int id, EventRequest request) async {}
+
+  @override
+  Future<void> deleteEvent(int id) async {}
+
+  @override
+  Future<RowList> getMeetings({String? search}) async => meetingRows();
+
+  @override
+  Future<Map<String, dynamic>> createMeeting(MeetingRequest request) async =>
+      createMeetingReply;
+
+  Map<String, dynamic> createMeetingReply = const {
+    'meet_id': 5,
+    'notified': {'sent': 12, 'failed': 0, 'recipients': 12, 'pushable': 12},
+  };
+
+  @override
+  Future<void> updateMeeting(int id, MeetingRequest request) async {}
+
+  @override
+  Future<void> deleteMeeting(int id) async {}
+
+  @override
+  /// Two unseen alerts, shaped as sp_dashboard's Notification branch sends
+  /// them — `notify_status_id` is the key the bell marks read.
+  @override
+  Future<RowList> getNotifications() async => const RowList(
+    items: [
+      {
+        'notify_status_id': 501,
+        'notification_type': 'Helpdesk',
+        'title': 'New community complaint',
+        'body': 'The lift is out.',
+        'timestamp': '2 hours ago',
+      },
+      {
+        'notify_status_id': 502,
+        'notification_type': 'Notice',
+        'title': 'Water supply',
+        'body': 'Tanker arriving at 4pm.',
+        'timestamp': 'yesterday',
+      },
+    ],
+    count: 2,
+  );
+
+  /// The alerts marked read, so a test can assert the bell cleared one.
+  final List<int> seenNotifications = [];
+
+  @override
+  Future<void> markNotificationSeen(int id) async {
+    seenNotifications.add(id);
+  }
 }
+
+/// Meetings either side of today, so the Upcoming/Past filter has both.
+///
+/// Dates are relative for the same reason the notices' are: the screen decides
+/// past from DateTime.now(), and a fixed date would flip the test's meaning
+/// once the calendar caught up with it.
+RowList meetingRows() {
+  final today = DateTime.now();
+  return RowList.fromJson({
+    'items': [
+      {
+        'meet_id': 1,
+        'subject': 'Monthly committee meeting',
+        'details': 'Accounts review and the lift quotation.',
+        'meeting_date': _iso(today.add(const Duration(days: 6))),
+        'meeting_time': '18:30',
+      },
+      {
+        'meet_id': 2,
+        'subject': 'Annual general body',
+        'details': 'Budget approval for the coming year.',
+        'meeting_date': _iso(today.subtract(const Duration(days: 21))),
+        'meeting_time': '11:00',
+      },
+    ],
+    'count': 2,
+  });
+}
+
+/// Events either side of today, matching sp_event_master's column names.
+RowList eventRows() {
+  final today = DateTime.now();
+  return RowList.fromJson({
+    'items': [
+      {
+        'event_id': 1,
+        'event_name': 'Ganesh Utsav',
+        'description': 'Ten days in the society hall.',
+        'from_date': _iso(today.add(const Duration(days: 12))),
+        'to_date': _iso(today.add(const Duration(days: 22))),
+      },
+      {
+        'event_id': 2,
+        'event_name': 'Summer clean-up drive',
+        'description': 'Terrace and parking, volunteers welcome.',
+        'from_date': _iso(today.subtract(const Duration(days: 60))),
+        'to_date': _iso(today.subtract(const Duration(days: 60))),
+      },
+    ],
+    'count': 2,
+  });
+}
+
+String _iso(DateTime d) =>
+    '${d.year.toString().padLeft(4, '0')}-'
+    '${d.month.toString().padLeft(2, '0')}-'
+    '${d.day.toString().padLeft(2, '0')}';
+
+/// Polls either side of their closing date, so open and closed both render.
+///
+/// Column names are sp_polls/GetPolls's own — PascalCase, unlike the snake_case
+/// the community procedures use.
+RowList pollRows() {
+  final today = DateTime.now();
+  return RowList.fromJson({
+    'items': [
+      {
+        'PollId': 1,
+        'Topic': 'Paint the building this year?',
+        'Description': 'Quotes are in from three contractors.',
+        'ExpiryDate': _iso(today.add(const Duration(days: 9))),
+        'TotalVotes': 14,
+      },
+      {
+        'PollId': 2,
+        'Topic': 'Gym equipment for the clubhouse',
+        'Description': 'Voting closed last month.',
+        'ExpiryDate': _iso(today.subtract(const Duration(days: 30))),
+        'TotalVotes': 22,
+      },
+    ],
+    'count': 2,
+  });
+}
+
+/// The options on a poll, as GET /community/polls/:id/votes answers them.
+///
+/// `isSelected` marks the option this user voted for, and the counts do not
+/// divide evenly — 7 of 12 is 58%, which catches a card that rounds or sums
+/// wrongly better than a tidy half would.
+RowList pollOptionRows() => RowList.fromJson({
+  'items': [
+    {'OptionId': 1, 'text': 'Yes, go ahead', 'votes': 7, 'isSelected': true},
+    {'OptionId': 2, 'text': 'No, wait a year', 'votes': 5, 'isSelected': false},
+  ],
+  'count': 2,
+});

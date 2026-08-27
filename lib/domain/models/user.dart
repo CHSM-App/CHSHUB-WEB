@@ -1,5 +1,6 @@
 import 'package:json_annotation/json_annotation.dart';
 
+import '../../core/constant.dart';
 import 'json_utils.dart';
 
 part 'user.g.dart';
@@ -48,6 +49,14 @@ class User {
   @JsonKey(name: 'contact_no', fromJson: asString)
   final String? contactNo;
 
+  /// Profile photo, as a path under the uploads tree —
+  /// 'profile-photos/1739-42.png'. Null when the account has no photo.
+  ///
+  /// Relative rather than absolute so a change of API host does not strand
+  /// every stored avatar; [photoUrl] builds the URL to fetch it from.
+  @JsonKey(name: 'photo_path')
+  final String? photoPath;
+
   const User({
     this.userId,
     this.name,
@@ -62,9 +71,20 @@ class User {
     this.ownerId,
     this.email,
     this.contactNo,
+    this.photoPath,
   });
 
   factory User.fromJson(Map<String, dynamic> json) => _$UserFromJson(json);
 
   Map<String, dynamic> toJson() => _$UserToJson(this);
+
+  /// Where to fetch [photoPath] from, or null when there is no photo.
+  ///
+  /// The uploader serves files back at `/uploads/file/<category>/<name>`, and
+  /// photo_path already carries the category, so the two simply concatenate.
+  String? get photoUrl {
+    final path = photoPath;
+    if (path == null || path.trim().isEmpty) return null;
+    return '$baseUrl$webApiPrefix/uploads/file/$path';
+  }
 }

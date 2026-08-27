@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme/app_theme.dart';
 import '../core/theme/responsive.dart';
+import '../presentation/providers/viewmodel_provider.dart';
+import '../presentation/viewModels/community_viewmodel.dart';
 import '../widgets/app_widgets.dart';
+import '../widgets/secretary_app_bar.dart';
+import 'community/notifications_screen.dart';
+import 'profile/profile_screen.dart';
 
 /// An entry on a hub screen.
 class HubEntry {
@@ -32,7 +38,7 @@ class HubEntry {
 /// On a phone the entries are full-width rows; once there is width they become
 /// a grid of cards, because a single column of rows across a desktop window is
 /// mostly empty space.
-class HubScaffold extends StatelessWidget {
+class HubScaffold extends ConsumerWidget {
   const HubScaffold({
     super.key,
     required this.title,
@@ -45,11 +51,39 @@ class HubScaffold extends StatelessWidget {
   final List<HubEntry> entries;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final phone = Breakpoints.isPhone(context);
+    final user = ref.watch(authViewModelProvider).user;
+    final unread = ref
+        .watch(communityViewModelProvider)
+        .items(CommunityKeys.notifications)
+        .length;
 
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      // The same bar the dashboard shows, greeting included. These are the
+      // other three bottom-bar destinations, and a flat titled AppBar on them
+      // made switching tabs look like leaving the app — the gradient, the bell
+      // and the avatar all disappeared. The bar is the one thing that must not
+      // change between tabs, so the greeting is built the same way here rather
+      // than swapped for the section name; the section is already named by the
+      // selected item in the bottom bar and by the intro under the bar.
+      appBar: SecretaryAppBar(
+        greeting:
+            'Hello, ${user?.name ?? 'there'} '
+            '(${user?.userType ?? 'Secretary'})',
+        avatarName: user?.name,
+        avatarPhotoUrl: user?.photoUrl,
+        subtitle: user?.societyName ?? 'Society',
+        notificationCount: unread,
+        onNotifications: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+        ),
+        onAvatar: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ProfileScreen()),
+        ),
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.only(bottom: 110),
@@ -58,11 +92,19 @@ class HubScaffold extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // The section name, which used to be the app bar's title.
+                  // The bar now carries the same greeting on every tab, so the
+                  // page has to say which section this is — and as a heading on
+                  // the page it can be read at a size the bar had no room for.
                   Padding(
                     padding: const EdgeInsets.only(
-                      top: AppTheme.space1,
-                      bottom: AppTheme.space5,
+                      top: AppTheme.space4,
+                      bottom: AppTheme.space2,
                     ),
+                    child: Text(title, style: AppTheme.headline),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: AppTheme.space5),
                     child: Text(intro, style: AppTheme.body2),
                   ),
                   if (phone)

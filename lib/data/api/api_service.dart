@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
@@ -56,6 +58,22 @@ abstract class ApiService {
 
   @POST('onboarding/change-password')
   Future<dynamic> changePassword(@Body() ChangePasswordRequest request);
+
+  /// Edit your own account. Answers `{ profile: {...} }` in the legacy
+  /// profile modal's shape, not a User — AuthImpl re-reads /auth/me rather
+  /// than trying to map it.
+  @PUT('onboarding/profile')
+  Future<dynamic> updateProfile(@Body() UpdateProfileRequest request);
+
+  /// Store a profile photo, returning the path to save against the account.
+  ///
+  /// Two steps, as the helpdesk uploader is: this writes the file and hands
+  /// back its path, and the path then goes to PUT /onboarding/profile. The
+  /// endpoint takes a list because the shared uploader does; a profile sends
+  /// exactly one.
+  @MultiPart()
+  @POST('uploads/profile-photos')
+  Future<dynamic> uploadProfilePhoto(@Part(name: 'files') List<File> files);
 
   // =========================================================================
   // DASHBOARD & REPORTS
@@ -294,11 +312,32 @@ abstract class ApiService {
   // COMMUNITY - HELPDESK
   // =========================================================================
 
+  /// The whole list. sp_helpdesk's GetTickets branch takes no search term, so
+  /// the screen filters what it has — as the website's grid does.
   @GET('community/helpdesk')
-  Future<RowList> getHelpdeskTickets(@Query('search') String? search);
+  Future<RowList> getHelpdeskTickets();
 
   @GET('community/helpdesk/statuses')
   Future<RowList> getHelpdeskStatuses();
+
+  /// The complaint categories and the flats a complaint can be raised for.
+  @GET('community/helpdesk/lookups')
+  Future<dynamic> getHelpdeskLookups();
+
+  @POST('community/helpdesk')
+  Future<dynamic> createHelpdeskTicket(@Body() HelpdeskCreateRequest request);
+
+  /// Store photos, returning the paths to record against a ticket.
+  ///
+  /// Two steps rather than one: /uploads writes the files and hands back their
+  /// paths, and the caller then attaches each to a record. The same uploader
+  /// serves every category, so nothing here is helpdesk-specific.
+  @MultiPart()
+  @POST('uploads/helpdesk')
+  Future<dynamic> uploadHelpdeskImages(@Part(name: 'files') List<File> files);
+
+  @POST('uploads/record/helpdesk-image')
+  Future<dynamic> recordHelpdeskImage(@Body() HelpdeskImageRequest request);
 
   @GET('community/helpdesk/{id}')
   Future<dynamic> getHelpdeskTicket(@Path('id') int id);
@@ -364,6 +403,25 @@ abstract class ApiService {
   Future<dynamic> deleteNotice(@Path('id') int id);
 
   // =========================================================================
+  // COMMUNITY - NOC CERTIFICATES
+  // =========================================================================
+
+  @GET('community/noc')
+  Future<RowList> getNocCertificates(@Query('search') String? search);
+
+  @POST('community/noc')
+  Future<dynamic> createNocCertificate(@Body() NocRequest request);
+
+  @PUT('community/noc/{id}')
+  Future<dynamic> updateNocCertificate(
+    @Path('id') int id,
+    @Body() NocRequest request,
+  );
+
+  @DELETE('community/noc/{id}')
+  Future<dynamic> deleteNocCertificate(@Path('id') int id);
+
+  // =========================================================================
   // COMMUNITY - FACILITY BOOKINGS
   // =========================================================================
 
@@ -406,7 +464,16 @@ abstract class ApiService {
   Future<RowList> getPollVotes(@Path('id') int id);
 
   @POST('community/polls')
-  Future<dynamic> createPoll(@Body() Map<String, dynamic> body);
+  Future<dynamic> createPoll(@Body() PollRequest request);
+
+  /// Cast a vote on one option. The rules (one vote per flat, whether multiple
+  /// votes are allowed) live in sp_PollVoting, so a refusal comes back as a
+  /// 400 carrying its message rather than being judged here.
+  @POST('community/polls/{id}/vote')
+  Future<dynamic> votePoll(
+    @Path('id') int id,
+    @Body() Map<String, dynamic> body,
+  );
 
   @DELETE('community/polls/{id}')
   Future<dynamic> deletePoll(@Path('id') int id);
@@ -418,12 +485,12 @@ abstract class ApiService {
   Future<dynamic> getSuggestion(@Path('id') int id);
 
   @POST('community/suggestions')
-  Future<dynamic> createSuggestion(@Body() Map<String, dynamic> body);
+  Future<dynamic> createSuggestion(@Body() SuggestionRequest request);
 
   @PUT('community/suggestions/{id}')
   Future<dynamic> updateSuggestion(
     @Path('id') int id,
-    @Body() Map<String, dynamic> body,
+    @Body() SuggestionRequest request,
   );
 
   @DELETE('community/suggestions/{id}')
@@ -433,12 +500,12 @@ abstract class ApiService {
   Future<RowList> getEvents(@Query('search') String? search);
 
   @POST('community/events')
-  Future<dynamic> createEvent(@Body() Map<String, dynamic> body);
+  Future<dynamic> createEvent(@Body() EventRequest request);
 
   @PUT('community/events/{id}')
   Future<dynamic> updateEvent(
     @Path('id') int id,
-    @Body() Map<String, dynamic> body,
+    @Body() EventRequest request,
   );
 
   @DELETE('community/events/{id}')
@@ -448,22 +515,16 @@ abstract class ApiService {
   Future<RowList> getMeetings(@Query('search') String? search);
 
   @POST('community/meetings')
-  Future<dynamic> createMeeting(@Body() Map<String, dynamic> body);
+  Future<dynamic> createMeeting(@Body() MeetingRequest request);
 
   @PUT('community/meetings/{id}')
   Future<dynamic> updateMeeting(
     @Path('id') int id,
-    @Body() Map<String, dynamic> body,
+    @Body() MeetingRequest request,
   );
 
   @DELETE('community/meetings/{id}')
   Future<dynamic> deleteMeeting(@Path('id') int id);
-
-  @GET('community/documents')
-  Future<RowList> getDocuments(@Query('search') String? search);
-
-  @DELETE('community/documents/{id}')
-  Future<dynamic> deleteDocument(@Path('id') int id);
 
   // ===== NOTIFICATIONS =====
 

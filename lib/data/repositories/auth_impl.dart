@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import '../../domain/models/auth_requests.dart';
 import '../../domain/models/json_utils.dart';
 import '../../domain/models/token_response.dart';
@@ -45,8 +47,37 @@ class AuthImpl implements AuthRepository {
     return apiService.forgotPassword(request);
   }
 
+  /// Changing the password revokes every other session for this account, so
+  /// the route answers with a fresh pair for *this* device — see
+  /// backend/web/routes/onboarding.js. `session` is null when no refresh token
+  /// was sent, meaning this device was signed out too.
   @override
-  Future<void> changePassword(ChangePasswordRequest request) {
-    return apiService.changePassword(request);
+  Future<TokenResponse?> changePassword(ChangePasswordRequest request) async {
+    final payload = asRow(await apiService.changePassword(request));
+    final session = payload['session'];
+    if (session == null) return null;
+    return TokenResponse.fromJson(asRow(session));
+  }
+
+  @override
+  Future<String> uploadProfilePhoto(File file) async {
+    final stored = asRows(
+      asRow(await apiService.uploadProfilePhoto([file]))['items'],
+    );
+    final path = stored.isEmpty ? null : stored.first['path'];
+    if (path is! String || path.isEmpty) {
+      throw Exception('The photo was uploaded but no path came back.');
+    }
+    return path;
+  }
+
+  @override
+  Future<User> updateProfile(UpdateProfileRequest request) async {
+    await apiService.updateProfile(request);
+    // The route answers the legacy profile modal's shape — flat name/username
+    // fields, no society or user_type — which is not a User. Re-reading
+    // /auth/me is what returns the whole signed-in user, so the caller can put
+    // it straight into state and every screen sees the edit at once.
+    return me();
   }
 }

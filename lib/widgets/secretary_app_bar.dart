@@ -15,6 +15,7 @@ class SecretaryAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.greeting,
     required this.subtitle,
     this.avatarName,
+    this.avatarPhotoUrl,
     this.notificationCount = 0,
     this.onNotifications,
     this.onAvatar,
@@ -32,6 +33,9 @@ class SecretaryAppBar extends StatelessWidget implements PreferredSizeWidget {
   /// "Hello, Pallavi (Secretary)" picks up the bracketed role and gets them
   /// wrong. Falls back to parsing the greeting when not given.
   final String? avatarName;
+
+  /// The signed-in user's photo, shown in place of the initials when set.
+  final String? avatarPhotoUrl;
 
   /// The society below it. Tappable when [onSubtitleTap] is given, which is
   /// where CHSHUB puts its unit switcher.
@@ -78,7 +82,11 @@ class SecretaryAppBar extends StatelessWidget implements PreferredSizeWidget {
       titleSpacing: leading != null ? 0 : 20,
       actions: [
         _NotificationBell(count: notificationCount, onPressed: onNotifications),
-        _Avatar(source: avatarName ?? greeting, onTap: onAvatar),
+        _Avatar(
+          source: avatarName ?? greeting,
+          onTap: onAvatar,
+          photoUrl: avatarPhotoUrl,
+        ),
         const SizedBox(width: AppTheme.space4),
       ],
       bottom: bottom,
@@ -203,37 +211,61 @@ class _NotificationBell extends StatelessWidget {
 }
 
 class _Avatar extends StatelessWidget {
-  const _Avatar({required this.source, this.onTap});
+  const _Avatar({required this.source, this.onTap, this.photoUrl});
 
   /// A plain name, or the greeting to pull one out of.
   final String source;
   final VoidCallback? onTap;
 
+  /// The account's photo. Initials stand in when there is none, and also when
+  /// the photo fails to load — a broken image in the app bar would follow the
+  /// user onto every screen.
+  final String? photoUrl;
+
+  static const double _size = 38;
+
   @override
   Widget build(BuildContext context) {
+    final url = photoUrl;
+
     return Padding(
       padding: const EdgeInsets.only(left: 2),
       child: InkWell(
         onTap: onTap,
         customBorder: const CircleBorder(),
         child: Container(
-          height: 38,
-          width: 38,
+          height: _size,
+          width: _size,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: Colors.white24,
             shape: BoxShape.circle,
             border: Border.all(color: Colors.white30),
           ),
-          child: Text(
-            _initials(source),
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: AppTheme.white,
-            ),
-          ),
+          clipBehavior: Clip.antiAlias,
+          child: url == null
+              ? _initialsText()
+              : Image.network(
+                  url,
+                  fit: BoxFit.cover,
+                  width: _size,
+                  height: _size,
+                  errorBuilder: (_, _, _) => _initialsText(),
+                  loadingBuilder: (context, child, progress) =>
+                      progress == null ? child : _initialsText(),
+                ),
         ),
+      ),
+    );
+  }
+
+  Widget _initialsText() {
+    return Text(
+      _initials(source),
+      style: const TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        color: AppTheme.white,
       ),
     );
   }

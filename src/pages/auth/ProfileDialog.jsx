@@ -30,10 +30,19 @@ const PROFILE_FIELDS = [
 ];
 
 export default function ProfileDialog({ open, onClose }) {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [form, setForm] = useState(null);
   const [role, setRole] = useState('');
+  // Two pieces, deliberately: photoUrl is what the <img> renders, photoPath is
+  // what the save posts. The uploader returns both and they are not
+  // interchangeable — posting the URL would store an absolute path that breaks
+  // the moment the API host changes.
   const [photoUrl, setPhotoUrl] = useState(null);
+  // undefined = untouched this session, so the save omits it and the stored
+  // photo is left alone. A string replaces it; '' removes it.
+  const [photoPath, setPhotoPath] = useState(undefined);
+  // Set while the photo is open full size.
+  const [viewing, setViewing] = useState(false);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -76,6 +85,9 @@ export default function ProfileDialog({ open, onClose }) {
         });
         setRole(p.role ?? '');
         setPhotoUrl(p.photo_path ? `/api/web/uploads/file/${p.photo_path}` : null);
+        // Reopening starts from what the server holds, so a photo picked and
+        // then abandoned last time is not carried into this save.
+        setPhotoPath(undefined);
       })
       .catch((err) => !cancelled && setError(err));
 
@@ -104,6 +116,9 @@ export default function ProfileDialog({ open, onClose }) {
       const d = await api.post('/uploads/profile-photos', body);
       const item = d.items?.[0];
       if (item?.url) setPhotoUrl(item.url);
+      // Without this the photo uploaded and displayed but was never saved, so
+      // it vanished as soon as the dialog was reopened.
+      if (item?.path) setPhotoPath(item.path);
     } catch (err) {
       setError(err);
     } finally {
@@ -141,11 +156,21 @@ export default function ProfileDialog({ open, onClose }) {
         // Omitted entirely unless the password section is open and filled in —
         // the SP reads '' as "leave the password alone".
         ...(showPassword && form.newPassword ? { newPassword: form.newPassword } : {}),
+        // Likewise omitted unless a photo was picked or removed this session,
+        // so saving the form does not disturb a photo nobody touched.
+        ...(photoPath === undefined ? {} : { photoPath }),
       });
       const changedPassword = showPassword && Boolean(form.newPassword);
       setSaved(true);
       setShowPassword(false);
       setForm((prev) => ({ ...prev, newPassword: '', confirm: '' }));
+      // Back to "untouched" — the photo is now what the server holds, and a
+      // second save of the same form should not re-post the path.
+      setPhotoPath(undefined);
+      // The cached session still carries the old name and photo, and the header
+      // avatar reads it — without this the change only appeared after a reload.
+      // Failure here costs a stale header, not the save, so it is swallowed.
+      refreshUser().catch(() => {});
       toast.success(
         changedPassword ? 'Profile and password updated.' : 'Profile updated successfully.',
         { title: 'Saved' },
@@ -263,6 +288,36 @@ export default function ProfileDialog({ open, onClose }) {
                   >
                     {role}
                   </span>
+                ) : null}
+                {/* Removal, offered only when there is a photo to remove.
+                    Picking a new one is on the avatar itself; this is the one
+                    thing that button cannot express. */}
+                {photoUrl ? (
+                  <>
+                    {/* The avatar itself opens the picker, so viewing the photo
+                        at full size needs its own control. */}
+                    <button
+                      type="button"
+                      className="rounded-full px-3 py-1 text-xs font-medium text-slate-600 hover:text-slate-900"
+                      style={{ background: '#f1f5f9' }}
+                      onClick={() => setViewing(true)}
+                    >
+                      View photo
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-full px-3 py-1 text-xs font-medium text-slate-600 hover:text-red-700"
+                      style={{ background: '#f1f5f9' }}
+                      onClick={() => {
+                        setPhotoUrl(null);
+                        // '' is the endpoint's "remove", distinct from
+                        // undefined, which means "leave what is stored alone".
+                        setPhotoPath('');
+                      }}
+                    >
+                      Remove photo
+                    </button>
+                  </>
                 ) : null}
                 <span
                   className="truncate rounded-full px-3 py-1 text-xs font-medium text-slate-600"
@@ -427,6 +482,31 @@ export default function ProfileDialog({ open, onClose }) {
           </div>
         </form>
       )}
+
+      {/* The photo at full size. Its own overlay rather than a second Modal:
+          it sits above this dialog, and clicking anywhere closes it. */}
+      {viewing && photoUrl ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-6"
+          style={{ background: 'rgba(0,0,0,0.82)' }}
+          onClick={() => setViewing(false)}
+          role="presentation"
+        >
+          <img
+            src={photoUrl}
+            alt="Profile"
+            className="max-h-[85vh] max-w-[85vw] rounded-2xl object-contain"
+          />
+          <button
+            type="button"
+            className="absolute right-6 top-6 text-2xl leading-none text-white"
+            onClick={() => setViewing(false)}
+            aria-label="Close photo"
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
     </Modal>
   );
 }

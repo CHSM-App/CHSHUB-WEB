@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { flats } from '@/api/masters';
+import { buildings as buildingsApi, flats, wings as wingsApi } from '@/api/masters';
 import useCrudResource from './useCrudResource';
 import { ConfirmDialog, EmptyState, ErrorNotice, Field, Modal, Spinner, FormErrorSummary } from '@/components/ui.jsx';
 import {
@@ -24,7 +24,13 @@ const COLUMNS = [
   { key: 'sq_ft', label: 'Sq. ft.', sortValue: (r) => (r.sq_ft == null || r.sq_ft === '' ? null : Number(r.sq_ft)) },
 ];
 
+/*
+ * buildingId is not sent to the API — a flat is stored against its wing, and the
+ * wing already implies the building. It lives in the form only to drive the wing
+ * cascade.
+ */
 const EMPTY = {
+  buildingId: '',
   wingId: '',
   flatNo: '',
   flatTypeId: '',
@@ -48,6 +54,7 @@ const toForm = (row) => ({
 
 /* What Submit insists on, in the shape validateFields expects. */
 const FLAT_FIELDS = [
+  { name: 'buildingId', label: 'Building', type: 'select', required: true },
   { name: 'wingId', label: 'Wing', type: 'select', required: true },
   { name: 'flatNo', label: 'Flat number', required: true },
   { name: 'bedroomId', label: 'Bedrooms', type: 'select', required: true },
@@ -55,8 +62,17 @@ const FLAT_FIELDS = [
 ];
 
 export default function FlatsPage() {
+  const [buildingFilter, setBuildingFilter] = useState('');
   const [wingFilter, setWingFilter] = useState('');
-  const params = useMemo(() => ({ wingId: wingFilter || undefined }), [wingFilter]);
+  /*
+   * Both filters go to the API rather than being applied here: the flats route
+   * accepts buildingId and wingId, so picking a building alone still narrows
+   * the list to every flat under it, across all its wings.
+   */
+  const params = useMemo(
+    () => ({ buildingId: buildingFilter || undefined, wingId: wingFilter || undefined }),
+    [buildingFilter, wingFilter],
+  );
 
   const { items, loading, error, saving, create, update, remove, refresh, setError } =
     useCrudResource(flats, { params });
@@ -67,6 +83,14 @@ export default function FlatsPage() {
   const visible = sorted.slice(paging.first, paging.first + paging.size);
 
   const [lookups, setLookups] = useState({ wings: [], flatTypes: [], usages: [], bedrooms: [] });
+  const [buildingOptions, setBuildingOptions] = useState([]);
+  /*
+   * The wing list from flats.lookups() is `sp_flat_master @operation='Fill_list'`,
+   * which selects only wing_id and a joined name — it carries no build_id, so it
+   * cannot say which building a wing belongs to. The wing master endpoint does
+   * return build_id, so the cascade reads its wings instead.
+   */
+  const [wingOptions, setWingOptions] = useState([]);
   const [editing, setEditing] = useState(null);
   const [confirming, setConfirming] = useState(null);
   // name -> message, for the fields the last submit found empty.
@@ -85,8 +109,60 @@ export default function FlatsPage() {
     };
   }, []);
 
-  const openCreate = () => setEditing({ id: null, form: { ...EMPTY, wingId: wingFilter || '' } });
-  const openEdit = (row) => setEditing({ id: row.flat_id, form: toForm(row) });
+  // Buildings and wings feed both the filter row and the form's cascade.
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      buildingsApi.list().catch(() => null),
+      wingsApi.list().catch(() => null),
+    ]).then(([buildingData, wingData]) => {
+      if (cancelled) return;
+      setBuildingOptions(buildingData?.items ?? []);
+      setWingOptions(wingData?.items ?? []);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /** Wings under one building, or all of them when no building is chosen. */
+  const wingsForBuilding = (buildingId) =>
+    buildingId ? wingOptions.filter((w) => String(w.build_id) === String(buildingId)) : wingOptions;
+
+  const filterWings = useMemo(
+    () => wingsForBuilding(buildingFilter),
+    // wingsForBuilding is a pure read of wingOptions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [buildingFilter, wingOptions],
+  );
+
+  /*
+   * Changing the building clears a wing that no longer belongs to it, so the
+   * two filters can never disagree and strand the list on zero rows.
+   */
+  const onBuildingFilter = (e) => {
+    const { value } = e.target;
+    setBuildingFilter(value);
+    setWingFilter((prev) =>
+      prev && !wingsForBuilding(value).some((w) => String(w.wing_id) === String(prev)) ? '' : prev,
+    );
+  };
+
+  /** The building a wing sits under, for opening the form on an existing flat. */
+  const buildingOfWing = (wingId) =>
+    wingOptions.find((w) => String(w.wing_id) === String(wingId))?.build_id ?? '';
+
+  const openCreate = () =>
+    setEditing({
+      id: null,
+      form: { ...EMPTY, buildingId: buildingFilter || '', wingId: wingFilter || '' },
+    });
+
+  const openEdit = (row) =>
+    setEditing({
+      id: row.flat_id,
+      form: { ...toForm(row), buildingId: row.build_id ?? buildingOfWing(row.wing_id) },
+    });
 
   const closeForm = () => {
     setEditing(null);
@@ -98,6 +174,21 @@ export default function FlatsPage() {
     const { value } = e.target;
     setFieldErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
     setEditing((prev) => ({ ...prev, form: { ...prev.form, [key]: value } }));
+  };
+
+  /*
+   * Picking a building drops a wing belonging to a different one, so the saved
+   * wingId can never contradict the building shown above it.
+   */
+  const setBuildingField = (e) => {
+    const { value } = e.target;
+    setFieldErrors((prev) => (prev.buildingId ? { ...prev, buildingId: undefined } : prev));
+    setEditing((prev) => {
+      const keepWing =
+        prev.form.wingId &&
+        wingsForBuilding(value).some((w) => String(w.wing_id) === String(prev.form.wingId));
+      return { ...prev, form: { ...prev.form, buildingId: value, wingId: keepWing ? prev.form.wingId : '' } };
+    });
   };
 
   const onSubmit = async (event) => {
@@ -146,17 +237,36 @@ export default function FlatsPage() {
           <h1 className="text-lg font-semibold text-slate-800">Flats</h1>
           <p className="text-sm text-slate-500">{items.length} record(s)</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <select
-            className="field-input w-56"
+            className="field-input w-44"
+            value={buildingFilter}
+            onChange={onBuildingFilter}
+            aria-label="Filter by building"
+          >
+            <option value="">All buildings</option>
+            {buildingOptions.map((b) => (
+              <option key={b.build_id} value={b.build_id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+          <select
+            className="field-input w-44"
             value={wingFilter}
             onChange={(e) => setWingFilter(e.target.value)}
             aria-label="Filter by wing"
           >
-            <option value="">All wings</option>
-            {lookups.wings.map((w) => (
+            {/* Named for the building in play, so an empty pick is not read as
+                "no filter" when a building is already narrowing the list. */}
+            <option value="">{buildingFilter ? 'All wings in building' : 'All wings'}</option>
+            {filterWings.map((w) => (
               <option key={w.wing_id} value={w.wing_id}>
-                {w.name}
+                {/* Every building names its wings A, B, C — so with no building
+                    chosen the list is several identical-looking entries. The
+                    building disambiguates them; once one is picked it is
+                    already stated above, and the wing alone reads cleaner. */}
+                {buildingFilter ? w.w_name : `${w.name} ${w.w_name}`}
               </option>
             ))}
           </select>
@@ -244,12 +354,42 @@ export default function FlatsPage() {
         {editing ? (
           <form id="flat-form" onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2" noValidate>
             <FormErrorSummary count={countErrors(fieldErrors)} />
-            <Field label="Wing" required name="wingId" error={fieldErrors.wingId}>
-              <select className="field-input" value={editing.form.wingId} onChange={setField('wingId')} required>
-                <option value="">Select a wing…</option>
-                {lookups.wings.map((w) => (
+            <Field label="Building" required name="buildingId" error={fieldErrors.buildingId}>
+              <select
+                className="field-input"
+                value={editing.form.buildingId}
+                onChange={setBuildingField}
+                required
+              >
+                <option value="">Select a building…</option>
+                {buildingOptions.map((b) => (
+                  <option key={b.build_id} value={b.build_id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field
+              label="Wing"
+              required
+              name="wingId"
+              error={fieldErrors.wingId}
+              hint={editing.form.buildingId ? undefined : 'Choose a building first'}
+            >
+              <select
+                className="field-input"
+                value={editing.form.wingId}
+                onChange={setField('wingId')}
+                disabled={!editing.form.buildingId}
+                required
+              >
+                <option value="">
+                  {editing.form.buildingId ? 'Select a wing…' : 'Select a building first…'}
+                </option>
+                {wingsForBuilding(editing.form.buildingId).map((w) => (
                   <option key={w.wing_id} value={w.wing_id}>
-                    {w.name}
+                    {w.w_name}
                   </option>
                 ))}
               </select>

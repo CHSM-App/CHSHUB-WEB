@@ -246,40 +246,20 @@ class _PdcScreenState extends ConsumerState<PdcScreen>
         // filled pill survives the light app bar that made white labels
         // invisible.
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(54),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppTheme.space4,
-              0,
-              AppTheme.space4,
-              AppTheme.space3,
-            ),
-            child: Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: AppTheme.notWhite,
-                borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+          preferredSize: const Size.fromHeight(SegmentedTabBar.height),
+          child: SegmentedTabBar(
+            // Named as the two website pages are — pdc_reminder_search.aspx
+            // and pdc_clearing.aspx — so the same words mean the same thing
+            // in both.
+            tabs: const [
+              SegmentTab(label: 'Reminder', icon: Icons.event_note_outlined),
+              SegmentTab(
+                label: 'Clearing',
+                icon: Icons.event_available_outlined,
               ),
-              child: Row(
-                children: [
-                  // Named as the two website pages are —
-                  // pdc_reminder_search.aspx and pdc_clearing.aspx — so the
-                  // same words mean the same thing in both.
-                  _SegmentTab(
-                    label: 'Reminder',
-                    icon: Icons.event_note_outlined,
-                    selected: _tabs.index == 0,
-                    onTap: () => _tabs.animateTo(0),
-                  ),
-                  _SegmentTab(
-                    label: 'Clearing',
-                    icon: Icons.event_available_outlined,
-                    selected: _tabs.index == 1,
-                    onTap: () => _tabs.animateTo(1),
-                  ),
-                ],
-              ),
-            ),
+            ],
+            selectedIndex: _tabs.index,
+            onSelected: _tabs.animateTo,
           ),
         ),
       ),
@@ -630,61 +610,6 @@ class _PdcScreenState extends ConsumerState<PdcScreen>
     if (v is num) return v != 0;
     final s = v.toString().trim().toLowerCase();
     return s == '1' || s == 'true' || s == 'yes';
-  }
-}
-
-/// One half of the segmented control that stands in for the tab bar.
-class _SegmentTab extends StatelessWidget {
-  const _SegmentTab({
-    required this.label,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Material(
-        color: selected ? AppTheme.cardBackground : Colors.transparent,
-        borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-        // Lifts the chosen half off the track it sits in; the other half
-        // stays flat, so which one is live needs no second look.
-        elevation: selected ? 1 : 0,
-        shadowColor: AppTheme.primary.withValues(alpha: 0.2),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 9),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  icon,
-                  size: 15,
-                  color: selected ? AppTheme.primary : AppTheme.lightText,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    color: selected ? AppTheme.primary : AppTheme.lightText,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
 

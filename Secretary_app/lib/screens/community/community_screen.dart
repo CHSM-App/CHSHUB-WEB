@@ -5,10 +5,11 @@ import '../../core/theme/app_theme.dart';
 import '../../presentation/providers/viewmodel_provider.dart';
 import '../../presentation/viewModels/community_viewmodel.dart';
 import '../hub_scaffold.dart';
+import 'announcements_screen.dart';
 import 'facility_bookings_screen.dart';
 import 'helpdesk_screen.dart';
 import 'more_community_screen.dart';
-import 'notices_screen.dart';
+import 'polls_screen.dart';
 import 'visitors_screen.dart';
 
 /// Resident-facing work.
@@ -59,9 +60,16 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
         HubEntry(
           icon: Icons.campaign_outlined,
           color: AppTheme.primary,
-          title: 'Notices',
-          subtitle: 'Publish announcements to residents',
-          builder: () => const NoticesScreen(),
+          title: 'Announcements',
+          subtitle: 'Notices, meetings and events',
+          builder: () => const AnnouncementsScreen(),
+        ),
+        HubEntry(
+          icon: Icons.how_to_vote_outlined,
+          color: AppTheme.violet,
+          title: 'Polls',
+          subtitle: 'Put a decision to the society',
+          builder: () => const PollsScreen(),
         ),
         HubEntry(
           icon: Icons.event_available_outlined,
@@ -73,8 +81,8 @@ class _CommunityScreenState extends ConsumerState<CommunityScreen> {
         HubEntry(
           icon: Icons.forum_outlined,
           color: AppTheme.violet,
-          title: 'Messages & more',
-          subtitle: 'Polls, suggestions, events, meetings, documents',
+          title: 'Messages & suggestions',
+          subtitle: 'What residents write in, and the ideas they put forward',
           builder: () => const MoreCommunityScreen(),
         ),
       ],

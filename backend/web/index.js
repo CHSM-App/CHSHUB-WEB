@@ -62,6 +62,10 @@ router.use('/masters/flats', authenticate, flatRoutes);
 router.use('/masters/owners', authenticate, ownerRoutes);
 router.use('/masters/family', authenticate, familyRoutes);
 router.use('/masters/owner-extras', authenticate, ownerExtraRoutes);
+// Reading a stored file is public and must be mounted before the authenticated
+// uploads router, because `<img src>` and Image.network cannot send a token —
+// behind `authenticate` every profile photo rendered as a broken image.
+router.use('/uploads/file', uploadRoutes.fileRouter);
 router.use('/uploads', authenticate, uploadRoutes);
 
 router.use('/settings/account', authenticate, accountSettingRoutes);

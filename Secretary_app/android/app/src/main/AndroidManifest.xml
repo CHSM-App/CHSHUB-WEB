@@ -3,10 +3,30 @@
          The debug manifest declares it too, for the Flutter tool's own use. -->
     <uses-permission android:name="android.permission.INTERNET"/>
 
+    <!-- Profile photos. image_picker asks for these at runtime; without the
+         declarations the request is denied outright and the picker returns
+         nothing rather than reporting why.
+
+         CAMERA is not marked required: the app is fully usable on a device
+         without one, since a photo can be chosen from the gallery instead, and
+         `required="true"` would hide the app from those devices on Play. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
+
+    <!-- Gallery access is split by SDK level: READ_MEDIA_IMAGES from Android 13
+         (API 33), READ_EXTERNAL_STORAGE before it. Declaring both with
+         maxSdkVersion on the old one is what keeps a single build working
+         across the range. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32"/>
+
     <application
         android:label="secretary_app"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"

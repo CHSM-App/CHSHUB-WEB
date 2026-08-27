@@ -65,6 +65,46 @@ const upload = multer({
   },
 });
 
+/**
+ * GET /uploads/file/:category/:filename — serve a stored file.
+ *
+ * Its own router, mounted in index.js WITHOUT `authenticate`.
+ *
+ * A stored file is fetched by the browser itself — `<img src="...">` in the
+ * website's profile dialog, Image.network in the app — and neither attaches an
+ * Authorization header, because neither goes through the API client. Behind
+ * authenticate every one of those requests answered 401 and rendered as a
+ * broken image, which is exactly what a profile photo did: it uploaded and
+ * saved correctly and then would not display.
+ *
+ * What this exposes is a file whose name nobody can guess: the uploader names
+ * it `<timestamp>-<9 random digits><ext>` and discards the caller's own name,
+ * and the path is only ever handed out through an authenticated endpoint. The
+ * category is still whitelisted and the filename still rejected if it could
+ * climb out of the folder, so this widens who may read a known path — not what
+ * paths exist.
+ */
+const fileRouter = express.Router();
+
+fileRouter.get(
+  '/:category/:filename',
+  asyncHandler(async (req, res) => {
+    const category = oneOf(req.params.category, 'category', CATEGORIES);
+    const filename = str(req.params.filename, 'filename', { max: 255 });
+
+    // Reject anything that could escape the category folder.
+    if (filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
+      throw ApiError.badRequest('Invalid filename');
+    }
+
+    const full = path.join(UPLOAD_ROOT, category, filename);
+    if (!full.startsWith(UPLOAD_ROOT) || !fs.existsSync(full)) {
+      throw ApiError.notFound('File not found');
+    }
+    return res.sendFile(full);
+  }),
+);
+
 // Either tenant: uploads are filed by category, not scoped to a society, and a
 // village account needs them for its staff ID proofs and house documents.
 router.use(requireTenant);
@@ -104,25 +144,6 @@ router.post(
   }),
 );
 
-/** GET /uploads/file/:category/:filename — serve a stored file. */
-router.get(
-  '/file/:category/:filename',
-  asyncHandler(async (req, res) => {
-    const category = oneOf(req.params.category, 'category', CATEGORIES);
-    const filename = str(req.params.filename, 'filename', { max: 255 });
-
-    // Reject anything that could escape the category folder.
-    if (filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
-      throw ApiError.badRequest('Invalid filename');
-    }
-
-    const full = path.join(UPLOAD_ROOT, category, filename);
-    if (!full.startsWith(UPLOAD_ROOT) || !fs.existsSync(full)) {
-      throw ApiError.notFound('File not found');
-    }
-    return res.sendFile(full);
-  }),
-);
 
 /**
  * POST /uploads/owner-document — record an uploaded owner document.
@@ -179,4 +200,35 @@ router.post(
   }),
 );
 
+/**
+ * POST /uploads/record/helpdesk-image — attach an uploaded photo to a ticket.
+ *
+ * HelpdeskImages has no stored procedure; the mobile uploader inserts into it
+ * directly (routes/uploadfile.js) and this does the same. `active_status` is 0
+ * there, so the same value is used here — the column is not read anywhere, and
+ * a different default would make rows from the two apps look unalike.
+ */
+router.post(
+  '/record/helpdesk-image',
+  requireSociety,
+  asyncHandler(async (req, res) => {
+    const helpdeskId = int(req.body?.helpdeskId, 'helpdeskId', { min: 1 });
+    const docPath = str(req.body?.docPath, 'docPath', { max: 500 });
+
+    const pool = await require('../lib/db').getPool();
+    await pool
+      .request()
+      .input('helpdesk_id', sql.Int, helpdeskId)
+      .input('documents', sql.NVarChar(500), docPath)
+      .query(
+        'INSERT INTO HelpdeskImages (active_status, documents, helpdesk_id) VALUES (0, @documents, @helpdesk_id)',
+      );
+
+    return ok(res, { recorded: true }, 201);
+  }),
+);
+
+// `router` needs a session; `fileRouter` deliberately does not — see its
+// comment above. index.js mounts them separately for that reason.
 module.exports = router;
+module.exports.fileRouter = fileRouter;

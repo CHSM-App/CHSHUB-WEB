@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../core/theme/app_theme.dart';
-import 'community/more_community_screen.dart';
+import 'community/announcements_screen.dart';
+import 'community/event_form_screen.dart';
+import 'community/meeting_form_screen.dart';
 import 'community/notices_screen.dart';
+import 'community/poll_form_screen.dart';
+import 'community/polls_screen.dart';
 
 /// One choice in the create dialog.
 class _CreateOption {
@@ -10,12 +14,18 @@ class _CreateOption {
     required this.icon,
     required this.color,
     required this.title,
+    required this.buildList,
     required this.build,
   });
 
   final IconData icon;
   final Color color;
   final String title;
+
+  /// The list this kind saves into, pushed under the form so saving lands on
+  /// it. Notices, meetings and events share Announcements — each opening on
+  /// its own tab — while a poll has a screen of its own.
+  final Widget Function() buildList;
 
   /// Built lazily so opening the dialog does not construct four screens.
   final Widget Function() build;
@@ -26,14 +36,13 @@ class _CreateOption {
 /// Built the way CHSHUB_app and Security_app build their security-alert
 /// dialog, because that is the shape the suite already uses for "pick one
 /// action": a `Center` over a transparent Material, holding a card that fades
-/// in while sliding up, with the choices as a 2×2 grid of tinted tiles that
+/// in while sliding up, with the choices as a grid of tinted tiles that
 /// shrink slightly when pressed.
 ///
-/// The options are deliberately *not* another shortcut to the receipt form:
-/// the dashboard's quick actions already carry that, along with bills,
-/// notices and complaints. These are the community items with no other
-/// one-tap route, where reaching them otherwise means Community, then More,
-/// then the right tab inside that.
+/// Each tile opens the add form for its kind, not the list it lives in.
+/// "Create" is already an answer to what the secretary wants to do, so landing
+/// on a list and hunting for its add button asked the question twice. The
+/// list still goes on the stack underneath, so saving returns to it.
 class CreateDialog extends StatefulWidget {
   const CreateDialog({super.key});
 
@@ -43,14 +52,25 @@ class CreateDialog extends StatefulWidget {
   /// inside a tile — otherwise the new route animates in while the dialog is
   /// still on screen.
   static Future<void> show(BuildContext context) async {
-    final screen = await showDialog<Widget>(
+    final chosen = await showDialog<_CreateOption>(
       context: context,
       barrierColor: Colors.black54,
       builder: (_) => const CreateDialog(),
     );
 
-    if (screen == null || !context.mounted) return;
-    await Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+    if (chosen == null || !context.mounted) return;
+
+    // Two routes, not one: the kind's list goes on first and its form on top.
+    // Saving pops the form, so the secretary lands on the list with the thing
+    // they just created in it — rather than back on the dashboard, where
+    // nothing would confirm the save happened at all.
+    final navigator = Navigator.of(context);
+    navigator.push(
+      MaterialPageRoute(builder: (_) => chosen.buildList()),
+    );
+    await navigator.push(
+      MaterialPageRoute(builder: (_) => chosen.build()),
+    );
   }
 
   @override
@@ -84,33 +104,45 @@ class _CreateDialogState extends State<CreateDialog>
       icon: Icons.campaign_outlined,
       color: AppTheme.primary,
       title: 'Notice',
+      buildList: _noticesList,
       build: _buildNotices,
     ),
     _CreateOption(
       icon: Icons.groups_outlined,
       color: AppTheme.info,
       title: 'Meeting',
+      buildList: _meetingsList,
       build: _buildMeetings,
     ),
     _CreateOption(
       icon: Icons.poll_outlined,
       color: AppTheme.violet,
       title: 'Poll',
+      buildList: _pollsList,
       build: _buildPolls,
     ),
     _CreateOption(
       icon: Icons.celebration_outlined,
       color: AppTheme.warning,
       title: 'Event',
+      buildList: _eventsList,
       build: _buildEvents,
     ),
   ];
 
   // Top-level functions rather than closures, so `_options` can stay const.
-  static Widget _buildNotices() => const NoticesScreen();
-  static Widget _buildMeetings() => const MoreCommunityScreen(initialTab: 4);
-  static Widget _buildPolls() => const MoreCommunityScreen(initialTab: 1);
-  static Widget _buildEvents() => const MoreCommunityScreen(initialTab: 3);
+  static Widget _buildNotices() => const NoticeFormScreen();
+  static Widget _buildMeetings() => const MeetingFormScreen();
+  static Widget _buildPolls() => const PollFormScreen();
+  static Widget _buildEvents() => const EventFormScreen();
+
+  static Widget _noticesList() =>
+      const AnnouncementsScreen(initialKind: AnnouncementKind.notice);
+  static Widget _meetingsList() =>
+      const AnnouncementsScreen(initialKind: AnnouncementKind.meeting);
+  static Widget _eventsList() =>
+      const AnnouncementsScreen(initialKind: AnnouncementKind.event);
+  static Widget _pollsList() => const PollsScreen();
 
   @override
   void initState() {
@@ -183,29 +215,36 @@ class _CreateDialogState extends State<CreateDialog>
     );
   }
 
-  /// Two rows of two. A fixed grid rather than a wrapping one: with four
-  /// options it is always 2×2, and GridView would need its own scroll
-  /// handling inside a dialog that is already sized to its content.
+  /// Rows of two, built from `_options` rather than by index so adding or
+  /// removing a kind is a line in the list and nothing here.
+  ///
+  /// A fixed grid rather than a GridView, which would need its own scroll
+  /// handling inside a dialog already sized to its content.
   Widget _buildGrid() {
+    const perRow = 2;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppTheme.space6),
       child: Column(
         children: [
-          Row(
-            children: [
-              Expanded(child: _buildTile(_options[0])),
-              const SizedBox(width: AppTheme.space3),
-              Expanded(child: _buildTile(_options[1])),
-            ],
-          ),
-          const SizedBox(height: AppTheme.space3),
-          Row(
-            children: [
-              Expanded(child: _buildTile(_options[2])),
-              const SizedBox(width: AppTheme.space3),
-              Expanded(child: _buildTile(_options[3])),
-            ],
-          ),
+          for (var start = 0; start < _options.length; start += perRow) ...[
+            if (start > 0) const SizedBox(height: AppTheme.space3),
+            Row(
+              children: [
+                for (var i = start; i < start + perRow; i++) ...[
+                  // An empty slot keeps the last tile of an odd row at the
+                  // same width as the rest rather than stretching it across.
+                  Expanded(
+                    child: i < _options.length
+                        ? _buildTile(_options[i])
+                        : const SizedBox.shrink(),
+                  ),
+                  if (i != start + perRow - 1)
+                    const SizedBox(width: AppTheme.space3),
+                ],
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -217,7 +256,9 @@ class _CreateDialogState extends State<CreateDialog>
       title: option.title,
       color: AppTheme.surfaceFor(option.color),
       iconColor: option.color,
-      onTap: () => Navigator.pop(context, option.build()),
+      // Pops the option rather than a built screen: `show` needs the kind too,
+      // to open the list underneath on the matching tab.
+      onTap: () => Navigator.pop(context, option),
     );
   }
 

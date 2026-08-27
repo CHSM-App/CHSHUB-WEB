@@ -4,11 +4,18 @@
 // upload_doc_search and Vote.
 const express = require('express');
 
-const { query, queryOne, exec, sql } = require('../../lib/db');
+const { query, queryOne, exec, sql, getPool } = require('../../lib/db');
 const { ApiError, ok, asyncHandler } = require('../../lib/http');
 const { str, optionalStr, int, num, date, time, oneOf } = require('../../lib/validate');
 const { requireSociety } = require('../../middleware/authenticate');
-const { notifyGroup } = require('../../lib/notify');
+const {
+  notifyGroup,
+  notifyPeople,
+  notifyHelpdesk,
+  notifyVisitor,
+  findFlatResidents,
+  findCommittee,
+} = require('../../lib/notify');
 
 const router = express.Router();
 
@@ -194,11 +201,12 @@ router.post(
       society_id: SOC(req.societyId),
     });
 
-    // event_search.aspx has no recipient picker, so everyone is told — group 3,
-    // owners and tenants.
+    // event_search.aspx has no recipient picker, so everyone is told — group 5,
+    // owners and tenants plus the committee. Group 3 left the secretary and
+    // the admins out of the event they had just scheduled.
     const notified = await notifyGroup({
       societyId: req.societyId,
-      recipientsId: 3,
+      recipientsId: 5,
       type: 'Event',
       id: created?.event_id ?? 0,
       title: name,
@@ -266,10 +274,12 @@ router.post(
       society_id: SOC(req.societyId),
     });
 
-    // meeting_search.aspx has no recipient picker either.
+    // meeting_search.aspx has no recipient picker either, so a meeting goes to
+    // the whole society — group 5, which unlike 3 includes the committee. A
+    // committee meeting that never reached the committee was the wrong default.
     const notified = await notifyGroup({
       societyId: req.societyId,
-      recipientsId: 3,
+      recipientsId: 5,
       type: 'Meeting',
       id: created?.meet_id ?? 0,
       title: subject,
@@ -483,10 +493,36 @@ router.delete(
 router.get(
   '/visitors',
   asyncHandler(async (req, res) => {
-    const rows = await query('sp_Visitor', {
+    const search = optionalStr(req.query.search, 'search', { max: 200 });
+    let rows = await query('sp_Visitor', {
       operation: 'Grid_Show',
       society_id: SOC50(req.societyId),
     });
+
+    /*
+     * Filtered here rather than in the SP, as facility-bookings is.
+     *
+     * The route took `search` from the app and dropped it: the gate log came
+     * back whole whatever was typed, so the search box on the visitors screen
+     * looked broken. sp_Visitor's own Search branch is no help either — it
+     * matches `LIKE @search + '%'` against the name alone, so a flat number or
+     * a phone number finds nothing, and "awar" misses "Pawar".
+     */
+    if (search) {
+      const needle = search.toLowerCase();
+      const matches = (v) => String(v ?? '').toLowerCase().includes(needle);
+      rows = rows.filter(
+        (r) =>
+          matches(r.v_name) ||
+          matches(r.flat_no) ||
+          matches(r.build_wing) ||
+          matches(r.contact_no) ||
+          matches(r.type) ||
+          matches(r.company) ||
+          matches(r.vehicle_no),
+      );
+    }
+
     return ok(res, { items: rows, count: rows.length });
   }),
 );
@@ -549,6 +585,28 @@ async function assertVisitor(societyId, id) {
   return rows[0];
 }
 
+/**
+ * "Ganesh Bhavan A 101", for a push that names where the visitor is headed.
+ *
+ * Best-effort: a flat that cannot be read still leaves a usable message, so a
+ * lookup failure must not cost the notification.
+ */
+async function flatLabel(societyId, flatId) {
+  if (!flatId) return null;
+  try {
+    const rows = await query('sp_flat_master', {
+      operation: 'Grid_Show',
+      society_id: { type: sql.NVarChar(50), value: societyId },
+    });
+    const flat = rows.find((r) => Number(r.flat_id) === Number(flatId));
+    if (!flat) return null;
+
+    return [flat.build_wing ?? flat.name, flat.flat_no].filter(Boolean).join(' ') || null;
+  } catch {
+    return null;
+  }
+}
+
 /** POST /community/visitors — register a visitor. */
 router.post(
   '/visitors',
@@ -560,7 +618,36 @@ router.post(
       visitor_id: { type: sql.Int, value: 0 },
       ...visitorParams(req.body, req.societyId),
     });
-    return ok(res, { visitor: created ?? null }, 201);
+
+    /*
+     * After the save, never before: a failed push must not lose the visitor.
+     *
+     * The flat hears because someone has arrived for them, and the gate hears
+     * because a visitor registered from the website or the secretary's phone
+     * never passed in front of whoever has to let them in.
+     */
+    const flatId = int(req.body?.flatId, 'flatId', { min: 0, required: false, default: 0 });
+    const name = str(req.body?.name, 'name', { max: 50 });
+    const where = await flatLabel(req.societyId, flatId);
+    const visitorType = optionalStr(req.body?.type, 'type', { max: 50 });
+
+    const notified = await notifyVisitor({
+      societyId: req.societyId,
+      flatId: flatId || null,
+      registeredBy: { userId: req.user.userId, source: 'login' },
+      type: 'Visitor',
+      id: created?.visitor_id ?? 0,
+      title: 'Visitor at the gate',
+      body: [
+        name,
+        visitorType ? `(${visitorType})` : null,
+        where ? `for ${where}` : null,
+      ]
+        .filter(Boolean)
+        .join(' '),
+    });
+
+    return ok(res, { visitor: created ?? null, notified }, 201);
   }),
 );
 
@@ -618,12 +705,49 @@ router.delete(
 router.get(
   '/helpdesk',
   asyncHandler(async (req, res) => {
-    const rows = await query('sp_helpdesk', {
-      operation: 'GetTickets',
-      society_id: SOC50(req.societyId),
-      owner_id: { type: sql.Int, value: 0 },
+    const [rows, flats] = await Promise.all([
+      query('sp_helpdesk', {
+        operation: 'GetTickets',
+        society_id: SOC50(req.societyId),
+        owner_id: { type: sql.Int, value: 0 },
+      }),
+      query('sp_flat_master', { operation: 'Grid_Show', society_id: SOC(req.societyId) }),
+    ]);
+
+    /*
+     * GetTickets takes `name` and `Unit` from whoever raised the ticket, not
+     * from the flat the ticket is about. For a resident's own complaint those
+     * are the same flat; for one a secretary files on someone's behalf they
+     * are not, and the row showed the secretary's own unit against a
+     * complaint about someone else's.
+     *
+     * `name` is left as the SP sends it — that is who raised it, which is what
+     * should be shown — and the flat is corrected from hr.flat_id.
+     */
+    const byId = new Map(flats.map((f) => [Number(f.flat_id), f]));
+
+    const items = rows.map((r) => {
+      const flat = byId.get(Number(r.flat_id));
+
+      // A community complaint the committee filed carries no flat. GetTickets
+      // still fills Unit and build_name from whoever raised it, which would
+      // put the secretary's own flat against a complaint about the lift — so
+      // they are cleared rather than left to mislead.
+      if (!flat) {
+        return Number(r.flat_id) ? r : { ...r, build_name: null, flat_no: null, Unit: null };
+      }
+
+      const building = flat.build_wing || [flat.name, flat.w_name].filter(Boolean).join(' ');
+
+      return {
+        ...r,
+        build_name: building || r.build_name,
+        flat_no: flat.flat_no ?? r.flat_no,
+        Unit: [building, flat.flat_no].filter(Boolean).join(' ') || r.Unit,
+      };
     });
-    return ok(res, { items: rows, count: rows.length });
+
+    return ok(res, { items, count: items.length });
   }),
 );
 
@@ -635,16 +759,271 @@ router.get(
   }),
 );
 
+/*
+ * GET /community/helpdesk/lookups — the pickers on the raise-complaint form:
+ * the complaint category, and which flat it is being raised for.
+ *
+ * Registered before '/helpdesk/:id' so Express does not read "lookups" as an
+ * id and fail on the int() check.
+ *
+ * The resident app reads its categories from `users/category`, which calls
+ * sp_usefull_contact rather than sp_helpdesk — the category list is shared
+ * with the useful-contacts directory. The same branch is used here so both
+ * apps offer the same list.
+ */
+router.get(
+  '/helpdesk/lookups',
+  asyncHandler(async (req, res) => {
+    const [categories, flats] = await Promise.all([
+      // 'ComplaintType', not 'GetCategories' — the branch behind
+      // `users/Complainttype`, which is what the resident app's working
+      // helpdesk page reads. Its raise_complaint.dart screen calls
+      // GetCategories instead, but that screen never saves (its insert is
+      // commented out), so the helpdesk page is the one to follow.
+      query('sp_usefull_contact', { operation: 'ComplaintType' }),
+      query('sp_flat_master', { operation: 'Grid_Show', society_id: SOC(req.societyId) }),
+    ]);
+
+    // Both passed through unreshaped, as `users/category` does for the
+    // resident app: hand-picking columns here would turn any difference in
+    // what the SP names them into silent nulls, where passing the rows on
+    // lets the pickers fall back the way the rest of the app does.
+    return ok(res, { categories, flats });
+  }),
+);
+
+/*
+ * POST /community/helpdesk — raise a complaint on a resident's behalf.
+ *
+ * sp_Helpdesk's Update branch is the same one the resident app posts to via
+ * `insert/Helpdesk`; it returns the new helpdesk_id. `logintype` tells the SP
+ * who raised it — 'admin' here, since the secretary is filing it rather than
+ * the resident.
+ */
+router.post(
+  '/helpdesk',
+  asyncHandler(async (req, res) => {
+    const ownerId = req.user.ownerId ?? req.user.userId;
+
+    /*
+     * GetTickets joins HelpdeskRequest to owner_search_vw on BOTH owner_id and
+     * `hr.logintype = u.login_type` — the procedure's own comment marks that
+     * line "THIS IS KEY". The view only holds 'Owner' and 'Rent', so a ticket
+     * written with any other logintype is saved but can never be listed.
+     *
+     * Writing 'admin' did exactly that: the row landed in the table and the
+     * helpdesk list stayed empty. The secretary's own type from the view is
+     * used instead, so the ticket joins and appears.
+     */
+    const pool = await getPool();
+    const found = await pool
+      .request()
+      .input('owner_id', sql.Int, ownerId)
+      .input('society_id', sql.NVarChar(50), req.societyId)
+      .query(`
+        SELECT TOP 1 type FROM (
+          SELECT owner_id, type, society_id FROM owner_search_vw
+          UNION ALL
+          SELECT o_ex_id AS owner_id, 'Family' AS type, society_id FROM owner_family
+        ) u
+        WHERE u.owner_id = @owner_id AND u.society_id = @society_id
+      `);
+
+    // The same union GetTickets builds, scoped to this society — an account
+    // that only exists in owner_family is a 'Family' login, and writing
+    // 'Owner' for it would leave the ticket unjoinable just as 'admin' did.
+    //
+    // 'Owner' remains the fallback: it is what every committee account seen
+    // so far carries, and it is the only type that can match when the lookup
+    // finds nothing.
+    const loginType = found.recordset[0]?.type ?? 'Owner';
+
+    // A complaint is always about a flat — a lift or a parking dispute is
+    // still reported from one — so flatId is required for both kinds, which
+    // is what every ticket in the table already carries.
+    const complaint = str(req.body?.query, 'query');
+    const categoryType =
+      optionalStr(req.body?.categoryType, 'categoryType', { max: 50 }) || 'personal';
+
+    /*
+     * A personal complaint is about one flat, so it must name one. A community
+     * complaint — a lift, the parking — belongs to the society rather than to
+     * any flat, and the secretary filing one has no flat to give.
+     *
+     * 0 rather than NULL: the column is what sp_Helpdesk writes and every
+     * existing row carries a number, so a sentinel keeps the type steady.
+     */
+    const flatId =
+      categoryType === 'community'
+        ? int(req.body?.flatId, 'flatId', { required: false, default: 0 })
+        : int(req.body?.flatId, 'flatId', { min: 1 });
+
+    const row = await exec('sp_Helpdesk', {
+      operation: 'Update',
+      flat_id: { type: sql.Int, value: flatId },
+      query: { type: sql.NVarChar(sql.MAX), value: complaint },
+      category: { type: sql.Int, value: int(req.body?.category, 'category', { min: 1 }) },
+      type: { type: sql.NVarChar(50), value: categoryType },
+      req_service_date: { type: sql.NVarChar(50), value: null },
+      // A flag, not a scale — support_ticket.aspx reads anything non-zero as
+      // Urgent, so the form sends 1 or 0.
+      urgency: { type: sql.Int, value: req.body?.urgency ? 1 : 0 },
+      owner_id: { type: sql.Int, value: ownerId },
+      logintype: { type: sql.NVarChar(50), value: loginType },
+    });
+
+    const helpdeskId = row?.helpdesk_id ?? null;
+
+    // After the save, never before: a push must not be able to lose the
+    // ticket. The secretary raising it is dropped from the audience — they
+    // are the one who just filed it.
+    const notified = await notifyHelpdesk({
+      societyId: req.societyId,
+      flatId,
+      categoryType,
+      raisedBy: { userId: req.user.userId, source: 'login' },
+      type: 'Helpdesk',
+      id: helpdeskId ?? 0,
+      title: categoryType === 'community' ? 'New community complaint' : 'New complaint',
+      body: complaint.length > 120 ? `${complaint.slice(0, 117)}...` : complaint,
+    });
+
+    return ok(res, { helpdesk_id: helpdeskId, notified }, 201);
+  }),
+);
+
+/** The wording for a status id, so a push says what changed. */
+async function statusLine(status) {
+  const rows = await query('sp_helpdesk', { operation: 'GetAllHelpdeskStatus' });
+  const match = rows.find((r) => Number(r.status_id ?? r.id) === Number(status));
+  const name = match?.status_name ?? match?.status ?? match?.name;
+
+  return name ? `Your complaint is now ${name}.` : 'Your complaint has been updated.';
+}
+
+/**
+ * Notify the flat a ticket belongs to.
+ *
+ * Used for the things that happen *after* a ticket exists — a status move, a
+ * reply — where the audience is the resident waiting on an answer rather than
+ * the committee or the society.
+ */
+async function notifyHelpdeskFlat(req, helpdeskId, { title, body }) {
+  const pool = await getPool();
+  const found = await pool
+    .request()
+    .input('helpdesk_id', sql.Int, helpdeskId)
+    .query('SELECT flat_id FROM HelpdeskRequest WHERE helpdesk_id = @helpdesk_id');
+
+  const flatId = found.recordset[0]?.flat_id;
+
+  // A community complaint the committee filed has no flat to answer to, so
+  // the committee itself hears the outcome. Without this the reply on such a
+  // ticket would reach nobody at all.
+  const people = flatId
+    ? await findFlatResidents(req.societyId, flatId)
+    : await findCommittee(req.societyId);
+
+  return notifyPeople({
+    societyId: req.societyId,
+    people,
+    type: 'Helpdesk',
+    id: helpdeskId,
+    title,
+    body,
+  });
+}
+
+/**
+ * One ticket, read straight from the tables.
+ *
+ * Used when GetRequestById's flat_id join excludes a ticket (see the caller).
+ * The column names mirror that branch exactly — `categoryName`, `Unit`,
+ * `build_name`, `image` — so the client cannot tell which path served it.
+ *
+ * The flat is the one the ticket is about; the name is whoever raised it.
+ */
+async function helpdeskDetailFallback(pool, id, societyId) {
+  const result = await pool.request().input('helpdesk_id', sql.Int, id).query(`
+    SELECT TOP 1
+      hr.query,
+      STUFF((
+        SELECT ',' + hi.documents FROM HelpdeskImages hi
+        WHERE hi.helpdesk_id = hr.helpdesk_id
+        FOR XML PATH(''), TYPE).value('.', 'NVARCHAR(MAX)'), 1, 1, '') AS image,
+      hr.helpdesk_id,
+      hr.status,
+      hr.urgency,
+      hr.flat_id,
+      hr.type AS category_type,
+      ct.c_type_name AS categoryName,
+      CONVERT(VARCHAR(20), hr.req_service_date, 106) AS req_service_date,
+      CONVERT(VARCHAR(20), hr.date, 100) AS date,
+      v.name
+    FROM HelpdeskRequest hr
+    LEFT JOIN complaint_type ct ON ct.c_type_id = hr.category
+    LEFT JOIN owner_search_vw v ON v.owner_id = hr.owner_id
+    WHERE hr.helpdesk_id = @helpdesk_id
+  `);
+
+  const row = result.recordset[0];
+  if (!row) return null;
+
+  // The building is not a column on flat_master — it comes from the wing join
+  // Grid_Show already does, so that branch supplies it rather than a hand-
+  // written join that would have to guess at the schema.
+  const flats = await query('sp_flat_master', {
+    operation: 'Grid_Show',
+    society_id: SOC(societyId),
+  });
+
+  const flat = flats.find((f) => Number(f.flat_id) === Number(row.flat_id));
+  if (!flat) return row;
+
+  const building = flat.build_wing || [flat.name, flat.w_name].filter(Boolean).join(' ');
+
+  return {
+    ...row,
+    build_id: flat.build_id ?? null,
+    build_name: building || null,
+    Unit: [building, flat.flat_no].filter(Boolean).join(' ') || null,
+  };
+}
+
 router.get(
   '/helpdesk/:id',
   asyncHandler(async (req, res) => {
     const id = int(req.params.id, 'id', { min: 1 });
-    const [ticket, comments] = await Promise.all([
+    const pool = await getPool();
+    const [ticket, comments, images] = await Promise.all([
       query('sp_helpdesk', { operation: 'GetRequestById', helpdesk_id: { type: sql.Int, value: id } }),
       query('sp_helpdesk', { operation: 'GetComments', helpdesk_id: { type: sql.Int, value: id } }),
+      // HelpdeskImages has no SP branch of its own — the mobile uploader
+      // inserts into it directly, so it is read directly too. Photos may have
+      // come from either app, so both paths are served.
+      pool
+        .request()
+        .input('helpdesk_id', sql.Int, id)
+        .query('SELECT documents FROM HelpdeskImages WHERE helpdesk_id = @helpdesk_id'),
     ]);
-    if (!ticket[0]) throw ApiError.notFound('Ticket not found');
-    return ok(res, { ticket: ticket[0], comments });
+    /*
+     * GetRequestById joins UserData on flat_id AND owner_id AND logintype, so
+     * it only returns a ticket whose raiser lives in the flat it is about.
+     * That holds for a resident's own complaint and fails for every one a
+     * secretary files on someone else's behalf — the branch returned nothing
+     * and the page said "Ticket not found" for a ticket plainly in the list.
+     *
+     * The row is rebuilt from the tables directly when that happens, so the
+     * thread opens either way.
+     */
+    const row = ticket[0] ?? (await helpdeskDetailFallback(pool, id, req.societyId));
+    if (!row) throw ApiError.notFound('Ticket not found');
+
+    return ok(res, {
+      ticket: row,
+      comments,
+      images: (images.recordset ?? []).map((r) => r.documents).filter(Boolean),
+    });
   }),
 );
 
@@ -652,12 +1031,23 @@ router.put(
   '/helpdesk/:id/status',
   asyncHandler(async (req, res) => {
     const id = int(req.params.id, 'id', { min: 1 });
+    const status = int(req.body?.status, 'status', { min: 1 });
+
     await exec('sp_helpdesk', {
       operation: 'UpdateStatus',
       helpdesk_id: { type: sql.Int, value: id },
-      status: { type: sql.Int, value: int(req.body?.status, 'status', { min: 1 }) },
+      status: { type: sql.Int, value: status },
     });
-    return ok(res, { helpdesk_id: id });
+
+    // Only the flat that raised it: a status move is an answer to them, not
+    // news for the society — even on a community complaint, where the whole
+    // society was told once and does not need every step after it.
+    const notified = await notifyHelpdeskFlat(req, id, {
+      title: 'Complaint updated',
+      body: await statusLine(status),
+    });
+
+    return ok(res, { helpdesk_id: id, notified });
   }),
 );
 
@@ -665,15 +1055,26 @@ router.post(
   '/helpdesk/:id/comments',
   asyncHandler(async (req, res) => {
     const id = int(req.params.id, 'id', { min: 1 });
+    const comment = str(req.body?.comment, 'comment');
+
     await exec('sp_helpdesk', {
       operation: 'InsertComments',
       helpdesk_id: { type: sql.Int, value: id },
       owner_id: { type: sql.Int, value: req.user.ownerId ?? req.user.userId },
       flat_id: { type: sql.Int, value: int(req.body?.flatId, 'flatId', { required: false, default: 0 }) },
       type: { type: sql.NVarChar(50), value: optionalStr(req.body?.type, 'type', { max: 50 }) || 'Admin' },
-      description: { type: sql.NVarChar(sql.MAX), value: str(req.body?.comment, 'comment') },
+      description: { type: sql.NVarChar(sql.MAX), value: comment },
     });
-    return ok(res, { added: true }, 201);
+
+    // The committee replying is the whole point of the thread, so the flat
+    // hears about it. A resident's own reply reaches nobody here — that is
+    // the resident app's call to make, not this one's.
+    const notified = await notifyHelpdeskFlat(req, id, {
+      title: 'Reply on your complaint',
+      body: comment.length > 120 ? `${comment.slice(0, 117)}...` : comment,
+    });
+
+    return ok(res, { added: true, notified }, 201);
   }),
 );
 
@@ -768,6 +1169,123 @@ router.delete(
     const id = int(req.params.id, 'id', { min: 1 });
     await exec('sp_upload_doc', { operation: 'Delete', file_id: { type: sql.Int, value: id } });
     return ok(res, { deleted: true, file_id: id });
+  }),
+);
+
+/* -------------------------------------------------------- noc certificates */
+
+/*
+ * The no-objection certificates a society has issued.
+ *
+ * The wording is written by the caller and stored as sent, for every type.
+ * A certificate is a legal statement fixed when it was signed: rewording the
+ * society's standard clause later must not change what an already-issued
+ * certificate reads, so the server does not derive the clause from the type.
+ */
+
+router.get(
+  '/noc',
+  asyncHandler(async (req, res) => {
+    const search = optionalStr(req.query.search, 'search', { max: 200 });
+    const rows = await query('sp_noc_certificate', {
+      operation: search ? 'Search' : 'Grid_Show',
+      society_id: SOC(req.societyId),
+      ...(search ? { search: { type: sql.NVarChar(200), value: search } } : {}),
+    });
+    return ok(res, { items: rows, count: rows.length });
+  }),
+);
+
+router.get(
+  '/noc/:id',
+  asyncHandler(async (req, res) => {
+    const id = int(req.params.id, 'id', { min: 1 });
+    const row = await queryOne('sp_noc_certificate', {
+      operation: 'Select',
+      noc_id: { type: sql.Int, value: id },
+      society_id: SOC(req.societyId),
+    });
+    if (!row) throw new ApiError(404, 'Certificate not found');
+    return ok(res, row);
+  }),
+);
+
+const NOC_TYPES = ['NoDues', 'SaleTransfer', 'Renovation', 'Mortgage', 'General', 'Other'];
+
+router.post(
+  '/noc',
+  asyncHandler(async (req, res) => {
+    const nocType = oneOf(req.body?.nocType, 'nocType', NOC_TYPES, { required: false }) || 'General';
+
+    const created = await exec('sp_noc_certificate', {
+      operation: 'Update',
+      noc_id: { type: sql.Int, value: 0 },
+      society_id: SOC(req.societyId),
+      noc_type: { type: sql.NVarChar(20), value: nocType },
+      // Only an 'Other' certificate names itself; the rest are titled by type.
+      custom_title: {
+        type: sql.NVarChar(150),
+        value: nocType === 'Other'
+          ? str(req.body?.customTitle, 'customTitle', { max: 150 })
+          : null,
+      },
+      clause: { type: sql.NVarChar(1000), value: str(req.body?.clause, 'clause', { max: 1000 }) },
+      member_name: { type: sql.NVarChar(150), value: str(req.body?.memberName, 'memberName', { max: 150 }) },
+      flat_no: { type: sql.NVarChar(50), value: str(req.body?.flatNo, 'flatNo', { max: 50 }) },
+      building_name: { type: sql.NVarChar(100), value: optionalStr(req.body?.buildingName, 'buildingName', { max: 100 }) },
+      purpose: { type: sql.NVarChar(300), value: optionalStr(req.body?.purpose, 'purpose', { max: 300 }) },
+      remarks: { type: sql.NVarChar(1000), value: optionalStr(req.body?.remarks, 'remarks', { max: 1000 }) },
+      issued_on: { type: sql.Date, value: date(req.body?.issuedOn, 'issuedOn', { required: false }) },
+      // Absent means the certificate does not lapse, not a missing value.
+      valid_till: { type: sql.Date, value: date(req.body?.validTill, 'validTill', { required: false }) },
+      created_by: { type: sql.Int, value: req.user?.userId ?? null },
+    });
+
+    return ok(res, { noc_id: created?.noc_id ?? null, serial_no: created?.serial_no ?? null }, 201);
+  }),
+);
+
+router.put(
+  '/noc/:id',
+  asyncHandler(async (req, res) => {
+    const id = int(req.params.id, 'id', { min: 1 });
+    const nocType = oneOf(req.body?.nocType, 'nocType', NOC_TYPES, { required: false }) || 'General';
+
+    const updated = await exec('sp_noc_certificate', {
+      operation: 'Update',
+      noc_id: { type: sql.Int, value: id },
+      society_id: SOC(req.societyId),
+      noc_type: { type: sql.NVarChar(20), value: nocType },
+      custom_title: {
+        type: sql.NVarChar(150),
+        value: nocType === 'Other'
+          ? str(req.body?.customTitle, 'customTitle', { max: 150 })
+          : null,
+      },
+      clause: { type: sql.NVarChar(1000), value: str(req.body?.clause, 'clause', { max: 1000 }) },
+      member_name: { type: sql.NVarChar(150), value: str(req.body?.memberName, 'memberName', { max: 150 }) },
+      flat_no: { type: sql.NVarChar(50), value: str(req.body?.flatNo, 'flatNo', { max: 50 }) },
+      building_name: { type: sql.NVarChar(100), value: optionalStr(req.body?.buildingName, 'buildingName', { max: 100 }) },
+      purpose: { type: sql.NVarChar(300), value: optionalStr(req.body?.purpose, 'purpose', { max: 300 }) },
+      remarks: { type: sql.NVarChar(1000), value: optionalStr(req.body?.remarks, 'remarks', { max: 1000 }) },
+      issued_on: { type: sql.Date, value: date(req.body?.issuedOn, 'issuedOn', { required: false }) },
+      valid_till: { type: sql.Date, value: date(req.body?.validTill, 'validTill', { required: false }) },
+    });
+
+    return ok(res, { noc_id: updated?.noc_id ?? id, serial_no: updated?.serial_no ?? null });
+  }),
+);
+
+router.delete(
+  '/noc/:id',
+  asyncHandler(async (req, res) => {
+    const id = int(req.params.id, 'id', { min: 1 });
+    await exec('sp_noc_certificate', {
+      operation: 'Delete',
+      noc_id: { type: sql.Int, value: id },
+      society_id: SOC(req.societyId),
+    });
+    return ok(res, { deleted: true, noc_id: id });
   }),
 );
 

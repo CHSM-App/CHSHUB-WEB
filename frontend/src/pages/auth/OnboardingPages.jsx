@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { onboarding } from '@/api/onboarding';
 import { lookups } from '@/api/modules';
-import { api } from '@/api/client';
+import { api, readSession, writeSession } from '@/api/client';
 import { useAuth } from '@/auth/AuthContext.jsx';
 import { ErrorNotice, Field, Modal, Spinner, FormErrorSummary } from '@/components/ui.jsx';
 import { PageHeader } from '@/components/FormControls.jsx';
@@ -908,10 +908,38 @@ export function ChangePasswordPage() {
     }
     setBusy(true);
     try {
-      await onboarding.changePassword({ newPassword: form.newPassword });
+      // Name this browser's session so the server spares it while revoking the
+      // account's others. Changing a password ends every session opened under
+      // the old one — on the mobile apps and in any other browser — because a
+      // session that outlives the password it was opened with is precisely the
+      // one the change exists to destroy. Without sending this, the server has
+      // no way to tell which session is the caller's and signs this one out too.
+      const current = readSession();
+      // `api.post` already unwraps the {ok, data} envelope, so this is the
+      // payload itself rather than a response object.
+      const result = await onboarding.changePassword({
+        newPassword: form.newPassword,
+        refreshToken: current?.refreshToken,
+      });
+
+      // The old refresh token was revoked along with the rest, so the stored
+      // pair is dead. Keeping it would leave this tab holding a session the
+      // server has already ended, and the next 401 would sign the user out.
+      const session = result?.session;
+      if (session?.accessToken && session?.refreshToken) {
+        writeSession({ ...current, ...session });
+      }
+
       setSaved(true);
       setForm({ newPassword: '', confirm: '' });
-      toast.success('Your password has been changed.', { title: 'Saved' });
+
+      const revoked = result?.revokedSessions ?? 0;
+      toast.success(
+        revoked > 0
+          ? `Your password has been changed. Signed out of ${revoked} other ${revoked === 1 ? 'device' : 'devices'}.`
+          : 'Your password has been changed.',
+        { title: 'Saved' },
+      );
     } catch (err) {
       setError(err);
       toast.error(err?.message ?? 'The password could not be changed. Please try again.');

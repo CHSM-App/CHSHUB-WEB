@@ -15,6 +15,30 @@ var express = require('express');
 var db = require("./db");
 var router = express.Router();
 
+// The website API owns the notification helpers; the mobile routes borrow them
+// rather than keeping a second copy that could drift out of step.
+const { notifyPeople, findCommittee } = require('../web/lib/notify');
+
+/**
+ * Which society a ticket belongs to.
+ *
+ * HelpdeskRequest carries no society_id of its own — it hangs off the flat —
+ * and the mobile endpoints have no authenticated society to hand, so it is
+ * looked up from the ticket itself.
+ */
+async function societyOfHelpdesk(helpdeskId) {
+  const result = await db
+    .request()
+    .input('helpdesk_id', helpdeskId)
+    .query(`
+      SELECT TOP 1 f.society_id
+      FROM   HelpdeskRequest hr
+      JOIN   flat_master f ON f.flat_id = hr.flat_id
+      WHERE  hr.helpdesk_id = @helpdesk_id`);
+
+  return result.recordset[0]?.society_id ?? null;
+}
+
 /**
  * Execute a stored procedure with named parameters, then hand the result to
  * `onResult`. Replaces the repeated db.query(concatenated string) in this file.
@@ -154,6 +178,37 @@ router.post('/comments',  async (req, res, next) => {
       .input("type",  type)
       .input("description",  description)
       .execute("sp_helpdesk");
+
+    /*
+     * Tell the committee. A resident replying on their own ticket was silent
+     * before this: the secretary only learned of it by opening the thread,
+     * so a question asked here could sit unanswered for days.
+     *
+     * The committee only — the flat that wrote it already knows, and the rest
+     * of the society is not part of this conversation even when the original
+     * complaint was a community one.
+     *
+     * After the save and never in front of it: a push that throws must not
+     * take the comment with it.
+     */
+    try {
+      const societyId = await societyOfHelpdesk(helpdesk_id);
+      if (societyId) {
+        const committee = await findCommittee(societyId);
+        await notifyPeople({
+          societyId,
+          // The resident who just wrote it is in owner_master, the committee
+          // in UserLogin, so no filtering is needed between them.
+          people: committee,
+          type: 'Helpdesk',
+          id: helpdesk_id,
+          title: 'New reply on a complaint',
+          body: String(description ?? '').slice(0, 120),
+        });
+      }
+    } catch {
+      // The comment is saved; a failed notification must not fail the call.
+    }
 
     res.status(200).json({ message: "Comment inserted successfully" });
   } catch (err) {

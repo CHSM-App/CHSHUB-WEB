@@ -55,7 +55,7 @@ async function findRecipients(societyId, recipientsId) {
       .request()
       .input('society_id', sql.NVarChar(10), societyId)
       .query(`
-        SELECT owner_id AS user_id, name, type, token
+        SELECT owner_id AS user_id, name, type, token, 'owner' AS source
         FROM   owner_master
         WHERE  society_id = @society_id
           AND  active_status = 0
@@ -72,7 +72,7 @@ async function findRecipients(societyId, recipientsId) {
       .request()
       .input('society_id', sql.NVarChar(10), societyId)
       .query(`
-        SELECT user_id, name, 'Member' AS type, token
+        SELECT user_id, name, 'Member' AS type, token, 'login' AS source
         FROM   UserLogin
         WHERE  society_id = @society_id
           AND  active_status = 0
@@ -81,10 +81,89 @@ async function findRecipients(societyId, recipientsId) {
     people.push(...result.recordset);
   }
 
-  // One device may serve two records (an owner who is also a committee member).
-  const byToken = new Map();
-  for (const p of people) if (!byToken.has(p.token)) byToken.set(p.token, p);
-  return [...byToken.values()];
+  // One person may hold two records (an owner who is also a committee
+  // member). Keyed by person rather than by token: those who have never
+  // opened the app share a null token, and keying on that would fold them
+  // all into one and lose the rest.
+  const byPerson = new Map();
+  for (const p of people) {
+    const key = `${p.source ?? 'owner'}:${p.user_id}`;
+    if (!byPerson.has(key)) byPerson.set(key, p);
+  }
+  return [...byPerson.values()];
+}
+
+/**
+ * The residents of one flat — owner, tenant and family alike.
+ *
+ * findRecipients works in whole-society groups, which is right for a notice.
+ * A helpdesk ticket is about one flat, so its people are looked up directly.
+ */
+async function findFlatResidents(societyId, flatId) {
+  const pool = await getPool();
+  const result = await pool
+    .request()
+    .input('society_id', sql.NVarChar(10), societyId)
+    .input('flat_id', sql.Int, flatId)
+    .query(`
+      SELECT owner_id AS user_id, name, type, token, 'owner' AS source
+      FROM   owner_master
+      WHERE  society_id = @society_id
+        AND  flat_id = @flat_id
+        AND  active_status = 0`);
+
+  return result.recordset;
+}
+
+/**
+ * The committee: admin, chairman, secretary, treasurer and members.
+ *
+ * This is GROUPS[4] — `members: true` — pulled out on its own so a caller can
+ * combine it with one flat's residents without notifying the whole society.
+ */
+async function findCommittee(societyId) {
+  const pool = await getPool();
+  const result = await pool
+    .request()
+    .input('society_id', sql.NVarChar(10), societyId)
+    .query(`
+      SELECT user_id, name, 'Member' AS type, token, 'login' AS source
+      FROM   UserLogin
+      WHERE  society_id = @society_id
+        AND  active_status = 0`);
+
+  return result.recordset;
+}
+
+/**
+ * The gate staff, who carry the Security app.
+ *
+ * Their accounts are Staff_Master rows, not UserLogin ones — a separate table
+ * that numbers its rows independently, hence `source: 'staff'` so a staff id
+ * is never confused with a committee member's.
+ *
+ * Every active member of the society's staff is included rather than only a
+ * "gatekeeper" role: `staff_role` is seeded per deployment as free text, so
+ * there is no role id that reliably means the gate. sp_staff_master's grid
+ * excludes `role_id != 1`, which suggests 1 is the gate, but nothing else in
+ * the schema confirms it — and notifying a caretaker about a visitor is a far
+ * smaller fault than a gate that never hears.
+ *
+ * `user_type` is 'Staff' so sp_notification files it where the Security app's
+ * own list looks, as owners and members are filed under theirs.
+ */
+async function findGateStaff(societyId) {
+  const pool = await getPool();
+  const result = await pool
+    .request()
+    .input('society_id', sql.NVarChar(10), societyId)
+    .query(`
+      SELECT staff_id AS user_id, name, 'Staff' AS type, token, 'staff' AS source
+      FROM   Staff_Master
+      WHERE  society_id = @society_id
+        AND  ISNULL(active_status, 0) = 0`);
+
+  return result.recordset;
 }
 
 /** Record the notification against a user so the app's list shows it. */
@@ -112,15 +191,42 @@ async function recordNotification({ societyId, userId, userType, type, id, title
  * @returns {{sent:number, failed:number, recipients:number, error?:string}}
  */
 async function notifyGroup({ societyId, recipientsId, type, id, title, body }) {
+  try {
+    const people = await findRecipients(societyId, recipientsId);
+    return await notifyPeople({ societyId, people, type, id, title, body });
+  } catch (err) {
+    return { sent: 0, failed: 0, recipients: 0, error: err.message };
+  }
+}
+
+/**
+ * Notify a chosen set of people. The sending half of notifyGroup, without the
+ * group lookup — for callers that build their own audience.
+ */
+async function notifyPeople({ societyId, people, type, id, title, body, messageType }) {
   const summary = { sent: 0, failed: 0, recipients: 0 };
 
   try {
-    const people = await findRecipients(societyId, recipientsId);
-    summary.recipients = people.length;
-    if (!people.length) return summary;
-
-    // Record first: the in-app list should hold the item even if FCM is down.
+    /*
+     * Deduped by person, not by token: someone who has never opened the app
+     * has no token, and keying on one would collapse all of them into a
+     * single entry and drop the rest.
+     *
+     * That matters because the in-app list is written for everyone. A
+     * resident without a phone token still sees the notification when they
+     * next sign in; only the push needs a token.
+     */
+    const byPerson = new Map();
     for (const p of people) {
+      const key = `${p.source ?? 'owner'}:${p.user_id}`;
+      if (!byPerson.has(key)) byPerson.set(key, p);
+    }
+
+    const unique = [...byPerson.values()];
+    summary.recipients = unique.length;
+    if (!unique.length) return summary;
+
+    for (const p of unique) {
       try {
         await recordNotification({
           societyId,
@@ -136,11 +242,23 @@ async function notifyGroup({ societyId, recipientsId, type, id, title, body }) {
       }
     }
 
+    // One device may serve two records (an owner who is also on the
+    // committee); a duplicate push reads as a bug to whoever gets it.
+    const tokens = [
+      ...new Set(unique.map((p) => p.token).filter((t) => t && String(t).trim())),
+    ];
+
+    summary.pushable = tokens.length;
+    if (!tokens.length) return summary;
+
     const response = await messaging().sendEachForMulticast({
       notification: { title, body },
-      // The app switches on this to open the right screen.
-      data: { messageType: String(type).toLowerCase() },
-      tokens: people.map((p) => p.token),
+      // The apps switch on this. It defaults to the notification type, which
+      // is what notices and events want, but a caller may name it explicitly
+      // where the app's handler expects a different word — a visitor arrives
+      // as `visitor_entry`, not `visitor`.
+      data: { messageType: messageType ?? String(type).toLowerCase() },
+      tokens,
     });
 
     summary.sent = response.successCount;
@@ -152,4 +270,117 @@ async function notifyGroup({ societyId, recipientsId, type, id, title, body }) {
   return summary;
 }
 
-module.exports = { notifyGroup, findRecipients };
+/**
+ * Who a helpdesk ticket should reach.
+ *
+ * A complaint is not an announcement, so it does not go to the whole society
+ * by default — the audience follows who raised it and how far the problem
+ * reaches:
+ *
+ *   personal   the flat it is about, and the committee who must act on it
+ *   community  the same, plus every resident, since a lift or a parking
+ *              dispute is everyone's problem
+ *
+ * Whoever raised it is dropped: they already know, and a push telling you
+ * what you just did is noise. `raisedBy` names both the id and the table it
+ * came from — owner_master for a resident, UserLogin for the committee — since
+ * the two number their rows separately and an id alone would silence the wrong
+ * person.
+ */
+async function notifyHelpdesk({
+  societyId,
+  flatId,
+  categoryType,
+  raisedBy,
+  type,
+  id,
+  title,
+  body,
+}) {
+  const isCommunity = String(categoryType).toLowerCase() === 'community';
+
+  const [residents, committee, everyone] = await Promise.all([
+    // A community complaint filed by the committee has no flat behind it, and
+    // group 3 below reaches those residents anyway.
+    flatId ? findFlatResidents(societyId, flatId) : Promise.resolve([]),
+    findCommittee(societyId),
+    // Owners and tenants across the society. The committee is fetched
+    // separately above, so group 3 rather than 5.
+    isCommunity ? findRecipients(societyId, 3) : Promise.resolve([]),
+  ]);
+
+  const people = [...residents, ...committee, ...everyone].filter((p) => {
+    if (!raisedBy) return true;
+    const sameTable = (p.source ?? 'owner') === (raisedBy.source ?? 'owner');
+    return !(sameTable && Number(p.user_id) === Number(raisedBy.userId));
+  });
+
+  return notifyPeople({ societyId, people, type, id, title, body });
+}
+
+/**
+ * Who a visitor registration should reach.
+ *
+ * Two audiences, for two different reasons:
+ *
+ *   the flat   someone is here for them, and they may want to refuse entry —
+ *              the resident app treats `visitor_entry` as an approval prompt
+ *   the gate   whoever is on the gate has to let the visitor through, and a
+ *              visitor registered from the website or the secretary's phone
+ *              never passed in front of them
+ *
+ * A visitor with no flat against them — a contractor for the society itself —
+ * still reaches the gate; `findFlatResidents` is simply skipped.
+ *
+ * `messageType` on the push is `visitor_entry`, which is what routes/notify.js
+ * already sends and what the resident app's handler switches on. Sending
+ * anything else would file it correctly and then be ignored by the app.
+ *
+ * Whoever registered the visitor is dropped: a secretary who just filled the
+ * form does not need telling. Never throws — the visitor is already saved.
+ */
+async function notifyVisitor({
+  societyId,
+  flatId,
+  registeredBy,
+  type = 'Visitor',
+  id,
+  title,
+  body,
+}) {
+  try {
+    const [residents, staff] = await Promise.all([
+      flatId ? findFlatResidents(societyId, flatId) : Promise.resolve([]),
+      findGateStaff(societyId),
+    ]);
+
+    const people = [...residents, ...staff].filter((p) => {
+      if (!registeredBy) return true;
+      const sameTable = (p.source ?? 'owner') === (registeredBy.source ?? 'owner');
+      return !(sameTable && Number(p.user_id) === Number(registeredBy.userId));
+    });
+
+    return await notifyPeople({
+      societyId,
+      people,
+      type,
+      id,
+      title,
+      body,
+      messageType: 'visitor_entry',
+    });
+  } catch (err) {
+    return { sent: 0, failed: 0, recipients: 0, error: err.message };
+  }
+}
+
+module.exports = {
+  notifyGroup,
+  notifyPeople,
+  notifyHelpdesk,
+  notifyVisitor,
+  findRecipients,
+  findFlatResidents,
+  findCommittee,
+  findGateStaff,
+};

@@ -23,6 +23,10 @@ function publicUser(row) {
     owner_id: row.owner_id ?? null,
     email: row.email ?? null,
     contact_no: row.contact_no ?? null,
+    // Relative path under the uploads tree, e.g. 'profile-photos/1739-42.png'.
+    // Clients build the URL from it rather than storing an absolute one, so a
+    // change of host does not strand every avatar in the database.
+    photo_path: row.photo_path ?? null,
   };
 }
 

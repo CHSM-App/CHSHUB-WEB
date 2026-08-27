@@ -7,6 +7,59 @@ router.use(bodyParser.json());
 const auth = require('./middleware/auth');
 router.use(bodyParser.urlencoded({ extended: true }));
 
+// The website API owns the notification helpers; borrowed here rather than
+// kept as a second copy that could drift out of step.
+const {
+  notifyPeople,
+  findCommittee,
+  findRecipients,
+} = require('../web/lib/notify');
+
+/**
+ * Tell the right people about a complaint a resident just raised.
+ *
+ * The mobile routes carry no authenticated society, so it is read back from
+ * the flat the ticket names.
+ *
+ *   personal   the committee, who must act on it
+ *   community  the committee and every owner and tenant, since a lift or a
+ *              parking dispute is everyone's problem
+ *
+ * The resident who filed it is dropped — they already know.
+ */
+async function notifyHelpdeskFromMobile({ helpdeskId, flatId, categoryType, ownerId, query }) {
+  const found = await db
+    .request()
+    .input('flat_id', flatId)
+    .query('SELECT TOP 1 society_id FROM flat_master WHERE flat_id = @flat_id');
+
+  const societyId = found.recordset[0]?.society_id;
+  if (!societyId) return;
+
+  const isCommunity = String(categoryType).toLowerCase() === 'community';
+
+  const [committee, everyone] = await Promise.all([
+    findCommittee(societyId),
+    isCommunity ? findRecipients(societyId, 3) : Promise.resolve([]),
+  ]);
+
+  // The committee lives in UserLogin and residents in owner_master, so only
+  // the resident list can hold the person who filed this.
+  const people = [
+    ...committee,
+    ...everyone.filter((p) => Number(p.user_id) !== Number(ownerId)),
+  ];
+
+  await notifyPeople({
+    societyId,
+    people,
+    type: 'Helpdesk',
+    id: helpdeskId,
+    title: isCommunity ? 'New community complaint' : 'New complaint',
+    body: String(query ?? '').slice(0, 120),
+  });
+}
+
 router.post('/Insert/Notification',  async (req, res) => {
   try {
     const {
@@ -259,7 +312,31 @@ router.post('/Helpdesk',  async (req, res) => {
 	  .input("logintype",  logintype)
       .execute("sp_Helpdesk");
 
-    res.json({success:true, helpdesk_id: result.recordset[0].helpdesk_id });
+    const helpdeskId = result.recordset[0].helpdesk_id;
+
+    /*
+     * Tell the committee a resident has raised something, and — when it is a
+     * community matter — the rest of the society with it.
+     *
+     * The resident who filed it is left out: they already know, and the flat's
+     * other residents are reached through the community branch when it
+     * applies. This mirrors what the website API does for a secretary-raised
+     * ticket, so a complaint notifies the same people whichever app it came
+     * from.
+     */
+    try {
+      await notifyHelpdeskFromMobile({
+        helpdeskId,
+        flatId: flat_id,
+        categoryType: category_type,
+        ownerId: owner_id,
+        query,
+      });
+    } catch {
+      // Saved already; a failed push must not fail the request.
+    }
+
+    res.json({success:true, helpdesk_id: helpdeskId });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

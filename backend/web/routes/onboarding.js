@@ -12,9 +12,17 @@ const { str, optionalStr, int, num, bool, date } = require('../lib/validate');
 const { hashPassword } = require('../lib/password');
 const { authenticate } = require('../middleware/authenticate');
 // Registering signs the new account in, so the tenant setup form can open
-// straight away — as new_registration.aspx did.
-const { accessTokenFor, issueRefreshToken } = require('../lib/tokens');
+// straight away — as new_registration.aspx did. The password routes below use
+// the same issuers to re-arm the session of the device that changed it, and
+// revokeAllRefreshTokensForUser to end all the others.
+const {
+  accessTokenFor,
+  issueRefreshToken,
+  revokeRefreshToken,
+  revokeAllRefreshTokensForUser,
+} = require('../lib/tokens');
 const { publicUser } = require('../lib/publicUser');
+const { findUserById, findUserByEmail } = require('../lib/users');
 
 const router = express.Router();
 
@@ -247,19 +255,25 @@ router.post(
     const newPassword = str(req.body?.newPassword, 'newPassword', { max: 200 });
     if (newPassword.length < 8) throw ApiError.badRequest('Password must be at least 8 characters');
 
-    const found = await query('sp_UserLogin', {
-      operation: 'check_email',
-      email: { type: sql.NVarChar(100), value: email },
-      user_id: { type: sql.Int, value: 0 },
-    });
+    const found = await findUserByEmail(email);
     // Always report success so the endpoint cannot be used to discover which
     // addresses have accounts.
-    if (found.length) {
+    if (found) {
       await exec('sp_UserLogin', {
         operation: 'ResetForgotPassword',
         email: { type: sql.NVarChar(100), value: email },
         password: { type: sql.NVarChar(200), value: hashPassword(newPassword) },
       });
+
+      // Every session dies, with nothing spared. Unlike a change-password there
+      // is no caller session worth keeping — the person doing this is not
+      // signed in — and a reset is the flow someone reaches for precisely
+      // because they think another party has the account. Sparing anything
+      // here would be sparing the intruder.
+      //
+      // findUserByEmail already carries user_id and contact_no, which is what
+      // reaches both the website's rows and the mobile app's.
+      await revokeAllRefreshTokensForUser(found);
     }
     return ok(res, { submitted: true });
   }),
@@ -354,6 +368,15 @@ router.put(
       password = hashPassword(newPassword);
     }
 
+    // Profile photo. Absent means "leave whatever is stored alone"; an empty
+    // string means "remove it". The SP reads those two the same way, so the
+    // distinction has to survive here — `?? null` rather than `|| null`, which
+    // would collapse '' into "unchanged" and make removal impossible.
+    const photoPath =
+      req.body?.photoPath === undefined
+        ? null
+        : optionalStr(req.body?.photoPath, 'photoPath', { max: 500 }) ?? '';
+
     await exec('sp_UserLogin', {
       operation: 'UpdateProfile',
       user_id: { type: sql.Int, value: req.user.userId },
@@ -362,6 +385,7 @@ router.put(
       password: { type: sql.NVarChar(200), value: password },
       email: { type: sql.NVarChar(100), value: optionalStr(req.body?.email, 'email', { max: 100 }) },
       contact_no: { type: sql.NVarChar(50), value: optionalStr(req.body?.contactNo, 'contactNo', { max: 50 }) },
+      photo_path: { type: sql.NVarChar(500), value: photoPath },
       // The modal posted back the owner_id it had loaded, not the token's.
       owner_id: { type: sql.Int, value: int(current.owner_id, 'owner_id', { required: false, default: 0 }) },
     });
@@ -381,29 +405,107 @@ router.put(
         role: updated?.usertypename ?? null,
         user_type_id: updated?.user_type_id ?? null,
         owner_id: updated?.owner_id ?? 0,
+        photo_path: updated?.photo_path ?? null,
       },
       passwordChanged: Boolean(newPassword),
     });
   }),
 );
 
-/** POST /onboarding/change-password — for the signed-in user. */
+/**
+ * POST /onboarding/change-password — for the signed-in user.
+ * Body: { newPassword, refreshToken? }
+ *
+ * Changing the password ends every OTHER session, on the website and in the
+ * mobile app alike. A session that survives the change is the very one the
+ * change is usually meant to destroy — a stolen phone, or an account someone
+ * else had got into — and without this it would have kept refreshing itself
+ * for the full 7-day refresh window.
+ *
+ * The caller's own session is spared and re-issued rather than revoked: signing
+ * users out of the device they are typing on is a poor way to reward a good
+ * security habit. Clients that send their `refreshToken` get a fresh pair back
+ * and should store it; one that does not is simply signed out everywhere,
+ * which is safe, just less pleasant.
+ */
 router.post(
   '/change-password',
   asyncHandler(async (req, res) => {
     const newPassword = str(req.body?.newPassword, 'newPassword', { max: 200 });
     if (newPassword.length < 8) throw ApiError.badRequest('Password must be at least 8 characters');
 
+    const presentedRefresh = optionalStr(req.body?.refreshToken, 'refreshToken', { max: 512 });
+
+    // Read the account BEFORE writing, for two reasons.
+    //
+    // The first is a live hazard: sp_UserLogin's UpdateProfile branch assigns
+    // `username = @username`, `contact_no = @contact_no` and `email = @email`
+    // with no null-guard, unlike the password and name beside them. A password
+    // change sends none of those three, so passing them through as NULL wipes
+    // the row's identity and the account can no longer log in at all — the
+    // stored procedure reads the correct password and finds no username to
+    // match it against. Carrying the current values back in is what keeps this
+    // route from destroying the account it is meant to secure.
+    // docs/proposed-sql/04-sp_UserLogin-UpdateProfile-null-guards.sql fixes the
+    // proc; this stays regardless, so the route is safe on either version.
+    //
+    // The second is that contact_no decides which mobile-app sessions get
+    // revoked below, and it has to be the stored one.
+    const before = await findUserById(req.user.userId);
+    if (!before) throw ApiError.unauthorized('Account no longer exists');
+
     await exec('sp_UserLogin', {
       operation: 'UpdateProfile',
       user_id: { type: sql.Int, value: req.user.userId },
       password: { type: sql.NVarChar(200), value: hashPassword(newPassword) },
-      contact_no: { type: sql.NVarChar(50), value: optionalStr(req.body?.contactNo, 'contactNo', { max: 50 }) },
-      email: { type: sql.NVarChar(100), value: optionalStr(req.body?.email, 'email', { max: 100 }) },
-      username: { type: sql.NVarChar(50), value: optionalStr(req.body?.username, 'username', { max: 50 }) },
-      owner_id: { type: sql.Int, value: req.user.ownerId ?? 0 },
+      // `?? null` rather than `||`: an account with a genuinely empty phone or
+      // email keeps it empty instead of having '' turned into null.
+      contact_no: {
+        type: sql.NVarChar(50),
+        value: optionalStr(req.body?.contactNo, 'contactNo', { max: 50 }) ?? before.contact_no ?? null,
+      },
+      email: {
+        type: sql.NVarChar(100),
+        value: optionalStr(req.body?.email, 'email', { max: 100 }) ?? before.email ?? null,
+      },
+      username: {
+        type: sql.NVarChar(50),
+        value: optionalStr(req.body?.username, 'username', { max: 50 }) ?? before.username ?? null,
+      },
+      owner_id: { type: sql.Int, value: req.user.ownerId ?? before.owner_id ?? 0 },
     });
-    return ok(res, { changed: true });
+
+    // Re-read: the write above may have changed contact_no, which decides
+    // which mobile-app rows the revoke below matches.
+    const user = (await findUserById(req.user.userId)) ?? before;
+
+    // Revoked AFTER the password is stored. The other order would leave a
+    // window where the old password still worked but the sessions were gone,
+    // and a failure between the two would sign everyone out for nothing.
+    const revokedCount = await revokeAllRefreshTokensForUser(user, presentedRefresh);
+
+    // Rotate the caller's own session too. The spared refresh token stays
+    // valid, but its access token still carries claims minted before the
+    // change, so a fresh pair keeps this device consistent with the others.
+    let session = null;
+    if (presentedRefresh) {
+      await revokeRefreshToken(presentedRefresh);
+      const refresh = await issueRefreshToken(user, 'password-change');
+      session = {
+        accessToken: accessTokenFor(user),
+        refreshToken: refresh.token,
+        expiresAt: refresh.expiresAt,
+      };
+    }
+
+    return ok(res, {
+      changed: true,
+      // What the client should tell the user: "signed out of N other devices".
+      revokedSessions: revokedCount,
+      // Null when the client sent no refresh token — it is now signed out and
+      // must send the user back to the login screen.
+      session,
+    });
   }),
 );
 

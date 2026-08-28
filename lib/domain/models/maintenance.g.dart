@@ -34,6 +34,7 @@ Maintenance _$MaintenanceFromJson(Map<String, dynamic> json) => Maintenance(
       ),
       billId: (json['bill_id'] as num?)?.toInt(),
       due: json['due'] as String?,
+      billStatus: json['bill_status'] as String?,
     );
 
 Map<String, dynamic> _$MaintenanceToJson(Maintenance instance) =>
@@ -63,4 +64,5 @@ Map<String, dynamic> _$MaintenanceToJson(Maintenance instance) =>
       'charges': instance.charges,
       'bill_id': instance.billId,
       'due': instance.due,
+      'bill_status': instance.billStatus,
     };

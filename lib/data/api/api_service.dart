@@ -218,17 +218,17 @@ abstract class ApiService {
   );
 
   @GET("data/StaffAttendance/status/{staff_id}")
-  Future<Map<String, dynamic>> getCurrentStaffAttendanceStatus(
+  Future<dynamic> getCurrentStaffAttendanceStatus(
     @Path("staff_id") int staffId,
   );
 
   @GET("data/StaffAttendance/{staff_id}")
-  Future<Map<String, dynamic>> getMyAttendanceHistory(
+  Future<dynamic> getMyAttendanceHistory(
     @Path("staff_id") int staffId,
   );
 
   @GET("data/GetEmergencyAlertPreference/{society_id}/{alert_type}")
-  Future<Map<String, dynamic>> getEmergencyAlertPreference(
+  Future<dynamic> getEmergencyAlertPreference(
     @Path("society_id") String societyId,
     @Path("alert_type") String alertType,
   );

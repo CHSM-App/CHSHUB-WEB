@@ -14,7 +14,8 @@ class EmergencyalertImpl implements EmergencyalertRepo {
   }
   @override
   Future<Map<String, dynamic>> getEmergencyAlertPreference(String societyId, String alertType) {
-    return apiService.getEmergencyAlertPreference(societyId, alertType);
+    return apiService.getEmergencyAlertPreference(societyId, alertType)
+        .then((v) => (v as Map).cast<String, dynamic>());
   }
     @override 
   Future<List<EmergencyAlert>> getActiveAlerts() {

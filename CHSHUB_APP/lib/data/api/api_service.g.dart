@@ -1895,8 +1895,7 @@ class _ApiService implements ApiService {
 
   @override
   Future<dynamic> markAllNotificationsSeenByType(
-    Map<String, dynamic> body,
-  ) async {
+      Map<String, dynamic> body) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{};
     final _headers = <String, dynamic>{};

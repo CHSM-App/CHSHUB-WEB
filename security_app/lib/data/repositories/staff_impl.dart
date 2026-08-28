@@ -48,7 +48,8 @@ Future<List<StaffAttendance>> getStaffAttendanceStatus(int staffId) {
 // getCurrentStaffAttendanceStatus
 @override
 Future<Map<String, dynamic>> getCurrentStaffAttendanceStatus(int staffId) {
-  return apiService.getCurrentStaffAttendanceStatus(staffId);
+  return apiService.getCurrentStaffAttendanceStatus(staffId)
+      .then((v) => (v as Map).cast<String, dynamic>());
 }
 
 @override
@@ -58,7 +59,7 @@ Future<dynamic> updateAttendance(StaffAttendance body) {
 
 @override
 Future<List<StaffAttendance>> getMyAttendanceHistory(int staffId) async {
-  final result = await apiService.getMyAttendanceHistory(staffId);
+  final result = (await apiService.getMyAttendanceHistory(staffId)) as Map;
   final records = result['records'] as List<dynamic>? ?? [];
   return records
       .map((i) => StaffAttendance.fromJson(i as Map<String, dynamic>))

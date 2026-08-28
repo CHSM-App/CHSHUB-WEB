@@ -1,0 +1,109 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-display: 'Barlow Condensed', 'Arial Narrow', ui-sans-serif, sans-serif;
+  --font-body: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  /* CHS HUB brand red — matches frontend/src/index.css --accent */
+  --color-brand-50: #fef2f2;
+  --color-brand-100: #fee2e2;
+  --color-brand-200: #fecaca;
+  --color-brand-300: #f9a8a4;
+  --color-brand-400: #f26a68;
+  --color-brand-500: #e31b23;
+  --color-brand-600: #b91c1c;
+  --color-brand-700: #8a1f1f;
+
+  /* Neutrals — taken from the console's --ink / --page / --line */
+  --color-ink: #1f2937;
+  --color-ink-muted: #6b7280;
+  --color-page: #f8f9fa;
+  --color-line: #e5e7eb;
+
+  /* Per-app accents, from each app's own theme */
+  --color-owner: #e31b23;
+  --color-gate: #667eea;
+  --color-secretary: #2633c5;
+  --color-console: #0ea5e9;
+
+  --animate-float: float 7s ease-in-out infinite;
+  --animate-pulse-glow: pulseGlow 6s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes pulseGlow {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.06);
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: #ffffff;
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--color-brand-500);
+  color: #fff;
+}
+
+/* Elevation ramp mirroring the console's --shadow-* tokens */
+@utility card-shadow {
+  box-shadow:
+    0 1px 2px rgba(23, 31, 43, 0.04),
+    0 8px 24px -8px rgba(23, 31, 43, 0.12);
+}
+
+@utility card-shadow-lg {
+  box-shadow:
+    0 1px 2px rgba(23, 31, 43, 0.05),
+    0 24px 56px -16px rgba(23, 31, 43, 0.22);
+}
+
+@utility grid-lines {
+  background-image:
+    linear-gradient(rgba(23, 31, 43, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(23, 31, 43, 0.045) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

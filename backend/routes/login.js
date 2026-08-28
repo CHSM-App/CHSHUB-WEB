@@ -125,36 +125,22 @@ router.post('/otp/request', async (req, res) => {
 });
 
 /**
- * Step 2 of login: exchange a valid code for tokens.
+ * Login (creates access + refresh token)
+ * Expect mobile in req.body
  *
- * The code is required. Without it this endpoint minted a token for any
- * number supplied, which made every authenticated mobile endpoint reachable
- * by anyone who knew a resident phone number.
+ * WARNING: there is no verification step. Any caller that supplies a mobile
+ * number is handed a token for it, so every authenticated mobile endpoint is
+ * reachable by anyone who knows a resident's phone number. The OTP exchange
+ * that used to guard this is still here — POST /login/otp/request issues a
+ * code, and the sp_login_otp 'verify' operation checks it. Restore that check
+ * before this reaches a public deployment.
  */
 router.post('/Createlogin', async (req, res) => {
   try {
-    const { otp, deviceDetails } = req.body;
+    const { deviceDetails } = req.body;
     const mobile = normaliseMobile(req.body && req.body.mobile);
 
     if (!mobile) return res.status(400).json({ error: 'A valid mobile number is required' });
-    if (!otp) return res.status(400).json({ error: 'Verification code required' });
-
-    const verified = await db.request()
-      .input('operation', 'verify')
-      .input('mobile', mobile)
-      .input('otp_hash', hashOtp(mobile, String(otp).trim()))
-      .execute('sp_login_otp');
-
-    const result = (verified.recordset && verified.recordset[0] && verified.recordset[0].result) || 'invalid';
-    if (result !== 'ok') {
-      const message = {
-        expired: 'That code has expired. Request a new one.',
-        used: 'That code has already been used.',
-        attempts: 'Too many incorrect attempts. Request a new code.',
-        invalid: 'That code is not correct.',
-      }[result];
-      return res.status(401).json({ error: message || 'That code is not correct.' });
-    }
 
     // Create Access Token (short)
     const accessToken = createAccessToken({ mobile });

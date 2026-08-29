@@ -26,7 +26,7 @@ const columns = [
       { label: 'FAQ', href: '#faq' },
       { label: 'Book a demo', href: '#contact' },
       { label: 'Privacy policy', href: 'https://chshub.co.in/privacy-policy' },
-      { label: 'Delete account', href: 'https://chshub.co.in/delete-account.html' },
+      { label: 'Delete account', href: 'https://chshub.co.in/delete-account' },
     ],
   },
 ];

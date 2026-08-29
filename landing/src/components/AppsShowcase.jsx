@@ -25,7 +25,7 @@ const apps = [
     device: 'phone',
     accent: 'bg-indigo-500',
     chip: 'text-indigo-600',
-    text: 'Built for the person standing at the gate. Scan a gate-pass QR the moment a visitor arrives, log entries in and out, and push an instant alert to the resident so nobody waits. Staff and gatekeeper attendance is recorded in the same app, and it works in the language your gate staff are comfortable with.',
+    text: 'Built for the person standing at the gate. Scan a gate-pass QR the moment a visitor arrives, log entries in and out, and push an instant alert to the resident so nobody waits. Staff and gatekeeper attendance is recorded in the same app, and it works in English, Hindi, Marathi, Bengali or Tamil.',
   },
   {
     id: 'secretary-app',
@@ -49,7 +49,7 @@ const apps = [
     device: 'laptop',
     accent: 'bg-sky-600',
     chip: 'text-sky-700',
-    text: 'Where the whole society is administered. Property, people, staff and vendor masters; finance from PDC and loans through to ledger and cashbook; and the reports an auditor actually asks for — income and expenditure, balance sheet, AGM pack and owner ledger. Import from Excel, export to PDF or XLSX.',
+    text: 'Where the whole society is administered. Property, people, staff and vendor masters; finance from PDC and loans through to ledger and cashbook; and the reports an auditor actually asks for — income and expenditure, balance sheet, AGM pack and owner ledger. Import from Excel, export to PDF or CSV.',
   },
 ];
 

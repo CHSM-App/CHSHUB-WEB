@@ -9,11 +9,11 @@ const faqs = [
   },
   {
     q: 'Can we move our existing data across?',
-    a: 'Yes. Flats, owners, tenants and opening balances import from Excel. If you are on the older Society software, we migrate your historical bills and receipts too.',
+    a: 'Yes. Flats, owners, tenants, buildings and parking import from Excel. If you are moving off the older Society software, talk to us about bringing your historical bills and receipts across.',
   },
   {
     q: 'How do residents pay maintenance?',
-    a: 'Online from the Owner app, or by cash, cheque or bank transfer recorded by the committee. Post-dated cheques are tracked with reminders until they clear.',
+    a: 'Online from the Owner app, or by cash, cheque or bank transfer recorded by the committee. Post-dated cheques are recorded and tracked until they clear.',
   },
   {
     q: 'Does it work for a village or panchayat?',
@@ -21,11 +21,11 @@ const faqs = [
   },
   {
     q: 'Is our society data secure?',
-    a: 'Each society is isolated in its own tenant with role-based access, so a gatekeeper never sees financial data and a resident only sees their own flat. Read our privacy policy for the full detail.',
+    a: 'Your society is a separate tenant on the committee console, and the console takes the society from your sign-in, not from the page you are on. Each app also shows only the screens its users need — the gatekeeper app has no finance screens at all. Read our privacy policy for the full detail.',
   },
   {
     q: 'What languages are supported?',
-    a: 'The mobile apps ship with multi-language support so residents and gate staff can use them in the language they are comfortable with.',
+    a: 'The Gatekeeper app ships in English, Hindi, Marathi, Bengali and Tamil, so your gate staff can work in the language they are comfortable with. The Owner and Secretary apps are in English today.',
   },
 ];
 

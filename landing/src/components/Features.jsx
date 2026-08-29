@@ -44,7 +44,7 @@ const features = [
   {
     icon: Wallet,
     title: 'Accounts & Cashbook',
-    text: 'Expenses, vendor bills and ledger stay reconciled automatically.',
+    text: 'Expenses, vendor bills and ledger kept in one place.',
     tint: 'bg-violet-50 text-violet-600',
   },
   {
@@ -56,7 +56,7 @@ const features = [
   {
     icon: FileText,
     title: 'Documents & NOC',
-    text: 'Society documents, share certificates and NOC issuance, searchable.',
+    text: 'Society documents and NOC issuance, stored and searchable.',
     tint: 'bg-teal-50 text-teal-600',
   },
 ];

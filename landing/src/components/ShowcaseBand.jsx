@@ -10,7 +10,7 @@ const points = [
   {
     icon: ShieldCheck,
     title: 'Dues on Track',
-    text: 'Defaulters and post-dated cheques never slip through.',
+    text: 'Defaulters and post-dated cheques tracked in one list.',
   },
   {
     icon: Building2,

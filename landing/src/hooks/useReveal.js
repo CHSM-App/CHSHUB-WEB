@@ -43,33 +43,3 @@ export function useReveal({ threshold = 0.15, rootMargin = '0px 0px -60px 0px' }
 
   return [ref, shown];
 }
-
-// Counts up to `value` once the element is visible.
-export function useCountUp(value, { duration = 1400 } = {}) {
-  const [ref, shown] = useReveal({ threshold: 0.4 });
-  const [display, setDisplay] = useState(0);
-
-  useEffect(() => {
-    if (!shown) return;
-
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduced) {
-      setDisplay(value);
-      return;
-    }
-
-    let frame;
-    const start = performance.now();
-    const tick = (now) => {
-      const progress = Math.min((now - start) / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplay(Math.round(value * eased));
-      if (progress < 1) frame = requestAnimationFrame(tick);
-    };
-
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [shown, value, duration]);
-
-  return [ref, display];
-}

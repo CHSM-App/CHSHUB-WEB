@@ -1,6 +1,16 @@
 import { ArrowRight, Mail, Monitor, Phone } from 'lucide-react';
 import Reveal from './Reveal';
 
+function PlayStoreGlyph() {
+  return (
+    <svg viewBox='0 0 24 24' aria-hidden='true' className='h-6 w-6 shrink-0'>
+      <path fill='#fff' d='M3.6 1.8a1 1 0 0 0-.5.9v18.6a1 1 0 0 0 .5.9l10-10.2-10-10.2Z' opacity='.9' />
+      <path fill='#fff' d='m14.9 10.7 3.2-3.3 1.9 1.1c1.1.6 1.1 2.2 0 2.8l-1.9 1.1-3.2-3.3v1.6Z' opacity='.75' />
+      <path fill='#fff' d='m4.3 22.3 10.6-10.8 2.4 2.5-11 6.3a1 1 0 0 1-2-.4v2.4Z' opacity='.6' />
+    </svg>
+  );
+}
+
 export default function CtaSection() {
   return (
     <section
@@ -85,13 +95,18 @@ export default function CtaSection() {
               <p className='mt-1.5 text-sm text-white/75'>
                 Owner, Gatekeeper and Secretary apps
               </p>
-              <a
-                href='mailto:support@vengurlatech.com?subject=CHS%20HUB%20app%20access'
-                className='mt-4 inline-flex items-center gap-1.5 rounded-[10px] bg-white px-4 py-2 text-sm font-semibold text-brand-600 transition-colors hover:bg-brand-50'
-              >
-                Get the apps
-                <ArrowRight className='h-3.5 w-3.5' />
-              </a>
+              {/* Play Store badge. The apps are not published yet, so this is a
+                  non-link placeholder — swap the wrapper for an <a href="..."> once
+                  the listing is live. */}
+              <div className='mt-4 inline-flex cursor-default items-center gap-2.5 rounded-[10px] border border-white/25 bg-white/10 px-4 py-2'>
+                <PlayStoreGlyph />
+                <span className='text-left leading-tight'>
+                  <span className='block text-[9px] tracking-[0.14em] text-white/60 uppercase'>
+                    Coming soon on
+                  </span>
+                  <span className='block text-sm font-semibold text-white'>Google Play</span>
+                </span>
+              </div>
             </div>
           </Reveal>
         </div>

@@ -14,9 +14,9 @@ const columns = [
   {
     title: 'Platform',
     links: [
-      { label: 'Owner app', href: '#apps' },
-      { label: 'Gatekeeper app', href: '#apps' },
-      { label: 'Secretary app', href: '#apps' },
+      { label: 'Owner app', href: '#owner-app' },
+      { label: 'Gatekeeper app', href: '#gatekeeper-app' },
+      { label: 'Secretary app', href: '#secretary-app' },
       { label: 'Web console', href: 'https://chshub.co.in/login' },
     ],
   },

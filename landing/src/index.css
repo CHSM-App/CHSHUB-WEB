@@ -57,6 +57,12 @@ html {
   scroll-behavior: smooth;
 }
 
+/* keep anchored sections clear of the fixed header */
+:target,
+section[id] {
+  scroll-margin-top: 4rem;
+}
+
 html,
 body {
   max-width: 100%;

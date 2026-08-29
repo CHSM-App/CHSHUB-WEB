@@ -4,6 +4,7 @@ import Reveal from './Reveal';
 
 const apps = [
   {
+    id: 'owner-app',
     eyebrow: 'Owners & residents',
     name: 'CHS HUB Owner',
     icon: Home,
@@ -15,6 +16,7 @@ const apps = [
     text: 'Everything a resident needs, in one place. Pay maintenance and download the receipt, approve a visitor before they reach the lobby, raise a complaint and watch it move, and keep up with notices, polls and society documents. Book the clubhouse, list something on the marketplace, and see exactly what you owe and why.',
   },
   {
+    id: 'gatekeeper-app',
     eyebrow: 'Security & gate staff',
     name: 'CHS HUB Gatekeeper',
     icon: ShieldCheck,
@@ -26,17 +28,19 @@ const apps = [
     text: 'Built for the person standing at the gate. Scan a gate-pass QR the moment a visitor arrives, log entries in and out, and push an instant alert to the resident so nobody waits. Staff and gatekeeper attendance is recorded in the same app, and it works in the language your gate staff are comfortable with.',
   },
   {
+    id: 'secretary-app',
     eyebrow: 'Committee on the move',
     name: 'Secretary App',
     icon: ClipboardList,
-    screen: '/screens/secretary-app.png',
-    ratio: '858/1834',
+    screen: '/screens/secretary_home_screen.png',
+    ratio: '875/1797',
     device: 'phone',
     accent: 'bg-blue-600',
     chip: 'text-blue-700',
     text: 'The back-office in your pocket. See collection and dues on a live dashboard, generate the month’s bills, record receipts and chase defaulters. Cashbook, expenses, ledger and vendor bills stay reconciled, while announcements, meetings, events and NOCs go out without opening a laptop.',
   },
   {
+    id: 'web-console',
     eyebrow: 'Full committee console',
     name: 'chshub.co.in',
     icon: Building2,
@@ -125,7 +129,7 @@ export default function AppsShowcase() {
 
             return (
               <Reveal key={app.name}>
-                <div className='grid items-center gap-8 sm:gap-12 lg:grid-cols-2'>
+                <div id={app.id} className='grid scroll-mt-20 items-center gap-8 sm:gap-12 lg:grid-cols-2'>
                   <div className={`rounded-3xl bg-page p-6 sm:p-8 ${imageFirst ? '' : 'lg:order-2'}`}>
                     <DeviceFrame src={app.screen} name={app.name} device={app.device} ratio={app.ratio} />
                   </div>

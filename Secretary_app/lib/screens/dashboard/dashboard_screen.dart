@@ -22,7 +22,7 @@ import '../billing/receipts_screen.dart';
 import '../community/facility_bookings_screen.dart';
 import '../community/helpdesk_screen.dart';
 import '../community/announcements_screen.dart';
-import '../community/noc_certificate_screen.dart';
+import '../community/noc_screen.dart';
 import '../community/notifications_screen.dart';
 import '../community/polls_screen.dart';
 import '../community/visitors_screen.dart';
@@ -371,7 +371,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         icon: Icons.verified_outlined,
         label: 'NOC',
         color: AppTheme.success,
-        onTap: () => _open(const NocCertificateScreen()),
+        onTap: () => _open(const NocScreen()),
       ),
       QuickAction(
         expand: false,

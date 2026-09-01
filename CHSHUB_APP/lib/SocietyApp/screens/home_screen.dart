@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:society_app/SocietyApp/screens/annoucement.dart';
 import 'package:society_app/SocietyApp/screens/document_list.dart';
+import 'package:society_app/SocietyApp/screens/noc_request.dart';
 import 'package:society_app/SocietyApp/screens/errorstate.dart';
 import 'package:society_app/SocietyApp/screens/members.dart';
 import 'package:society_app/SocietyApp/screens/productlist.dart';
@@ -1217,6 +1218,17 @@ DateTime _onlyDate(DateTime d) => DateTime(d.year, d.month, d.day);
           Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const DocumentListPage()),
+          );
+        },
+      },
+      {
+        'title': 'NOC',
+        'icon': Icons.verified_outlined,
+        'color': const Color(0xFF00897B),
+        'onTap': () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const NocRequestScreen()),
           );
         },
       },

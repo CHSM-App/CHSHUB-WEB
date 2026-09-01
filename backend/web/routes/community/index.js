@@ -16,6 +16,7 @@ const {
   findFlatResidents,
   findCommittee,
 } = require('../../lib/notify');
+const { nocOfficers, addNocOfficers } = require('../../lib/nocOfficers');
 
 const router = express.Router();
 
@@ -1174,6 +1175,39 @@ router.delete(
 
 /* -------------------------------------------------------- noc certificates */
 
+/**
+ * Which officers sign this society's NOC certificate, and what they are called.
+ *
+ * Set per society, because how many officers sign is fixed by its own bye-laws
+ * and by whoever is being asked to act on the certificate — one society signs
+ * with both, another with the secretary alone, and plenty print "President"
+ * where the code says chairman.
+ *
+ * Falls back to both officers under their usual names, which is what the sheet
+ * printed before this was configurable, so a society that has never opened the
+ * setting sees no change. A failed read falls back the same way rather than
+ * failing the certificate.
+ */
+async function nocSignatories(societyId) {
+  const fallback = { mode: 'Both', secretary: 'Secretary', chairman: 'Chairman' };
+
+  try {
+    const row = await queryOne('sp_account_setting', {
+      operation: 'select',
+      society_id: SOC(societyId),
+    });
+    if (!row) return fallback;
+
+    return {
+      mode: row.noc_signatories || fallback.mode,
+      secretary: row.noc_secretary_label || fallback.secretary,
+      chairman: row.noc_chairman_label || fallback.chairman,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 /*
  * The no-objection certificates a society has issued.
  *
@@ -1187,12 +1221,76 @@ router.get(
   '/noc',
   asyncHandler(async (req, res) => {
     const search = optionalStr(req.query.search, 'search', { max: 200 });
-    const rows = await query('sp_noc_certificate', {
-      operation: search ? 'Search' : 'Grid_Show',
-      society_id: SOC(req.societyId),
-      ...(search ? { search: { type: sql.NVarChar(200), value: search } } : {}),
-    });
-    return ok(res, { items: rows, count: rows.length });
+    const [rows, signatories] = await Promise.all([
+      query('sp_noc_certificate', {
+        operation: search ? 'Search' : 'Grid_Show',
+        society_id: SOC(req.societyId),
+        ...(search ? { search: { type: sql.NVarChar(200), value: search } } : {}),
+      }),
+      nocSignatories(req.societyId),
+    ]);
+    // Sent with the list rather than fetched per certificate: it is one
+    // setting for the whole society, and every sheet the client prints from
+    // these rows needs it.
+    return ok(res, { items: rows, count: rows.length, signatories });
+  }),
+);
+
+/**
+ * GET /community/noc/members — who a certificate can be issued to.
+ *
+ * Name, flat and building for every resident, which is exactly what the
+ * certificate form fills in. Picked from a list rather than typed: a NOC names
+ * a member and a flat, and a mistyped flat number produces a certificate the
+ * society cannot stand behind.
+ *
+ * Both owners and tenants, because both ask for certificates — a tenant needs
+ * one for a gas connection or a police verification as readily as an owner
+ * needs one for a sale.
+ *
+ * Declared above /noc/:id so Express does not read "members" as an id.
+ */
+router.get(
+  '/noc/members',
+  asyncHandler(async (req, res) => {
+    const soc = SOC(req.societyId);
+    // A society with no tenants at all still has to list its owners, so one
+    // side failing must not empty the picker.
+    const safe = (p) => p.catch(() => []);
+
+    const [owners, tenants] = await Promise.all([
+      safe(query('sp_owner_master', {
+        operation: 'Grid_Show',
+        type: { type: sql.NVarChar(10), value: 'owner' },
+        society_id: soc,
+      })),
+      safe(query('sp_owner_master', {
+        operation: 'Grid_Show',
+        type: { type: sql.NVarChar(10), value: 'tenant' },
+        society_id: soc,
+      })),
+    ]);
+
+    const items = [
+      ...owners.map((r) => ({ ...r, _kind: 'owner' })),
+      ...tenants.map((r) => ({ ...r, _kind: 'tenant' })),
+    ]
+      .filter((r) => r.name)
+      .map((r) => ({
+        // Owners and tenants are numbered independently, so an owner_id alone
+        // can name two different people. The picker keys on this, and two
+        // options sharing a key would collapse into one.
+        id: `${r._kind}-${r.owner_id}`,
+        owner_id: r.owner_id,
+        flat_id: r.flat_id,
+        name: r.name,
+        flat_no: r.flat_no ?? null,
+        building_name: r.build_name ?? null,
+        type: r._kind,
+      }))
+      .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+
+    return ok(res, { items, count: items.length });
   }),
 );
 
@@ -1241,7 +1339,45 @@ router.post(
       created_by: { type: sql.Int, value: req.user?.userId ?? null },
     });
 
-    return ok(res, { noc_id: created?.noc_id ?? null, serial_no: created?.serial_no ?? null }, 201);
+    /*
+     * Tie the certificate back to the request it came from, when there was
+     * one. The member's screen reads the serial off their request, and the
+     * secretary's list shows which requests have produced a letter — both go
+     * through noc_request.noc_id.
+     *
+     * A failure here leaves the certificate issued and the request without its
+     * number, which is worth reporting but not worth refusing the certificate
+     * over: it exists, it has a serial, and it can be printed.
+     */
+    const requestId = int(req.body?.requestId, 'requestId', {
+      min: 1,
+      required: false,
+    });
+
+    let linkError = null;
+    if (requestId && created?.noc_id) {
+      try {
+        await exec('sp_noc_request', {
+          operation: 'Link_Certificate',
+          request_id: { type: sql.Int, value: requestId },
+          society_id: SOC(req.societyId),
+          noc_id: { type: sql.Int, value: created.noc_id },
+        });
+      } catch (err) {
+        linkError = err.message;
+      }
+    }
+
+    return ok(
+      res,
+      {
+        noc_id: created?.noc_id ?? null,
+        serial_no: created?.serial_no ?? null,
+        request_id: requestId ?? null,
+        linkError,
+      },
+      201,
+    );
   }),
 );
 
@@ -1286,6 +1422,510 @@ router.delete(
       society_id: SOC(req.societyId),
     });
     return ok(res, { deleted: true, noc_id: id });
+  }),
+);
+
+/* ---------------------------------------------------------- noc requests -- */
+
+/*
+ * The NOC a member asks for, and the committee's decision on it.
+ *
+ * A certificate under /noc is what the society issued. These endpoints cover
+ * everything before that: the member asking, approvers deciding, and — because
+ * a NOC is only worth anything signed — the signed letter being collected from
+ * the office.
+ *
+ * Status codes come from vendor_bills, which is the approval pattern this
+ * follows: 1 Pending, 2 Approved, 4 Rejected, plus 5 Ready and 6 Collected for
+ * the two paper steps. 3 is skipped; it means Paid there and nothing here.
+ */
+
+const NOC_REQUEST_STATUS = {
+  PENDING: 1,
+  APPROVED: 2,
+  REJECTED: 4,
+  READY: 5,
+  COLLECTED: 6,
+};
+
+/** The certificate wording a type gets when the secretary has not written one. */
+const NOC_DEFAULT_CLAUSE = {
+  NoDues:
+    'to the member named above, who has no dues outstanding to the society as on the date of this certificate.',
+  SaleTransfer:
+    'to the sale and transfer of the said flat by the member named above, subject to the transferee complying with the bye-laws of the society.',
+  Renovation:
+    'to the internal renovation of the said flat by the member named above, provided no structural change is made and the work is carried out within the hours permitted by the society.',
+  Mortgage:
+    'to the said flat being mortgaged by the member named above to a bank or financial institution for the purpose stated, the society retaining its lien for any dues.',
+  General:
+    'to the request of the member named above for the purpose stated.',
+  Other:
+    'to the request of the member named above for the purpose stated.',
+};
+
+/** One request, scoped to the caller's society. */
+async function loadNocRequest(requestId, societyId) {
+  const row = await queryOne('sp_noc_request', {
+    operation: 'Select',
+    request_id: { type: sql.Int, value: requestId },
+    society_id: SOC(societyId),
+  });
+  if (!row) throw ApiError.notFound('NOC request not found');
+  return row;
+}
+
+/**
+ * GET /community/noc-requests — the secretary's list.
+ *
+ * Pending first, then approved awaiting signature, then ready to collect.
+ */
+router.get(
+  '/noc-requests',
+  asyncHandler(async (req, res) => {
+    const search = optionalStr(req.query.search, 'search', { max: 200 });
+    const rows = await query('sp_noc_request', {
+      operation: 'Grid_Show',
+      society_id: SOC(req.societyId),
+      search: { type: sql.NVarChar(200), value: search },
+    });
+    return ok(res, { items: rows, count: rows.length });
+  }),
+);
+
+
+/**
+ * GET /community/noc-requests/approvers — who this society's NOCs go to.
+ *
+ * Shown on the request so the secretary can see who it will be sent to before
+ * sending it; the list is not chosen, only displayed.
+ *
+ * Declared above /noc-requests/:id so Express does not read "approvers" as an
+ * id and answer 400.
+ */
+router.get(
+  '/noc-requests/approvers',
+  asyncHandler(async (req, res) => {
+    const items = await nocOfficers(req.societyId);
+    return ok(res, { items, count: items.length });
+  }),
+);
+
+/**
+ * GET /community/noc-requests/:id — one request with who was asked to decide.
+ */
+router.get(
+  '/noc-requests/:id',
+  asyncHandler(async (req, res) => {
+    const id = int(req.params.id, 'id', { min: 1 });
+    const request = await loadNocRequest(id, req.societyId);
+
+    let approvals = await query('sp_noc_request', {
+      operation: 'Get_Approvals',
+      request_id: { type: sql.Int, value: id },
+    });
+
+    /*
+     * A pending request with nobody on it gets the society's offices put on it
+     * here.
+     *
+     * Requests are assigned when they are raised, so this covers the two cases
+     * where that did not happen: rows created before assignment moved to the
+     * raise, and a raise whose assignment failed after the request itself was
+     * written. Without it those requests open with no Approve button and no
+     * way to get one — a dead end for the committee.
+     *
+     * Only while pending: a settled request must not collect new approvers
+     * afterwards. Best effort, because reading a request must not fail on it.
+     */
+    if (!approvals.length && Number(request.status) === NOC_REQUEST_STATUS.PENDING) {
+      try {
+        await addNocOfficers(req.societyId, id);
+        approvals = await query('sp_noc_request', {
+          operation: 'Get_Approvals',
+          request_id: { type: sql.Int, value: id },
+        });
+      } catch {
+        // The request still opens; it simply has nobody to approve it yet.
+      }
+    }
+
+    return ok(res, { ...request, approvals });
+  }),
+);
+
+/**
+ * POST /community/noc-requests — raise a request.
+ *
+ * The member's app is the usual caller. The secretary may also raise one on
+ * behalf of somebody who asked at the desk, which is why memberName and flatNo
+ * are taken from the body rather than the token.
+ */
+router.post(
+  '/noc-requests',
+  asyncHandler(async (req, res) => {
+    const nocType =
+      oneOf(req.body?.nocType, 'nocType', NOC_TYPES, { required: false }) || 'General';
+
+    const created = await exec('sp_noc_request', {
+      operation: 'Insert',
+      society_id: SOC(req.societyId),
+      flat_id: { type: sql.Int, value: int(req.body?.flatId, 'flatId', { required: false }) },
+      requested_by: { type: sql.Int, value: req.user?.userId ?? null },
+      member_name: { type: sql.NVarChar(150), value: str(req.body?.memberName, 'memberName', { max: 150 }) },
+      flat_no: { type: sql.NVarChar(50), value: str(req.body?.flatNo, 'flatNo', { max: 50 }) },
+      building_name: { type: sql.NVarChar(100), value: optionalStr(req.body?.buildingName, 'buildingName', { max: 100 }) },
+      noc_type: { type: sql.NVarChar(20), value: nocType },
+      custom_title: {
+        type: sql.NVarChar(150),
+        value: nocType === 'Other' ? str(req.body?.customTitle, 'customTitle', { max: 150 }) : null,
+      },
+      purpose: { type: sql.NVarChar(300), value: str(req.body?.purpose, 'purpose', { max: 300 }) },
+    });
+
+    const requestId = created?.request_id ?? null;
+
+    /*
+     * Put the society's offices on it straight away, as the member's app does.
+     * A request that arrives with nobody on it makes the committee click "send
+     * for approval" before they can approve — a step that chooses nothing,
+     * since every request goes to the same offices.
+     *
+     * Best effort: a failure leaves the request raised and unassigned rather
+     * than losing it, and opening it puts the offices on.
+     */
+    if (requestId) {
+      try {
+        await addNocOfficers(req.societyId, requestId);
+      } catch {
+        // The request stands; the approvers can be added on opening it.
+      }
+    }
+
+    // The committee has something waiting for them. Notifying is not what the
+    // caller asked for, so a failure here must not fail the request itself.
+    try {
+      const committee = await findCommittee(req.societyId);
+      await notifyPeople({
+        societyId: req.societyId,
+        people: committee,
+        type: 'noc',
+        id: requestId,
+        title: 'New NOC request',
+        body: `${req.body?.memberName ?? 'A member'} (${req.body?.flatNo ?? ''}) has requested a ${nocType} NOC.`,
+      });
+    } catch {
+      /* the request stands whether or not the push went out */
+    }
+
+    return ok(res, { request_id: requestId }, 201);
+  }),
+);
+
+/**
+ * PUT /community/noc-requests/:id/draft — the secretary settles the wording.
+ *
+ * The clause falls back to the standard wording for the type, so a secretary
+ * who has nothing to add can approve without writing anything. The SP refuses
+ * once the request has left Pending: after that the certificate carries the
+ * words that were agreed to, and the draft must not drift away from them.
+ */
+router.put(
+  '/noc-requests/:id/draft',
+  asyncHandler(async (req, res) => {
+    const id = int(req.params.id, 'id', { min: 1 });
+    const request = await loadNocRequest(id, req.societyId);
+
+    if (Number(request.status) !== NOC_REQUEST_STATUS.PENDING) {
+      throw ApiError.conflict('The wording can only be edited while the request is pending');
+    }
+
+    const nocType =
+      oneOf(req.body?.nocType, 'nocType', NOC_TYPES, { required: false }) || request.noc_type || 'General';
+    const clause =
+      optionalStr(req.body?.clause, 'clause', { max: 1000 }) || NOC_DEFAULT_CLAUSE[nocType];
+
+    await exec('sp_noc_request', {
+      operation: 'Update_Draft',
+      request_id: { type: sql.Int, value: id },
+      society_id: SOC(req.societyId),
+      noc_type: { type: sql.NVarChar(20), value: nocType },
+      custom_title: {
+        type: sql.NVarChar(150),
+        value: nocType === 'Other'
+          ? str(req.body?.customTitle, 'customTitle', { max: 150 })
+          : null,
+      },
+      clause: { type: sql.NVarChar(1000), value: clause },
+      purpose: { type: sql.NVarChar(300), value: optionalStr(req.body?.purpose, 'purpose', { max: 300 }) },
+      remarks: { type: sql.NVarChar(1000), value: optionalStr(req.body?.remarks, 'remarks', { max: 1000 }) },
+      valid_till: { type: sql.Date, value: date(req.body?.validTill, 'validTill', { required: false }) },
+    });
+
+    return ok(res, { request_id: id });
+  }),
+);
+
+/**
+ * POST /community/noc-requests/:id/approvers — send it for approval.
+ *
+ * Who it goes to is the society's own officers, not a list chosen per request:
+ * the people who approve a NOC are the people who sign it, and that is fixed
+ * by which accounts the society has. Picking them by hand meant the secretary
+ * working out who the chairman was from a list of every committee account,
+ * every single time.
+ *
+ * Re-sending is safe — the SP ignores anyone already on the request rather
+ * than resetting a decision they have given.
+ */
+router.post(
+  '/noc-requests/:id/approvers',
+  asyncHandler(async (req, res) => {
+    const id = int(req.params.id, 'id', { min: 1 });
+    const request = await loadNocRequest(id, req.societyId);
+
+    if (Number(request.status) !== NOC_REQUEST_STATUS.PENDING) {
+      throw ApiError.conflict('This request has already been decided');
+    }
+
+    const officers = await addNocOfficers(req.societyId, id);
+    if (!officers.length) {
+      throw ApiError.badRequest(
+        'This society has no secretary, chairman or admin account to approve a NOC',
+      );
+    }
+
+    const approvals = await query('sp_noc_request', {
+      operation: 'Get_Approvals',
+      request_id: { type: sql.Int, value: id },
+    });
+
+    // Tell only the people who are actually being asked, and only those still
+    // waiting — re-saving the list must not re-ping somebody who has answered.
+    try {
+      const committee = await findCommittee(req.societyId);
+      const pending = new Set(
+        approvals.filter((a) => Number(a.approval_status) === 1).map((a) => String(a.user_id)),
+      );
+      await notifyPeople({
+        societyId: req.societyId,
+        people: committee.filter((p) => pending.has(String(p.user_id))),
+        type: 'noc',
+        id,
+        title: 'NOC awaiting your approval',
+        body: `${request.member_name ?? 'A member'} (${request.flat_no ?? ''}) — ${request.noc_type ?? 'NOC'}.`,
+      });
+    } catch {
+      /* the approvers are recorded whether or not the push went out */
+    }
+
+    return ok(res, { request_id: id, approvals });
+  }),
+);
+
+/**
+ * POST /community/noc-requests/:id/approvals/:approvalId — approve or reject.
+ *
+ * A decision may only be recorded by the approver it was asked of; without
+ * that check anyone in the society could answer in someone else's name and
+ * the trail would name the wrong person. Same rule as vendor bills.
+ *
+ * When this approval is the last one outstanding the SP moves the request to
+ * Approved, and the certificate is issued here from the agreed draft. A
+ * rejection settles the request on its own.
+ */
+router.post(
+  '/noc-requests/:id/approvals/:approvalId',
+  asyncHandler(async (req, res) => {
+    const id = int(req.params.id, 'id', { min: 1 });
+    const approvalId = int(req.params.approvalId, 'approvalId', { min: 1 });
+    const decision = oneOf(req.body?.decision, 'decision', ['approve', 'reject']);
+    const remarks = optionalStr(req.body?.remarks, 'remarks', { max: 500 });
+
+    // The member is shown this, and "rejected, no reason given" is not an
+    // answer they can act on.
+    if (decision === 'reject' && !remarks) {
+      throw ApiError.badRequest('A remark is required when rejecting a request');
+    }
+
+    await loadNocRequest(id, req.societyId);
+
+    const approvals = await query('sp_noc_request', {
+      operation: 'Get_Approvals',
+      request_id: { type: sql.Int, value: id },
+    });
+    const approval = approvals.find((a) => String(a.approval_id) === String(approvalId));
+    if (!approval) throw ApiError.notFound('Approval not found on this request');
+
+    if (String(approval.user_id) !== String(req.user.userId)) {
+      throw ApiError.forbidden('This approval was asked of someone else');
+    }
+    // Re-answering would overwrite the recorded decision and, on a request the
+    // SP has already settled, move it back out of that state.
+    if (Number(approval.approval_status) !== NOC_REQUEST_STATUS.PENDING) {
+      throw ApiError.conflict('This approval has already been answered');
+    }
+
+    const settled = await exec('sp_noc_request', {
+      operation: 'Update_Status',
+      approval_id: { type: sql.Int, value: approvalId },
+      status: {
+        type: sql.Int,
+        value: decision === 'approve' ? NOC_REQUEST_STATUS.APPROVED : NOC_REQUEST_STATUS.REJECTED,
+      },
+      approval_remark: { type: sql.NVarChar(500), value: remarks },
+    });
+
+    /*
+     * Approving does not write the certificate.
+     *
+     * It used to, straight from the request's own wording. But the letter
+     * carries more than the request does — the member's name as it should
+     * read, the wing, an issue date, whether it lapses — and a certificate is
+     * fixed the moment it is issued. Writing it here meant the society's only
+     * chance to get those right had already passed by the time anyone saw the
+     * document.
+     *
+     * The secretary now issues it from the certificate form, which opens
+     * filled in from the approved request. POST /community/noc creates it and
+     * links it back through Link_Certificate.
+     */
+
+    // Tell the member how it went. Approved is deliberately not "come and
+    // collect it" — the letter still has to be signed, and the secretary
+    // gives out the appointment separately.
+    try {
+      const flatId = Number(settled?.flat_id ?? 0) || null;
+      const residents = flatId ? await findFlatResidents(req.societyId, flatId) : [];
+      if (residents.length) {
+        await notifyPeople({
+          societyId: req.societyId,
+          people: residents,
+          type: 'noc',
+          id,
+          title: decision === 'approve' ? 'NOC request approved' : 'NOC request rejected',
+          body:
+            decision === 'approve'
+              ? Number(settled?.status) === NOC_REQUEST_STATUS.APPROVED
+                ? 'Your NOC has been approved. The society will tell you when to collect the signed copy.'
+                : 'One approval is in. Your NOC request is still with the committee.'
+              : `Your NOC request was rejected: ${remarks}`,
+        });
+      }
+    } catch {
+      /* the decision stands whether or not the push went out */
+    }
+
+    return ok(res, {
+      request_id: id,
+      approval_id: approvalId,
+      decision,
+      status: settled?.status ?? null,
+      noc_id: settled?.noc_id ?? null,
+    });
+  }),
+);
+
+/**
+ * POST /community/noc-requests/:id/ready — the letter is signed; set the
+ * collection appointment.
+ *
+ * Also the way an appointment is moved: the SP accepts this from Ready as
+ * well as Approved, and the member is told again each time.
+ */
+router.post(
+  '/noc-requests/:id/ready',
+  asyncHandler(async (req, res) => {
+    const id = int(req.params.id, 'id', { min: 1 });
+    const request = await loadNocRequest(id, req.societyId);
+
+    if (![NOC_REQUEST_STATUS.APPROVED, NOC_REQUEST_STATUS.READY].includes(Number(request.status))) {
+      throw ApiError.conflict('Only an approved request can be made ready for collection');
+    }
+
+    const collectionDate = date(req.body?.collectionDate, 'collectionDate');
+    const collectionTime = optionalStr(req.body?.collectionTime, 'collectionTime', { max: 60 });
+    const collectionNote = optionalStr(req.body?.collectionNote, 'collectionNote', { max: 300 });
+
+    await exec('sp_noc_request', {
+      operation: 'Set_Ready',
+      request_id: { type: sql.Int, value: id },
+      society_id: SOC(req.societyId),
+      collection_date: { type: sql.Date, value: collectionDate },
+      collection_time: { type: sql.NVarChar(60), value: collectionTime },
+      collection_note: { type: sql.NVarChar(300), value: collectionNote },
+    });
+
+    try {
+      const flatId = Number(request.flat_id ?? 0) || null;
+      const residents = flatId ? await findFlatResidents(req.societyId, flatId) : [];
+      if (residents.length) {
+        const when = [collectionDate, collectionTime].filter(Boolean).join(', ');
+        await notifyPeople({
+          societyId: req.societyId,
+          people: residents,
+          type: 'noc',
+          id,
+          title: 'NOC ready to collect',
+          body: [
+            `Your NOC ${request.serial_no ? `(${request.serial_no}) ` : ''}is signed and ready.`,
+            when ? `Please collect it from the society office on ${when}.` : 'Please collect it from the society office.',
+            collectionNote,
+          ]
+            .filter(Boolean)
+            .join(' '),
+        });
+      }
+    } catch {
+      /* the appointment stands whether or not the push went out */
+    }
+
+    return ok(res, { request_id: id, collection_date: collectionDate });
+  }),
+);
+
+/**
+ * POST /community/noc-requests/:id/collected — it was handed over.
+ *
+ * collectedBy is free text: the member often sends somebody else, and who took
+ * the certificate away is the fact worth keeping.
+ */
+router.post(
+  '/noc-requests/:id/collected',
+  asyncHandler(async (req, res) => {
+    const id = int(req.params.id, 'id', { min: 1 });
+    const request = await loadNocRequest(id, req.societyId);
+
+    if (Number(request.status) !== NOC_REQUEST_STATUS.READY) {
+      throw ApiError.conflict('Only a request that is ready for collection can be marked collected');
+    }
+
+    const collectedBy =
+      optionalStr(req.body?.collectedBy, 'collectedBy', { max: 150 }) || request.member_name;
+
+    await exec('sp_noc_request', {
+      operation: 'Set_Collected',
+      request_id: { type: sql.Int, value: id },
+      society_id: SOC(req.societyId),
+      collected_by: { type: sql.NVarChar(150), value: collectedBy },
+    });
+
+    return ok(res, { request_id: id, collected_by: collectedBy });
+  }),
+);
+
+/** DELETE /community/noc-requests/:id — soft delete. */
+router.delete(
+  '/noc-requests/:id',
+  asyncHandler(async (req, res) => {
+    const id = int(req.params.id, 'id', { min: 1 });
+    await loadNocRequest(id, req.societyId);
+    await exec('sp_noc_request', {
+      operation: 'Delete',
+      request_id: { type: sql.Int, value: id },
+      society_id: SOC(req.societyId),
+    });
+    return ok(res, { deleted: true, request_id: id });
   }),
 );
 

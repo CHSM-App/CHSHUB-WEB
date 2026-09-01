@@ -4,13 +4,26 @@ const express = require('express');
 
 const { query, exec, sql } = require('../../lib/db');
 const { ok, asyncHandler } = require('../../lib/http');
-const { int, num, bool } = require('../../lib/validate');
+const { int, num, bool, oneOf, optionalStr } = require('../../lib/validate');
 const { requireSociety } = require('../../middleware/authenticate');
 
 const router = express.Router();
 router.use(requireSociety);
 
 const SOC = (v) => ({ type: sql.NVarChar(10), value: v });
+
+/** Which officers sign the society's NOC certificate. */
+const NOC_SIGNATORIES = ['Both', 'Secretary', 'Chairman'];
+
+/**
+ * How many of the society's officers have to approve a NOC request.
+ *
+ * A request goes to every office the society has — admin, secretary, chairman.
+ * 'Any' settles it on the first approval; 'All' waits for every one of them.
+ * Separate from the signatory setting: who signs the printed letter and who has
+ * to agree before it is written are different questions.
+ */
+const NOC_APPROVAL_MODES = ['Any', 'All'];
 
 /**
  * The account_setting row drives billing: rate per sq.ft., parking rates,
@@ -119,6 +132,36 @@ router.put(
       interest_rate: {
         type: sql.Decimal(18, 2),
         value: num(body.interestRate, 'interestRate', { min: 0, max: 21, required: false }),
+      },
+      /*
+       * Who signs the society's NOC certificate, and what they are called on
+       * it. Each society sets its own: how many officers sign is fixed by its
+       * bye-laws and by whoever is being asked to act on the certificate, and
+       * a chairman is a President in plenty of societies.
+       *
+       * Absent leaves the stored choice alone — the procedure treats NULL as
+       * "unchanged" — so a client that does not know about these fields cannot
+       * blank them.
+       */
+      noc_signatories: {
+        type: sql.NVarChar(20),
+        value: oneOf(body.nocSignatories, 'nocSignatories', NOC_SIGNATORIES, {
+          required: false,
+        }),
+      },
+      noc_secretary_label: {
+        type: sql.NVarChar(60),
+        value: optionalStr(body.nocSecretaryLabel, 'nocSecretaryLabel', { max: 60 }),
+      },
+      noc_chairman_label: {
+        type: sql.NVarChar(60),
+        value: optionalStr(body.nocChairmanLabel, 'nocChairmanLabel', { max: 60 }),
+      },
+      noc_approval_mode: {
+        type: sql.NVarChar(10),
+        value: oneOf(body.nocApprovalMode, 'nocApprovalMode', NOC_APPROVAL_MODES, {
+          required: false,
+        }),
       },
     });
 

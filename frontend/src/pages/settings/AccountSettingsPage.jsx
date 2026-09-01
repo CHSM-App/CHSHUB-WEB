@@ -40,6 +40,15 @@ const toForm = (s) => ({
   autoBillGeneration: Boolean(s?.auto_bill_generation),
   billGenerationDay: s?.bill_gen_date ?? 1,
   billDuePeriodDays: s?.bill_due_period ?? 0,
+  // What the certificate already printed before this was a setting, so a
+  // society that never opens it sees no change.
+  nocSignatories: s?.noc_signatories ?? 'Both',
+  nocSecretaryLabel: s?.noc_secretary_label ?? 'Secretary',
+  nocChairmanLabel: s?.noc_chairman_label ?? 'Chairman',
+  // 'Any' by default: it is the rule that always terminates, and a society
+  // that holds several admin and secretary accounts for the same few people
+  // would never clear a request under 'All'.
+  nocApprovalMode: s?.noc_approval_mode ?? 'Any',
   ...Object.fromEntries(TOGGLES.map((t) => [t.field, Boolean(s?.[t.column])])),
 });
 
@@ -202,6 +211,95 @@ export default function AccountSettingsPage() {
             checked={form.reminderEmailForDues}
             onChange={setField('reminderEmailForDues')}
           />
+        </SettingsCard>
+
+        {/*
+          Who signs the society's NOC certificate.
+
+          Not a fixed rule in the code: how many officers sign is set by each
+          society's bye-laws and by whoever is being asked to act on the
+          certificate. One society signs with both officers, another with the
+          secretary alone, and plenty call the chairman a President.
+        */}
+        {/*
+          A NOC request goes to every office the society has — admin,
+          secretary and chairman, whichever of them exist. How many have to
+          answer before the certificate can be written is the society's own
+          rule, so it is asked here rather than fixed in code: requiring all
+          of them would stall a society whose admin account and secretary are
+          the same person, and several societies hold three of each.
+        */}
+        <SettingsCard
+          icon="✅"
+          title="NOC approval"
+          subtitle="Who has to agree before a certificate is issued."
+        >
+          <Field label="Approval needed from" name="nocApprovalMode">
+            <select
+              className="field-input"
+              value={form.nocApprovalMode}
+              onChange={setField('nocApprovalMode')}
+            >
+              <option value="Any">Any one officer</option>
+              <option value="All">Every officer</option>
+            </select>
+          </Field>
+          <p className="mt-2 text-xs text-slate-500">
+            Requests always go to the admin, secretary and chairman accounts the
+            society has. This decides whether the first reply settles it, or all
+            of them must approve.
+          </p>
+        </SettingsCard>
+
+        <SettingsCard
+          icon="✍️"
+          title="NOC signature"
+          subtitle="Signature lines printed on the NOC certificate."
+        >
+          <Field label="Who signs the certificate" name="nocSignatories">
+            <select
+              className="field-input"
+              value={form.nocSignatories}
+              onChange={setField('nocSignatories')}
+            >
+              <option value="Both">Secretary and Chairman</option>
+              <option value="Secretary">Secretary only</option>
+              <option value="Chairman">Chairman only</option>
+            </select>
+          </Field>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {form.nocSignatories !== 'Chairman' && (
+              <Field
+                label="First signatory"
+                name="nocSecretaryLabel"
+                hint="As it should read on the letter."
+              >
+                <input
+                  className="field-input"
+                  value={form.nocSecretaryLabel}
+                  onChange={setField('nocSecretaryLabel')}
+                  placeholder="Secretary"
+                  maxLength={60}
+                />
+              </Field>
+            )}
+            {form.nocSignatories !== 'Secretary' && (
+              <Field
+                label={form.nocSignatories === 'Chairman' ? 'Signatory' : 'Second signatory'}
+                name="nocChairmanLabel"
+                hint="Some societies print President."
+              >
+                <input
+                  className="field-input"
+                  value={form.nocChairmanLabel}
+                  onChange={setField('nocChairmanLabel')}
+                  placeholder="Chairman"
+                  maxLength={60}
+                />
+              </Field>
+            )}
+          </div>
         </SettingsCard>
 
         <ErrorNotice error={error} />

@@ -86,6 +86,48 @@ export const community = {
   helpdeskStatuses: () => api.get('/community/helpdesk/statuses'),
   setHelpdeskStatus: (id, status) => api.put(`/community/helpdesk/${id}/status`, { status }),
   addHelpdeskComment: (id, body) => api.post(`/community/helpdesk/${id}/comments`, body),
+  // NOC — the certificates the society has issued, and the requests members
+  // have raised that lead to them.
+  nocCertificates: (params) => api.get('/community/noc', p(params)),
+  nocCertificate: (id) => api.get(`/community/noc/${id}`),
+  /** Residents a certificate can be issued to — name, flat and building. */
+  nocMembers: () => api.get('/community/noc/members'),
+  /**
+   * Issue a certificate directly, without a request behind it — for the member
+   * who asked at the desk. The reply carries the serial the server allocated,
+   * which the form cannot know in advance.
+   */
+  createNocCertificate: (body) => api.post('/community/noc', body),
+  updateNocCertificate: (id, body) => api.put(`/community/noc/${id}`, body),
+  removeNocCertificate: (id) => api.delete(`/community/noc/${id}`),
+  nocRequests: (params) => api.get('/community/noc-requests', p(params)),
+  /** Committee accounts that can be asked to decide, the caller included. */
+  nocApproverOptions: () => api.get('/community/noc-requests/approvers'),
+  /** One request together with who was asked to decide on it. */
+  nocRequest: (id) => api.get(`/community/noc-requests/${id}`),
+  createNocRequest: (body) => api.post('/community/noc-requests', body),
+  /** The wording, editable only while the request is still pending. */
+  saveNocDraft: (id, body) => api.put(`/community/noc-requests/${id}/draft`, body),
+  /**
+   * Send a request to the officers who sign the society's certificates.
+   *
+   * Who they are is worked out server-side from the accounts the society has
+   * — a secretary and a chairman if it has both, the admin account if it has
+   * neither — so there is nothing to pass. Re-sending is safe.
+   */
+  setNocApprovers: (id) => api.post(`/community/noc-requests/${id}/approvers`),
+  /**
+   * Approve or reject on behalf of the signed-in approver. Answering the last
+   * outstanding approval issues the certificate, and the reply carries its
+   * serial.
+   */
+  decideNocRequest: (id, approvalId, body) =>
+    api.post(`/community/noc-requests/${id}/approvals/${approvalId}`, body),
+  /** The letter is signed; give the member a collection appointment. */
+  setNocReady: (id, body) => api.post(`/community/noc-requests/${id}/ready`, body),
+  setNocCollected: (id, body) =>
+    api.post(`/community/noc-requests/${id}/collected`, body),
+  removeNocRequest: (id) => api.delete(`/community/noc-requests/${id}`),
   polls: () => api.get('/community/polls'),
   pollVotes: (id) => api.get(`/community/polls/${id}/votes`),
   createPoll: (body) => api.post('/community/polls', body),

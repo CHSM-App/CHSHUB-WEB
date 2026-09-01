@@ -4,6 +4,7 @@ import 'package:society_app/domain/usecase/auth_use_case.dart';
 import 'package:society_app/domain/usecase/due_history_use_case.dart';
 import 'package:society_app/domain/usecase/facilities_usecase.dart';
 import 'package:society_app/domain/usecase/helpdesk_usecase.dart';
+import 'package:society_app/domain/usecase/noc_usecase.dart';
 import 'package:society_app/domain/usecase/helper_use_case.dart';
 import 'package:society_app/domain/usecase/maintenance_usecase.dart';
 import 'package:society_app/domain/usecase/polls_usecase.dart';
@@ -92,4 +93,9 @@ final PollsUsecaseProvider=Provider<PollsUsecase>((ref) {
 final profileSettingsUseCaseProvider=Provider<ProfileSettingsUseCase>((ref) {
   final repository = ref.watch(profileSettingsRepositoryProvider);
   return ProfileSettingsUseCase(repository);
+});
+// ignore: non_constant_identifier_names
+final NocUseCaseProvider = Provider<NocUsecase>((ref) {
+  final repository = ref.watch(NocRepositoryProvider);
+  return NocUsecase(repository);
 });

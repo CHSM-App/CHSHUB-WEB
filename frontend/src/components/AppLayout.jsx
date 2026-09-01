@@ -60,6 +60,7 @@ const NAV = [
         icon: 'city',
         items: [
           { to: '/community/documents', label: 'Upload Documents' },
+          { to: '/community/noc', label: 'NOC Requests' },
           { to: '/accounts/shop-maintenance', label: 'Shop Maintenance' },
           { to: '/community/meetings', label: 'Meeting Master' },
           { to: '/masters/inventory', label: 'Inventory' },

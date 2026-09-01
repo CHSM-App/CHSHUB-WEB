@@ -422,6 +422,62 @@ abstract class ApiService {
   Future<dynamic> deleteNocCertificate(@Path('id') int id);
 
   // =========================================================================
+  // COMMUNITY - NOC REQUESTS
+  // =========================================================================
+
+  /// Committee accounts that can be asked to decide, the caller included.
+  @GET('community/noc-requests/approvers')
+  Future<RowList> getNocApproverOptions();
+
+  /// The requests members have raised, newest need-an-answer first.
+  @GET('community/noc-requests')
+  Future<RowList> getNocRequests(@Query('search') String? search);
+
+  /// One request together with who was asked to decide on it.
+  @GET('community/noc-requests/{id}')
+  Future<dynamic> getNocRequest(@Path('id') int id);
+
+  /// The wording, editable only while the request is still pending.
+  @PUT('community/noc-requests/{id}/draft')
+  Future<dynamic> updateNocRequestDraft(
+    @Path('id') int id,
+    @Body() NocDraftRequest request,
+  );
+
+  /// Name who must decide. Re-sending a list is safe.
+  @POST('community/noc-requests/{id}/approvers')
+  Future<dynamic> setNocRequestApprovers(
+    @Path('id') int id,
+    @Body() NocApproversRequest request,
+  );
+
+  /// Approve or reject. Answering the last outstanding approval issues the
+  /// certificate, and the reply carries the serial it was given.
+  @POST('community/noc-requests/{id}/approvals/{approvalId}')
+  Future<dynamic> decideNocRequest(
+    @Path('id') int id,
+    @Path('approvalId') int approvalId,
+    @Body() NocDecisionRequest request,
+  );
+
+  /// The letter is signed; give the member a collection appointment.
+  @POST('community/noc-requests/{id}/ready')
+  Future<dynamic> setNocRequestReady(
+    @Path('id') int id,
+    @Body() NocReadyRequest request,
+  );
+
+  /// It was handed over.
+  @POST('community/noc-requests/{id}/collected')
+  Future<dynamic> setNocRequestCollected(
+    @Path('id') int id,
+    @Body() NocCollectedRequest request,
+  );
+
+  @DELETE('community/noc-requests/{id}')
+  Future<dynamic> deleteNocRequest(@Path('id') int id);
+
+  // =========================================================================
   // COMMUNITY - FACILITY BOOKINGS
   // =========================================================================
 

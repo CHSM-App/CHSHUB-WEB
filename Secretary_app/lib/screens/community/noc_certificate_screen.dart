@@ -14,6 +14,22 @@ import '../../widgets/app_widgets.dart';
 import '../../widgets/date_range_dialog.dart';
 import 'form_fields.dart';
 
+/// Who this society has its certificates signed by, from account settings.
+///
+/// Read off the certificate list, which carries it alongside the rows — it is
+/// one setting for the whole society, so a call per sheet would ask the same
+/// question over and over. Falls back to both officers under their usual names
+/// while the list is still loading, and against a server that does not send
+/// it, which is what the sheet printed before this was configurable.
+NocSignatories nocSignatoriesOf(WidgetRef ref) {
+  final rows = ref
+      .watch(communityViewModelProvider)
+      .rows(CommunityKeys.nocCertificates)
+      .valueOrNull;
+
+  return NocSignatories.fromJson(rows?.signatories);
+}
+
 /// The kinds of NOC a society issues, and the clause each one turns on.
 ///
 /// The wording follows the letter a registered co-operative housing society
@@ -169,13 +185,20 @@ class NocRecord {
   /// A certificate with no end date does not lapse; one with a past end date
   /// has. Drives the chip on the list row.
   bool get isExpired =>
-      validTill != null && validTill!.isBefore(DateUtils.dateOnly(DateTime.now()));
+      validTill != null &&
+      validTill!.isBefore(DateUtils.dateOnly(DateTime.now()));
 }
 
 /// NOC certificates — the list of what the society has issued, and the form
 /// that issues a new one.
 class NocCertificateScreen extends ConsumerStatefulWidget {
-  const NocCertificateScreen({super.key});
+  const NocCertificateScreen({super.key, this.embedded = false});
+
+  /// Set when this sits inside [NocScreen]'s tabs, which carry the app bar and
+  /// the "new certificate" button for both halves. Left false, the screen
+  /// stands on its own with an app bar of its own — how it is still opened
+  /// from a deep link or a test.
+  final bool embedded;
 
   @override
   ConsumerState<NocCertificateScreen> createState() =>
@@ -269,16 +292,18 @@ class _NocCertificateScreenState extends ConsumerState<NocCertificateScreen> {
   /// [_NocCertificateFormScreenState._submit] for why the save does not
   /// happen here.
   Future<void> _issueNew() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const NocCertificateFormScreen()),
-    );
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const NocCertificateFormScreen()));
     // Whatever route the form ended on, the list behind it may now be stale.
     if (mounted) await _refresh();
   }
 
   void _view(NocRecord record) {
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => NocCertificateViewScreen(record: record)),
+      MaterialPageRoute(
+        builder: (_) => NocCertificateViewScreen(record: record),
+      ),
     );
   }
 
@@ -324,6 +349,83 @@ class _NocCertificateScreenState extends ConsumerState<NocCertificateScreen> {
         .watch(communityViewModelProvider)
         .rows(CommunityKeys.nocCertificates);
 
+    final body = SafeArea(
+      child: PageConstraints(
+        padded: false,
+        child: RowsView(
+          rows: rows,
+          onRefresh: _refresh,
+          emptyIcon: Icons.verified_outlined,
+          emptyTitle: 'No certificates issued',
+          emptyMessage:
+              'Issue a no-objection certificate for a member and it will '
+              'be listed here.',
+          emptyActionLabel: 'New NOC',
+          emptyAction: _issueNew,
+          builder: (items) {
+            final all = items.map(NocRecord.fromRow).toList();
+            final shown = all
+                .where(_matches)
+                .where((r) => _filter == null || r.kind == _filter)
+                .toList();
+
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(
+                AppTheme.space4,
+                AppTheme.space4,
+                AppTheme.space4,
+                AppTheme.space8,
+              ),
+              children: [
+                _buildSummary(all),
+                const SizedBox(height: AppTheme.space3),
+                _buildSearchAndFilter(all),
+                const SizedBox(height: AppTheme.space3),
+
+                // One column on a phone, more as the window allows — a full
+                // width row of one card reads as a mistake on a desktop.
+                // Wrap rather than a grid: the cards vary in height with the
+                // length of a name, and a grid's fixed aspect ratio would
+                // clip the taller ones.
+                if (shown.isEmpty)
+                  _buildNoMatches()
+                else
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      const gap = AppTheme.space3;
+                      final columns = (constraints.maxWidth / 340)
+                          .floor()
+                          .clamp(1, 3);
+                      final width =
+                          (constraints.maxWidth - gap * (columns - 1)) /
+                          columns;
+
+                      return Wrap(
+                        spacing: gap,
+                        runSpacing: gap,
+                        children: [
+                          for (final record in shown)
+                            SizedBox(
+                              width: width,
+                              child: _NocListCard(
+                                record: record,
+                                onTap: () => _view(record),
+                                onDelete: () => _delete(record),
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+
+    if (widget.embedded) return body;
+
     return Scaffold(
       appBar: AppBar(title: const Text('NOC certificates')),
       floatingActionButton: FloatingActionButton.extended(
@@ -331,80 +433,7 @@ class _NocCertificateScreenState extends ConsumerState<NocCertificateScreen> {
         icon: const Icon(Icons.add),
         label: const Text('New NOC'),
       ),
-      body: SafeArea(
-        child: PageConstraints(
-          padded: false,
-          child: RowsView(
-            rows: rows,
-            onRefresh: _refresh,
-            emptyIcon: Icons.verified_outlined,
-            emptyTitle: 'No certificates issued',
-            emptyMessage:
-                'Issue a no-objection certificate for a member and it will '
-                'be listed here.',
-            emptyActionLabel: 'New NOC',
-            emptyAction: _issueNew,
-            builder: (items) {
-              final all = items.map(NocRecord.fromRow).toList();
-              final shown = all
-                  .where(_matches)
-                  .where((r) => _filter == null || r.kind == _filter)
-                  .toList();
-
-              return ListView(
-                padding: const EdgeInsets.fromLTRB(
-                  AppTheme.space4,
-                  AppTheme.space4,
-                  AppTheme.space4,
-                  AppTheme.space8,
-                ),
-                children: [
-                  _buildSummary(all),
-                  const SizedBox(height: AppTheme.space3),
-                  _buildSearchAndFilter(all),
-                  const SizedBox(height: AppTheme.space3),
-
-                  // One column on a phone, more as the window allows — a full
-                  // width row of one card reads as a mistake on a desktop.
-                  // Wrap rather than a grid: the cards vary in height with the
-                  // length of a name, and a grid's fixed aspect ratio would
-                  // clip the taller ones.
-                  if (shown.isEmpty)
-                    _buildNoMatches()
-                  else
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        const gap = AppTheme.space3;
-                        final columns = (constraints.maxWidth / 340)
-                            .floor()
-                            .clamp(1, 3);
-                        final width =
-                            (constraints.maxWidth - gap * (columns - 1)) /
-                            columns;
-
-                        return Wrap(
-                          spacing: gap,
-                          runSpacing: gap,
-                          children: [
-                            for (final record in shown)
-                              SizedBox(
-                                width: width,
-                                child: _NocListCard(
-                                  record: record,
-                                  onTap: () => _view(record),
-                                  onDelete: () => _delete(record),
-                                ),
-                              ),
-                          ],
-                        );
-                      },
-                    ),
-                ],
-              );
-            },
-          ),
-        ),
-      ),
+      body: body,
     );
   }
 
@@ -471,10 +500,7 @@ class _NocCertificateScreenState extends ConsumerState<NocCertificateScreen> {
           }
         },
         itemBuilder: (context) => [
-          PopupMenuItem(
-            value: null,
-            child: Text('All types (${all.length})'),
-          ),
+          PopupMenuItem(value: null, child: Text('All types (${all.length})')),
           for (final kind in kinds)
             PopupMenuItem(
               value: kind,
@@ -1011,9 +1037,7 @@ class _NocCertificateFormScreenState
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.verified_outlined, size: 18),
-                    label: Text(
-                      _saving ? 'Issuing…' : 'Issue certificate',
-                    ),
+                    label: Text(_saving ? 'Issuing…' : 'Issue certificate'),
                   ),
                 ),
                 const SizedBox(height: AppTheme.space2),
@@ -1282,9 +1306,10 @@ class NocCertificateViewScreen extends ConsumerWidget {
 
   final NocRecord record;
 
-  /// What the exported sheet prints — the record, plus the society the
-  /// secretary is signed in to, which the record itself does not carry.
-  NocSheetData _sheet(String society) => NocSheetData(
+  /// What the exported sheet prints — the record, plus the two things it does
+  /// not carry itself: the society the secretary is signed in to, and who that
+  /// society has its certificates signed by.
+  NocSheetData _sheet(String society, NocSignatories signatories) => NocSheetData(
     serial: record.serial,
     typeLabel: record.typeLabel,
     clause: record.clause,
@@ -1297,6 +1322,7 @@ class NocCertificateViewScreen extends ConsumerWidget {
     remarks: record.remarks,
     societyName: society,
     isCustomType: record.kind.isCustom,
+    signatories: signatories,
   );
 
   @override
@@ -1304,7 +1330,7 @@ class NocCertificateViewScreen extends ConsumerWidget {
     final dates = DateFormat('dd MMM yyyy');
     final society =
         ref.watch(authViewModelProvider).user?.societyName ?? 'The society';
-    final sheet = _sheet(society);
+    final sheet = _sheet(society, nocSignatoriesOf(ref));
 
     return Scaffold(
       // The three actions sit in the title bar, to the right — icons rather
@@ -1406,11 +1432,7 @@ class NocCertificateViewScreen extends ConsumerWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            Icons.shield_outlined,
-            size: 18,
-            color: AppTheme.success,
-          ),
+          const Icon(Icons.shield_outlined, size: 18, color: AppTheme.success),
           const SizedBox(width: AppTheme.space3),
           Expanded(
             child: Column(
@@ -1457,6 +1479,7 @@ class NocCertificateDocument extends ConsumerWidget {
     // is no per-certificate society to choose.
     final society =
         ref.watch(authViewModelProvider).user?.societyName ?? 'The society';
+    final signatories = nocSignatoriesOf(ref);
 
     final dates = DateFormat('dd MMM yyyy');
     final member = record.member.isEmpty ? '____________' : record.member;
@@ -1474,9 +1497,7 @@ class NocCertificateDocument extends ConsumerWidget {
         padding: const EdgeInsets.all(3),
         child: Container(
           decoration: BoxDecoration(
-            border: Border.all(
-              color: AppTheme.warning.withValues(alpha: 0.45),
-            ),
+            border: Border.all(color: AppTheme.warning.withValues(alpha: 0.45)),
           ),
           padding: const EdgeInsets.all(AppTheme.space4),
           child: Column(
@@ -1485,104 +1506,113 @@ class NocCertificateDocument extends ConsumerWidget {
               _buildLetterhead(society),
               const SizedBox(height: AppTheme.space5),
 
-          // Reference and date, as typed at the head of the letter.
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: _Stacked(
-                  label: 'Certificate No.',
-                  value: record.serial,
-                ),
-              ),
-              _Stacked(
-                label: 'Date of Issue',
-                value: dates.format(record.issuedOn),
-                alignEnd: true,
-              ),
-            ],
-          ),
-          const SizedBox(height: AppTheme.space5),
-
-          Text(
-            'This is to certify that $member, residing in Flat No. $flat'
-            '${record.building.isEmpty ? '' : ', ${record.building}'}, '
-            '$society, is a registered member/resident of our society.',
-            style: AppTheme.body2.copyWith(height: 1.6),
-          ),
-          const SizedBox(height: AppTheme.space3),
-          Text.rich(
-            TextSpan(
-              style: AppTheme.body2.copyWith(height: 1.6),
-              children: [
-                const TextSpan(text: 'The society has '),
-                TextSpan(
-                  text: 'no objection',
-                  style: AppTheme.body2.copyWith(
-                    height: 1.6,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.darkText,
+              // Reference and date, as typed at the head of the letter.
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _Stacked(
+                      label: 'Certificate No.',
+                      value: record.serial,
+                    ),
                   ),
+                  _Stacked(
+                    label: 'Date of Issue',
+                    value: dates.format(record.issuedOn),
+                    alignEnd: true,
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppTheme.space5),
+
+              Text(
+                'This is to certify that $member, residing in Flat No. $flat'
+                '${record.building.isEmpty ? '' : ', ${record.building}'}, '
+                '$society, is a registered member/resident of our society.',
+                style: AppTheme.body2.copyWith(height: 1.6),
+              ),
+              const SizedBox(height: AppTheme.space3),
+              Text.rich(
+                TextSpan(
+                  style: AppTheme.body2.copyWith(height: 1.6),
+                  children: [
+                    const TextSpan(text: 'The society has '),
+                    TextSpan(
+                      text: 'no objection',
+                      style: AppTheme.body2.copyWith(
+                        height: 1.6,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.darkText,
+                      ),
+                    ),
+                    TextSpan(text: ' ${record.clause}'),
+                  ],
                 ),
-                TextSpan(text: ' ${record.clause}'),
+              ),
+
+              const SizedBox(height: AppTheme.space5),
+              const Divider(height: 1),
+              const SizedBox(height: AppTheme.space4),
+
+              // The particulars, as a labelled table.
+              _DetailRow(
+                icon: Icons.person_outline,
+                label: 'Member Name',
+                value: member,
+              ),
+              _DetailRow(
+                icon: Icons.home_outlined,
+                label: 'Flat No.',
+                value: flat,
+              ),
+              if (record.building.isNotEmpty)
+                _DetailRow(
+                  icon: Icons.apartment_outlined,
+                  label: 'Building / Wing',
+                  value: record.building,
+                ),
+              if (record.purpose.isNotEmpty)
+                _DetailRow(
+                  icon: Icons.assignment_outlined,
+                  label: 'Purpose',
+                  value: record.purpose,
+                ),
+              _DetailRow(
+                icon: Icons.event_available_outlined,
+                label: 'Valid Until',
+                value: record.validTill == null
+                    ? 'No expiry'
+                    : dates.format(record.validTill!),
+              ),
+              _DetailRow(
+                icon: Icons.verified_user_outlined,
+                label: 'Issued By',
+                value: society,
+              ),
+
+              // Anything the society added itself, as a further paragraph of the
+              // letter — same weight as the rest, not a footnote.
+              if (record.remarks.isNotEmpty) ...[
+                const SizedBox(height: AppTheme.space3),
+                Text(
+                  record.remarks,
+                  style: AppTheme.body2.copyWith(height: 1.6),
+                ),
               ],
-            ),
-          ),
 
-          const SizedBox(height: AppTheme.space5),
-          const Divider(height: 1),
-          const SizedBox(height: AppTheme.space4),
-
-          // The particulars, as a labelled table.
-          _DetailRow(
-            icon: Icons.person_outline,
-            label: 'Member Name',
-            value: member,
-          ),
-          _DetailRow(icon: Icons.home_outlined, label: 'Flat No.', value: flat),
-          if (record.building.isNotEmpty)
-            _DetailRow(
-              icon: Icons.apartment_outlined,
-              label: 'Building / Wing',
-              value: record.building,
-            ),
-          if (record.purpose.isNotEmpty)
-            _DetailRow(
-              icon: Icons.assignment_outlined,
-              label: 'Purpose',
-              value: record.purpose,
-            ),
-          _DetailRow(
-            icon: Icons.event_available_outlined,
-            label: 'Valid Until',
-            value: record.validTill == null
-                ? 'No expiry'
-                : dates.format(record.validTill!),
-          ),
-          _DetailRow(
-            icon: Icons.verified_user_outlined,
-            label: 'Issued By',
-            value: society,
-          ),
-
-          // Anything the society added itself, as a further paragraph of the
-          // letter — same weight as the rest, not a footnote.
-          if (record.remarks.isNotEmpty) ...[
-            const SizedBox(height: AppTheme.space3),
-            Text(
-              record.remarks,
-              style: AppTheme.body2.copyWith(height: 1.6),
-            ),
-          ],
-
-          const SizedBox(height: AppTheme.space6),
-          _buildSealAndSignature(society),
-          const SizedBox(height: AppTheme.space5),
-          const Divider(height: 1),
-          const SizedBox(height: AppTheme.space3),
-          Text(
-            'This is a system generated certificate and does not require a '
-                'manual signature.',
+              const SizedBox(height: AppTheme.space6),
+              _buildSealAndSignature(society, signatories),
+              const SizedBox(height: AppTheme.space5),
+              const Divider(height: 1),
+              const SizedBox(height: AppTheme.space3),
+              // Says what this sheet is, not what makes it valid — and no
+              // longer "does not require a manual signature", which is the
+              // opposite of true for a certificate the society stands behind.
+              // How many signatures it needs is the society's own rule, so
+              // nothing here asserts one.
+              Text(
+                'Issued by the society. Please sign and affix the society seal '
+                'before handing this certificate over.',
                 textAlign: TextAlign.center,
                 style: AppTheme.caption.copyWith(
                   color: AppTheme.deactivatedText,
@@ -1641,11 +1671,7 @@ class NocCertificateDocument extends ConsumerWidget {
               const SizedBox(width: 5),
               Transform.rotate(
                 angle: 0.785398, // 45°, so the square reads as a diamond.
-                child: Container(
-                  width: 5,
-                  height: 5,
-                  color: AppTheme.warning,
-                ),
+                child: Container(width: 5, height: 5, color: AppTheme.warning),
               ),
               const SizedBox(width: 5),
               Container(width: 46, height: 1, color: AppTheme.warning),
@@ -1669,8 +1695,37 @@ class NocCertificateDocument extends ConsumerWidget {
     );
   }
 
-  /// Seal on the left, signature on the right — where they sit on the letter.
-  Widget _buildSealAndSignature(String society) {
+  /// Seal on the left, the signature lines on the right — where they sit on
+  /// the letter, and matching what the printed sheet leaves blank for ink.
+  ///
+  /// One line per signing officer, from the society's own setting. This read
+  /// "Authorised Signatory" on a single line while the PDF printed two named
+  /// ones, so the screen and the paper disagreed about the document they were
+  /// showing.
+  Widget _buildSealAndSignature(String society, NocSignatories signatories) {
+    Widget block(String role) => Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Container(width: 110, height: 1, color: AppTheme.border),
+        const SizedBox(height: AppTheme.space2),
+        Text(
+          role,
+          textAlign: TextAlign.right,
+          style: AppTheme.caption.copyWith(
+            fontWeight: FontWeight.w600,
+            color: AppTheme.darkText,
+          ),
+        ),
+        Text(
+          society,
+          textAlign: TextAlign.right,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTheme.caption.copyWith(color: AppTheme.deactivatedText),
+        ),
+      ],
+    );
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
@@ -1705,28 +1760,19 @@ class NocCertificateDocument extends ConsumerWidget {
           ),
         ),
         const SizedBox(width: AppTheme.space3),
-        // Expanded, not a Spacer: a long society name has to wrap inside the
-        // signature block rather than push the row past the card's edge.
+        // Expanded, not a Spacer: the blocks have to share what is left of the
+        // row rather than push it past the card's edge, and a long society
+        // name under two of them is what would do it.
         Expanded(
-          child: Column(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Container(width: 130, height: 1, color: AppTheme.border),
-              const SizedBox(height: AppTheme.space2),
-              Text(
-                'Authorised Signatory',
-                style: AppTheme.caption.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.darkText,
-                ),
-              ),
-              Text(
-                society,
-                textAlign: TextAlign.right,
-                style: AppTheme.caption.copyWith(
-                  color: AppTheme.deactivatedText,
-                ),
-              ),
+              for (final role in signatories.roles) ...[
+                Flexible(child: block(role)),
+                if (role != signatories.roles.last)
+                  const SizedBox(width: AppTheme.space3),
+              ],
             ],
           ),
         ),

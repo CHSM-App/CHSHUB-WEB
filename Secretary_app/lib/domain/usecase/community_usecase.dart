@@ -117,6 +117,47 @@ class CommunityUsecase {
   Future<void> deleteNocCertificate(int id) =>
       repository.deleteNocCertificate(id);
 
+  // ===== NOC REQUESTS =====
+
+  /// Committee accounts that can be asked to decide on a request.
+  Future<RowList> getNocApproverOptions() => repository.getNocApproverOptions();
+
+  /// What members have asked for, need-an-answer first.
+  Future<RowList> getNocRequests({String? search}) =>
+      repository.getNocRequests(search: search);
+
+  /// One request together with who was asked to decide on it.
+  Future<Map<String, dynamic>> getNocRequest(int id) =>
+      repository.getNocRequest(id);
+
+  /// The wording, editable only while the request is still pending.
+  Future<void> updateNocRequestDraft(int id, NocDraftRequest request) =>
+      repository.updateNocRequestDraft(id, request);
+
+  /// Name who must decide on a request.
+  Future<Map<String, dynamic>> setNocRequestApprovers(
+    int id,
+    NocApproversRequest request,
+  ) => repository.setNocRequestApprovers(id, request);
+
+  /// Approve or reject. The reply carries the certificate's serial when this
+  /// answer was the last one outstanding.
+  Future<Map<String, dynamic>> decideNocRequest(
+    int id,
+    int approvalId,
+    NocDecisionRequest request,
+  ) => repository.decideNocRequest(id, approvalId, request);
+
+  /// The letter is signed; give the member a collection appointment.
+  Future<void> setNocRequestReady(int id, NocReadyRequest request) =>
+      repository.setNocRequestReady(id, request);
+
+  /// It was handed over.
+  Future<void> setNocRequestCollected(int id, NocCollectedRequest request) =>
+      repository.setNocRequestCollected(id, request);
+
+  Future<void> deleteNocRequest(int id) => repository.deleteNocRequest(id);
+
   // ===== FACILITY BOOKINGS =====
 
   /// Bookable facilities.

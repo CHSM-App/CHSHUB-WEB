@@ -46,6 +46,52 @@ abstract class CommunityRepository {
   Future<void> updateNocCertificate(int id, NocRequest request);
   Future<void> deleteNocCertificate(int id);
 
+  // ===== NOC REQUESTS =====
+
+  /// Committee accounts that can be asked to decide on a request.
+  ///
+  /// Unlike a vendor bill's approver list this includes the caller: a
+  /// secretary approving a no-dues certificate themselves is the ordinary
+  /// case, and leaving them off would make the commonest request unsendable.
+  Future<RowList> getNocApproverOptions();
+
+  /// What members have asked for, ordered so what needs an answer is first.
+  Future<RowList> getNocRequests({String? search});
+
+  /// One request together with who was asked to decide on it.
+  Future<Map<String, dynamic>> getNocRequest(int id);
+
+  /// The wording the secretary settles on. The server refuses this once the
+  /// request has been approved: the certificate then carries the words the
+  /// committee agreed to, and the draft must not drift away from them.
+  Future<void> updateNocRequestDraft(int id, NocDraftRequest request);
+
+  /// Name who must decide. Returns the approvals as they now stand.
+  Future<Map<String, dynamic>> setNocRequestApprovers(
+    int id,
+    NocApproversRequest request,
+  );
+
+  /// Approve or reject on behalf of the signed-in approver.
+  ///
+  /// Returns the server's reply. Answering the last outstanding approval
+  /// issues the certificate, so the reply may carry `noc_id` and `serial_no`;
+  /// on an earlier approval it carries the request's status and nothing else.
+  Future<Map<String, dynamic>> decideNocRequest(
+    int id,
+    int approvalId,
+    NocDecisionRequest request,
+  );
+
+  /// The letter is signed; give the member a collection appointment. Sent
+  /// again with a new date to move one already given out.
+  Future<void> setNocRequestReady(int id, NocReadyRequest request);
+
+  /// It was handed over.
+  Future<void> setNocRequestCollected(int id, NocCollectedRequest request);
+
+  Future<void> deleteNocRequest(int id);
+
   // ===== FACILITY BOOKINGS =====
   Future<RowList> getFacilities();
   Future<RowList> getFacilityBookings({String? search});

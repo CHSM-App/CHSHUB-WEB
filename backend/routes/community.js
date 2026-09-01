@@ -283,4 +283,26 @@ router.get('/DueMonth/:society_id', async (req, res) => {
 });
 
 
+
+/*
+ * A member's own NOC requests, with where each one has got to — the list their
+ * app opens on. Raising one is POST /insert/community/noc-request; the
+ * committee's side of it lives in the website API.
+ *
+ * Keyed by flat rather than by user: a NOC belongs to the home, and the
+ * household should see a request whichever of them raised it.
+ */
+router.get('/noc-request/:flat_id', async (req, res) => {
+  try {
+    const result = await db.request()
+      .input("operation", "MyRequests")
+      .input("flat_id", req.params.flat_id)
+      .execute("sp_noc_request");
+
+    res.json(result.recordset);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router; 

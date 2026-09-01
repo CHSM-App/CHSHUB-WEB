@@ -59,7 +59,10 @@ app.use(cors({
     // cross-origin request, so there is nothing for CORS to protect against.
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error("Origin not allowed by CORS"));
+    // Naming the origin turns "Origin not allowed by CORS" into something
+    // actionable — it is the one thing needed to fix CORS_ORIGINS.
+    console.warn("CORS rejected origin:", origin, "| allowed:", allowedOrigins);
+    return callback(new Error("Origin not allowed by CORS: " + origin));
   },
   credentials: true,
 }));

@@ -6,6 +6,7 @@ import 'package:society_app/presentation/viewModels/auth_model.dart';
 import 'package:society_app/presentation/viewModels/due_History_viewmodal.dart';
 import 'package:society_app/presentation/viewModels/facilities_viewmodel.dart';
 import 'package:society_app/presentation/viewModels/helpdesk_viewmodel.dart';
+import 'package:society_app/presentation/viewModels/noc_viewmodel.dart';
 import 'package:society_app/presentation/viewModels/helper_view_model.dart';
 import 'package:society_app/presentation/viewModels/maintenance_viewmodel.dart';
 import 'package:society_app/presentation/viewModels/network_model.dart';
@@ -130,3 +131,10 @@ StateNotifierProvider<ProfileSettingsViewModel, ProfileSettingsState>((ref) {
   return ProfileSettingsViewModel(usecase);
 });
 
+
+// ignore: non_constant_identifier_names
+final NocViewModelProvider =
+StateNotifierProvider<NocViewModel, NocState>((ref) {
+  final useCases = ref.watch(NocUseCaseProvider);
+  return NocViewModel(useCases);
+});

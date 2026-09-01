@@ -28,6 +28,7 @@ class CommunityKeys {
   static const meetings = 'meetings';
   static const notifications = 'notifications';
   static const nocCertificates = 'nocCertificates';
+  static const nocRequests = 'nocRequests';
 }
 
 class CommunityViewModel extends ListViewModel {
@@ -280,6 +281,98 @@ class CommunityViewModel extends ListViewModel {
       guard: 'noc',
       successMessage: 'Certificate deleted.',
       onSuccess: loadNocCertificates,
+    );
+  }
+
+  // ===== NOC REQUESTS =====
+
+  /// The certificate the last approval issued — `{noc_id, serial_no}`, or
+  /// null when that decision did not settle the request.
+  ///
+  /// Held so the screen can open the letter the committee has just approved
+  /// with the number the server allocated, which the client cannot know in
+  /// advance.
+  Map<String, dynamic>? decidedNoc;
+
+  /// Committee accounts that can be asked to decide, for the approver picker.
+  Future<RowList> getNocApproverOptions() => usecase.getNocApproverOptions();
+
+  Future<void> loadNocRequests({String? search}) => load(
+    CommunityKeys.nocRequests,
+    () => usecase.getNocRequests(search: search),
+  );
+
+  /// One request with its approvals, for the review screen.
+  Future<Map<String, dynamic>> getNocRequest(int id) =>
+      usecase.getNocRequest(id);
+
+  Future<bool> updateNocRequestDraft(int id, NocDraftRequest request) {
+    return run(
+      () => usecase.updateNocRequestDraft(id, request),
+      guard: 'nocRequest',
+      successMessage: 'Draft saved.',
+      onSuccess: loadNocRequests,
+    );
+  }
+
+  Future<bool> setNocRequestApprovers(int id, NocApproversRequest request) {
+    return run(
+      () => usecase.setNocRequestApprovers(id, request),
+      guard: 'nocRequest',
+      successMessage: 'Sent for approval.',
+      onSuccess: loadNocRequests,
+    );
+  }
+
+  /// Record this approver's answer.
+  ///
+  /// [decidedNoc] is set only when the answer settled the request and a
+  /// certificate was issued, so the screen can tell "approved, and here is the
+  /// certificate" from "approved, still waiting on others".
+  Future<bool> decideNocRequest(
+    int id,
+    int approvalId,
+    NocDecisionRequest request,
+  ) {
+    decidedNoc = null;
+
+    return run(
+      () async {
+        final reply = await usecase.decideNocRequest(id, approvalId, request);
+        if (reply['noc_id'] != null) decidedNoc = reply;
+      },
+      guard: 'nocRequest',
+      successMessage: request.decision == 'approve'
+          ? 'Approved.'
+          : 'Rejected.',
+      onSuccess: loadNocRequests,
+    );
+  }
+
+  Future<bool> setNocRequestReady(int id, NocReadyRequest request) {
+    return run(
+      () => usecase.setNocRequestReady(id, request),
+      guard: 'nocRequest',
+      successMessage: 'The member has been told when to collect it.',
+      onSuccess: loadNocRequests,
+    );
+  }
+
+  Future<bool> setNocRequestCollected(int id, NocCollectedRequest request) {
+    return run(
+      () => usecase.setNocRequestCollected(id, request),
+      guard: 'nocRequest',
+      successMessage: 'Marked as collected.',
+      onSuccess: loadNocRequests,
+    );
+  }
+
+  Future<bool> deleteNocRequest(int id) {
+    return run(
+      () => usecase.deleteNocRequest(id),
+      guard: 'nocRequest',
+      successMessage: 'Request deleted.',
+      onSuccess: loadNocRequests,
     );
   }
 

@@ -767,6 +767,66 @@ class FakeCommunityRepository implements CommunityRepository {
   Future<void> deleteNocCertificate(int id) async {}
 
   @override
+  Future<RowList> getNocApproverOptions() async => nocApproverRows;
+
+  /// Who GET /community/noc-requests/approvers offered.
+  RowList nocApproverRows = RowList.fromJson(const {'items': <dynamic>[]});
+
+  @override
+  Future<RowList> getNocRequests({String? search}) async => nocRequestRows;
+
+  /// What GET /community/noc-requests answered.
+  RowList nocRequestRows = RowList.fromJson(const {'items': <dynamic>[]});
+
+  @override
+  Future<Map<String, dynamic>> getNocRequest(int id) async => nocRequestDetail;
+
+  /// What GET /community/noc-requests/{id} answered — the request together
+  /// with who was asked to decide on it.
+  Map<String, dynamic> nocRequestDetail = const {
+    'request_id': 1,
+    'status': 1,
+    'approvals': <dynamic>[],
+  };
+
+  @override
+  Future<void> updateNocRequestDraft(int id, NocDraftRequest request) async {}
+
+  @override
+  Future<Map<String, dynamic>> setNocRequestApprovers(
+    int id,
+    NocApproversRequest request,
+  ) async => const {'approvals': <dynamic>[]};
+
+  @override
+  Future<Map<String, dynamic>> decideNocRequest(
+    int id,
+    int approvalId,
+    NocDecisionRequest request,
+  ) async => decideNocReply;
+
+  /// What answering the last outstanding approval returns: the request is
+  /// settled and the certificate has been issued, so the serial comes back
+  /// with it.
+  Map<String, dynamic> decideNocReply = const {
+    'status': 2,
+    'noc_id': 7,
+    'serial_no': 'NOC/2026/00007',
+  };
+
+  @override
+  Future<void> setNocRequestReady(int id, NocReadyRequest request) async {}
+
+  @override
+  Future<void> setNocRequestCollected(
+    int id,
+    NocCollectedRequest request,
+  ) async {}
+
+  @override
+  Future<void> deleteNocRequest(int id) async {}
+
+  @override
   Future<RowList> getFacilities() async => sampleRows();
 
   @override

@@ -395,6 +395,142 @@ class NocRequest {
   Map<String, dynamic> toJson() => _$NocRequestToJson(this);
 }
 
+/// Body of PUT /api/web/community/noc-requests/{id}/draft.
+///
+/// The wording the secretary settles on while reviewing a member's request,
+/// before anyone approves it. Sent separately from [NocRequest] because a
+/// draft is editable and an issued certificate is not: the server refuses this
+/// once the request has left Pending, so what the committee approved and what
+/// the certificate says cannot drift apart.
+@JsonSerializable(includeIfNull: false)
+class NocDraftRequest {
+  /// One of NoDues, SaleTransfer, Renovation, Mortgage, General, Other.
+  @JsonKey(name: 'nocType')
+  final String nocType;
+
+  /// What an `Other` certificate calls itself; ignored for the built-in types.
+  @JsonKey(name: 'customTitle')
+  final String? customTitle;
+
+  /// Completes "The society has no objection …". Absent lets the server fall
+  /// back to the standard wording for the type, so a secretary with nothing to
+  /// add need not write one.
+  @JsonKey(name: 'clause')
+  final String? clause;
+
+  @JsonKey(name: 'purpose')
+  final String? purpose;
+
+  /// Printed as a further paragraph on the letter.
+  @JsonKey(name: 'remarks')
+  final String? remarks;
+
+  /// ISO yyyy-MM-dd. Absent means the certificate does not lapse.
+  @JsonKey(name: 'validTill')
+  final String? validTill;
+
+  const NocDraftRequest({
+    required this.nocType,
+    this.customTitle,
+    this.clause,
+    this.purpose,
+    this.remarks,
+    this.validTill,
+  });
+
+  factory NocDraftRequest.fromJson(Map<String, dynamic> json) =>
+      _$NocDraftRequestFromJson(json);
+
+  Map<String, dynamic> toJson() => _$NocDraftRequestToJson(this);
+}
+
+/// Body of POST /api/web/community/noc-requests/{id}/approvers.
+///
+/// Who must decide is chosen per request rather than by a fixed rule: a
+/// no-dues certificate is the secretary's to give, while a sale or mortgage
+/// NOC is a committee decision and the chairman goes on it too.
+@JsonSerializable(includeIfNull: false)
+class NocApproversRequest {
+  /// UserLogin ids. Re-sending a list that already contains someone is safe —
+  /// the server leaves a decision they have already given alone.
+  @JsonKey(name: 'userIds')
+  final List<int> userIds;
+
+  const NocApproversRequest({required this.userIds});
+
+  factory NocApproversRequest.fromJson(Map<String, dynamic> json) =>
+      _$NocApproversRequestFromJson(json);
+
+  Map<String, dynamic> toJson() => _$NocApproversRequestToJson(this);
+}
+
+/// Body of POST /api/web/community/noc-requests/{id}/approvals/{approvalId}.
+@JsonSerializable(includeIfNull: false)
+class NocDecisionRequest {
+  /// `approve` or `reject`.
+  @JsonKey(name: 'decision')
+  final String decision;
+
+  /// Required when rejecting — the member is shown it, and "rejected, no
+  /// reason given" is not an answer they can act on.
+  @JsonKey(name: 'remarks')
+  final String? remarks;
+
+  const NocDecisionRequest({required this.decision, this.remarks});
+
+  factory NocDecisionRequest.fromJson(Map<String, dynamic> json) =>
+      _$NocDecisionRequestFromJson(json);
+
+  Map<String, dynamic> toJson() => _$NocDecisionRequestToJson(this);
+}
+
+/// Body of POST /api/web/community/noc-requests/{id}/ready.
+///
+/// The appointment the member is given once the letter is printed and signed.
+/// Sent again, with a new date, to move an appointment already given out.
+@JsonSerializable(includeIfNull: false)
+class NocReadyRequest {
+  /// ISO yyyy-MM-dd — the day the member is told to come.
+  @JsonKey(name: 'collectionDate')
+  final String collectionDate;
+
+  /// Office hours in words, e.g. "10 AM – 1 PM".
+  @JsonKey(name: 'collectionTime')
+  final String? collectionTime;
+
+  /// Anything to bring, e.g. "Carry your Aadhaar card".
+  @JsonKey(name: 'collectionNote')
+  final String? collectionNote;
+
+  const NocReadyRequest({
+    required this.collectionDate,
+    this.collectionTime,
+    this.collectionNote,
+  });
+
+  factory NocReadyRequest.fromJson(Map<String, dynamic> json) =>
+      _$NocReadyRequestFromJson(json);
+
+  Map<String, dynamic> toJson() => _$NocReadyRequestToJson(this);
+}
+
+/// Body of POST /api/web/community/noc-requests/{id}/collected.
+@JsonSerializable(includeIfNull: false)
+class NocCollectedRequest {
+  /// Who took the certificate away. Free text, and absent means the member
+  /// themselves: a member often sends someone else, and the name of whoever
+  /// actually collected it is the fact worth keeping.
+  @JsonKey(name: 'collectedBy')
+  final String? collectedBy;
+
+  const NocCollectedRequest({this.collectedBy});
+
+  factory NocCollectedRequest.fromJson(Map<String, dynamic> json) =>
+      _$NocCollectedRequestFromJson(json);
+
+  Map<String, dynamic> toJson() => _$NocCollectedRequestToJson(this);
+}
+
 /// Body of POST and PUT /api/web/community/suggestions.
 ///
 /// The two fields suggestion_request.aspx's modal carried — txt_sub and

@@ -12,6 +12,9 @@ RowList _$RowListFromJson(Map<String, dynamic> json) => RowList(
   totalCollected: asDouble(json['totalCollected']),
   totalDue: asDouble(json['totalDue']),
   flats: asInt(json['flats']),
+  signatories: json['signatories'] == null
+      ? const {}
+      : asRow(json['signatories']),
 );
 
 Map<String, dynamic> _$RowListToJson(RowList instance) => <String, dynamic>{
@@ -20,4 +23,5 @@ Map<String, dynamic> _$RowListToJson(RowList instance) => <String, dynamic>{
   'totalCollected': instance.totalCollected,
   'totalDue': instance.totalDue,
   'flats': instance.flats,
+  'signatories': instance.signatories,
 };

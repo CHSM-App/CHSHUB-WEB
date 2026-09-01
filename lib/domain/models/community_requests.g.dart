@@ -197,6 +197,70 @@ Map<String, dynamic> _$NocRequestToJson(NocRequest instance) =>
       'validTill': ?instance.validTill,
     };
 
+NocDraftRequest _$NocDraftRequestFromJson(Map<String, dynamic> json) =>
+    NocDraftRequest(
+      nocType: json['nocType'] as String,
+      customTitle: json['customTitle'] as String?,
+      clause: json['clause'] as String?,
+      purpose: json['purpose'] as String?,
+      remarks: json['remarks'] as String?,
+      validTill: json['validTill'] as String?,
+    );
+
+Map<String, dynamic> _$NocDraftRequestToJson(NocDraftRequest instance) =>
+    <String, dynamic>{
+      'nocType': instance.nocType,
+      'customTitle': ?instance.customTitle,
+      'clause': ?instance.clause,
+      'purpose': ?instance.purpose,
+      'remarks': ?instance.remarks,
+      'validTill': ?instance.validTill,
+    };
+
+NocApproversRequest _$NocApproversRequestFromJson(Map<String, dynamic> json) =>
+    NocApproversRequest(
+      userIds: (json['userIds'] as List<dynamic>)
+          .map((e) => (e as num).toInt())
+          .toList(),
+    );
+
+Map<String, dynamic> _$NocApproversRequestToJson(
+  NocApproversRequest instance,
+) => <String, dynamic>{'userIds': instance.userIds};
+
+NocDecisionRequest _$NocDecisionRequestFromJson(Map<String, dynamic> json) =>
+    NocDecisionRequest(
+      decision: json['decision'] as String,
+      remarks: json['remarks'] as String?,
+    );
+
+Map<String, dynamic> _$NocDecisionRequestToJson(NocDecisionRequest instance) =>
+    <String, dynamic>{
+      'decision': instance.decision,
+      'remarks': ?instance.remarks,
+    };
+
+NocReadyRequest _$NocReadyRequestFromJson(Map<String, dynamic> json) =>
+    NocReadyRequest(
+      collectionDate: json['collectionDate'] as String,
+      collectionTime: json['collectionTime'] as String?,
+      collectionNote: json['collectionNote'] as String?,
+    );
+
+Map<String, dynamic> _$NocReadyRequestToJson(NocReadyRequest instance) =>
+    <String, dynamic>{
+      'collectionDate': instance.collectionDate,
+      'collectionTime': ?instance.collectionTime,
+      'collectionNote': ?instance.collectionNote,
+    };
+
+NocCollectedRequest _$NocCollectedRequestFromJson(Map<String, dynamic> json) =>
+    NocCollectedRequest(collectedBy: json['collectedBy'] as String?);
+
+Map<String, dynamic> _$NocCollectedRequestToJson(
+  NocCollectedRequest instance,
+) => <String, dynamic>{'collectedBy': ?instance.collectedBy};
+
 SuggestionRequest _$SuggestionRequestFromJson(Map<String, dynamic> json) =>
     SuggestionRequest(
       subject: json['subject'] as String,

@@ -126,6 +126,56 @@ class CommunityImpl implements CommunityRepository {
   @override
   Future<void> deleteNocCertificate(int id) => api.deleteNocCertificate(id);
 
+  // ===== NOC REQUESTS =====
+
+  @override
+  Future<RowList> getNocApproverOptions() => api.getNocApproverOptions();
+
+  @override
+  Future<RowList> getNocRequests({String? search}) => api.getNocRequests(search);
+
+  @override
+  Future<Map<String, dynamic>> getNocRequest(int id) async {
+    final reply = await api.getNocRequest(id);
+    return reply is Map ? Map<String, dynamic>.from(reply) : {};
+  }
+
+  @override
+  Future<void> updateNocRequestDraft(int id, NocDraftRequest request) =>
+      api.updateNocRequestDraft(id, request);
+
+  @override
+  Future<Map<String, dynamic>> setNocRequestApprovers(
+    int id,
+    NocApproversRequest request,
+  ) async {
+    final reply = await api.setNocRequestApprovers(id, request);
+    return reply is Map ? Map<String, dynamic>.from(reply) : {};
+  }
+
+  @override
+  Future<Map<String, dynamic>> decideNocRequest(
+    int id,
+    int approvalId,
+    NocDecisionRequest request,
+  ) async {
+    final reply = await api.decideNocRequest(id, approvalId, request);
+    // The reply carries {status, noc_id, serial_no} when this answer settled
+    // the request; an empty map reads as "nothing to report" downstream.
+    return reply is Map ? Map<String, dynamic>.from(reply) : {};
+  }
+
+  @override
+  Future<void> setNocRequestReady(int id, NocReadyRequest request) =>
+      api.setNocRequestReady(id, request);
+
+  @override
+  Future<void> setNocRequestCollected(int id, NocCollectedRequest request) =>
+      api.setNocRequestCollected(id, request);
+
+  @override
+  Future<void> deleteNocRequest(int id) => api.deleteNocRequest(id);
+
   // ===== FACILITY BOOKINGS =====
 
   @override

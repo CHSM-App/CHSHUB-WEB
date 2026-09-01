@@ -50,8 +50,22 @@ export default function HeaderIcons() {
     return () => clearInterval(timerRef.current);
   }, [refresh]);
 
-  // Alerts open a screen; the legacy Redirect went to support_ticket.aspx after
-  // flagging the row seen, so the badge drops whether or not the target loads.
+  /*
+   * Alerts open the screen they are about.
+   *
+   * Every alert used to go to the helpdesk, whatever it was: the legacy
+   * Redirect went to support_ticket.aspx because tickets were the only thing
+   * that raised one. Now that NOC requests do too, a committee member tapping
+   * "New NOC request" landed on a list of complaints.
+   *
+   * notification_type is what the notification was filed under. Anything not
+   * listed here still falls back to the helpdesk, which is where the older
+   * rows point.
+   */
+  const alertTarget = (row) =>
+    ({ noc: '/community/noc' })[String(row.notification_type ?? '').toLowerCase()] ??
+    '/community/helpdesk';
+
   const openAlert = async (row) => {
     setOpen(false);
     const id = Number(row.notify_status_id);
@@ -61,7 +75,7 @@ export default function HeaderIcons() {
     } catch {
       // Marking it read is best-effort: it reappears on the next refresh.
     }
-    navigate('/community/helpdesk');
+    navigate(alertTarget(row));
   };
 
   return (

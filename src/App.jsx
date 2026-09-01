@@ -26,6 +26,7 @@ import VendorBillsPage from './pages/accounts/VendorBillsPage.jsx';
 import SocietyExpensePage from './pages/accounts/SocietyExpensePage.jsx';
 import ReceiptEntryPage from './pages/billing/ReceiptEntryPage.jsx';
 import HelpdeskPage from './pages/community/HelpdeskPage.jsx';
+import NocPage from './pages/community/NocPage.jsx';
 import { NotFoundPage, ErrorBoundary } from './pages/ErrorPages.jsx';
 import * as MP from './pages/masters/MasterPages.jsx';
 import * as CP from './pages/community/CommunityPages.jsx';
@@ -201,6 +202,7 @@ export default function App() {
           <Route path="/community/suggestions" element={<S.SuggestionsPage />} />
           <Route path="/community/messages" element={<CP.MessagesPage />} />
           <Route path="/community/documents" element={<CP.DocumentsPage />} />
+          <Route path="/community/noc" element={<NocPage />} />
           <Route path="/community/polls" element={<CP.PollsPage />} />
 
           {/* Reports */}

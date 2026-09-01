@@ -52,7 +52,8 @@ function deliver(pdf, filename, print) {
  * Used for report and print views, where the on-screen layout *is* the
  * document — the same thing html2canvas did on the legacy pages.
  */
-export async function elementToPdf(node, filename = 'report', { print = false } = {}) {
+/** The captured document, before it is saved, printed or handed out as bytes. */
+async function buildElementPdf(node) {
   if (!node) throw new Error('Nothing to export');
 
   const [{ default: html2canvas }, JsPDF] = await Promise.all([
@@ -83,7 +84,22 @@ export async function elementToPdf(node, filename = 'report', { print = false } 
     offset += pageH - margin * 2;
   }
 
-  deliver(pdf, filename, print);
+  return pdf;
+}
+
+export async function elementToPdf(node, filename = 'report', { print = false } = {}) {
+  deliver(await buildElementPdf(node), filename, print);
+}
+
+/**
+ * The same PDF as a Blob, for handing to the device's share sheet.
+ *
+ * Separate from elementToPdf because that one has already saved or printed by
+ * the time it returns — a caller that wants the bytes has nothing left to take.
+ */
+export async function elementToPdfBlob(node) {
+  const pdf = await buildElementPdf(node);
+  return pdf.output('blob');
 }
 
 /**

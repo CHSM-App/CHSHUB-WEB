@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Delete Account — CHSHUB</title>
+  <meta name="description" content="Request permanent deletion of your CHSHUB Owner or Gatekeeper account." />
+  <link rel="icon" type="image/png" href="/chs.png" />
+  <style>
+    :root {
+      --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      --font-mono: 'Consolas', 'SFMono-Regular', Menlo, monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #f9fafb;
+      color: #1f2937;
+      font-family: var(--font);
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+
+    /* Top bar */
+    .topbar {
+      background: #0f172a;
+      padding: 16px 24px;
+    }
+    .topbar .inner {
+      max-width: 900px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .brand { display: flex; align-items: center; gap: 8px; }
+    .brand img { height: 24px; width: 24px; object-fit: cover; border-radius: 6px; }
+    .brand span { font-size: 18px; font-weight: 700; color: #fff; }
+    .back-link {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 14px; color: rgba(255,255,255,.5);
+      transition: color .15s;
+    }
+    .back-link:hover { color: #fff; }
+
+    /* Hero */
+    .hero {
+      background: linear-gradient(to bottom right, #0f172a, #1e293b);
+      padding: 56px 24px;
+      text-align: center;
+    }
+    .badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 16px; border-radius: 999px;
+      font-size: 12px; font-weight: 600;
+      background: rgba(239,68,68,.15); color: #fca5a5;
+      margin-bottom: 20px;
+    }
+    .hero h1 { font-size: 36px; font-weight: 800; color: #fff; margin: 0 0 12px; }
+    .hero p { max-width: 380px; margin: 0 auto; font-size: 14px; line-height: 1.6; color: rgba(255,255,255,.45); }
+
+    .switcher {
+      margin-top: 32px;
+      display: inline-flex;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.15);
+      background: rgba(255,255,255,.05);
+      padding: 4px;
+    }
+    .switcher button {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 16px; border-radius: 8px; border: none;
+      font-size: 12px; font-weight: 600; cursor: pointer;
+      background: transparent; color: rgba(255,255,255,.6);
+      transition: all .15s;
+    }
+    .switcher button img { height: 16px; width: 16px; object-fit: cover; border-radius: 3px; }
+    .switcher button.active { background: #fff; color: #0f172a; }
+    .switcher button:not(.active):hover { color: #fff; }
+
+    .wrap { max-width: 576px; margin: 0 auto; padding: 48px 24px; }
+
+    .card {
+      background: #fff;
+      border: 1px solid #f3f4f6;
+      border-radius: 16px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.04);
+      overflow: hidden;
+    }
+    .warn-banner {
+      display: flex; gap: 12px; align-items: flex-start;
+      padding: 16px 24px;
+      background: #fef2f2; border-bottom: 1px solid #fee2e2;
+    }
+    .warn-banner .icon { color: #ef4444; flex-shrink: 0; margin-top: 2px; }
+    .warn-banner p { margin: 0; font-size: 12px; line-height: 1.6; color: #4b5563; }
+    .warn-banner strong { color: #dc2626; }
+
+    .card-body { padding: 24px; }
+
+    /* Steps */
+    .steps { display: flex; align-items: center; margin-bottom: 32px; }
+    .step-col { display: flex; flex-direction: column; align-items: center; gap: 4px; flex-shrink: 0; }
+    .step-dot {
+      width: 32px; height: 32px; border-radius: 999px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700;
+      background: #f3f4f6; color: #9ca3af;
+      transition: all .2s;
+    }
+    .step-dot.active { background: #ef4444; color: #fff; box-shadow: 0 0 0 4px #fee2e2; }
+    .step-dot.done { background: #ef4444; color: #fff; }
+    .step-label { font-size: 11px; font-weight: 500; color: #9ca3af; }
+    .step-label.on { color: #374151; }
+    .step-line { flex: 1; height: 2px; margin: 0 8px 20px; background: #f3f4f6; }
+    .step-line.done { background: #fca5a5; }
+
+    label { display: block; font-size: 12px; font-weight: 600; color: #4b5563; margin-bottom: 6px; }
+    .field { margin-bottom: 16px; position: relative; }
+    .field input, .field select, .field textarea {
+      width: 100%; border: 1px solid #e5e7eb; border-radius: 12px;
+      padding: 12px 16px; font-size: 14px; color: #1f2937;
+      outline: none; transition: all .15s; font-family: inherit;
+      background: #fff;
+    }
+    .field input::placeholder, .field textarea::placeholder { color: #9ca3af; }
+    .field input:focus, .field select:focus, .field textarea:focus {
+      border-color: #f87171; box-shadow: 0 0 0 3px #fee2e2;
+    }
+    .field.icon input { padding-left: 40px; }
+    .field .field-icon { position: absolute; left: 14px; top: 38px; color: #9ca3af; pointer-events: none; }
+    .field textarea { resize: none; }
+    .hint { font-size: 11px; color: #9ca3af; margin-top: 6px; }
+    .hint button { background: none; border: none; padding: 0; color: #0ea5e9; font-weight: 600; font-size: 11px; cursor: pointer; }
+    .hint button:hover { text-decoration: underline; }
+
+    .otp-input {
+      text-align: center; letter-spacing: .5em; font-family: var(--font-mono); font-size: 20px;
+      padding-left: 16px !important;
+    }
+
+    .consequences {
+      border-radius: 12px; padding: 16px;
+      background: #fef2f2; border: 1px solid #fee2e2;
+      font-size: 12px; color: #b91c1c; margin-bottom: 16px;
+    }
+    .consequences div { display: flex; gap: 8px; margin-bottom: 6px; }
+    .consequences div:last-child { margin-bottom: 0; }
+    .consequences .x { color: #f87171; flex-shrink: 0; }
+
+    .btn {
+      width: 100%; padding: 13px; border-radius: 12px; border: none;
+      font-size: 14px; font-weight: 700; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: background .15s;
+    }
+    .btn-danger { background: #ef4444; color: #fff; }
+    .btn-danger:hover { background: #dc2626; }
+    .btn-danger:disabled { background: #f3f4f6; color: #9ca3af; cursor: not-allowed; }
+    .btn-ghost {
+      background: #fff; color: #6b7280; border: 1px solid #e5e7eb; margin-top: 10px;
+    }
+    .btn-ghost:hover { border-color: #d1d5db; }
+
+    .error-box {
+      display: flex; align-items: center; gap: 8px;
+      background: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2;
+      border-radius: 12px; padding: 12px 16px; font-size: 13px; margin-bottom: 16px;
+    }
+
+    /* Done state */
+    .done-card { text-align: center; padding: 32px 24px; }
+    .done-icon {
+      width: 56px; height: 56px; border-radius: 999px; background: #fef2f2;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 16px; color: #ef4444;
+    }
+    .done-card h2 { font-size: 20px; font-weight: 700; color: #111827; margin: 0 0 8px; }
+    .done-card p { font-size: 14px; color: #6b7280; line-height: 1.6; margin: 0 0 20px; }
+    .done-note {
+      border-radius: 12px; padding: 16px; text-align: left; font-size: 13px;
+      color: #4b5563; line-height: 1.6; background: #f0f9ff; border: 1px solid #e0f2fe;
+      margin-bottom: 24px;
+    }
+    .done-note strong { color: #111827; }
+
+    /* Footer nav */
+    .footer-nav {
+      display: flex; flex-wrap: wrap; justify-content: center; gap: 24px;
+      margin-top: 48px; padding-top: 32px; border-top: 1px solid #e5e7eb;
+      font-size: 12px; color: #9ca3af;
+    }
+    .footer-nav a:hover { color: #374151; }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="inner">
+      <div class="brand">
+        <img src="/chs.png" alt="" />
+        <span>CHSHUB</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero">
+    <div class="badge">⚠ Permanent Action</div>
+    <h1>Delete Account</h1>
+    <p>Permanently delete your CHSHUB account and all associated data. This action cannot be undone after the 30-day grace period.</p>
+
+    <div class="switcher">
+      <button class="active" data-app="owner" data-logo="/chs.png">
+        <img src="/chs.png" alt="" /> CHSHUB Owner
+      </button>
+      <button data-app="security" data-logo="/gatekeeper.png">
+        <img src="/gatekeeper.png" alt="" /> CHSHUB Gatekeeper
+      </button>
+    </div>
+  </div>
+
+  <div class="wrap">
+
+    <!-- Form flow -->
+    <div id="form-card" class="card">
+      <div class="warn-banner">
+        <span class="icon">⚠</span>
+        <p><strong>All data will be permanently deleted</strong> — profile, records, and account access. You have 30 days to cancel by contacting us after submitting.</p>
+      </div>
+
+      <div class="card-body">
+        <div class="steps">
+          <div class="step-col">
+            <div class="step-dot active" id="dot-0">1</div>
+            <span class="step-label on" id="label-0">Phone</span>
+          </div>
+          <div class="step-line" id="line-0"></div>
+          <div class="step-col">
+            <div class="step-dot" id="dot-1">2</div>
+            <span class="step-label" id="label-1">Verify OTP</span>
+          </div>
+          <div class="step-line" id="line-1"></div>
+          <div class="step-col">
+            <div class="step-dot" id="dot-2">3</div>
+            <span class="step-label" id="label-2">Confirm</span>
+          </div>
+        </div>
+
+        <div id="error-box" class="error-box hidden"></div>
+
+        <!-- Step 0: Phone -->
+        <form id="step-0" onsubmit="return handleSendOtp(event)">
+          <div class="field">
+            <label>Registered Phone Number</label>
+            <div class="field icon" style="margin-bottom:0;">
+              <span class="field-icon">📞</span>
+              <input type="tel" inputmode="numeric" maxlength="10" placeholder="10-digit mobile number" id="phone" />
+            </div>
+            <p class="hint">We'll send a one-time verification code to this number.</p>
+          </div>
+
+          <div class="consequences" id="consequences-0"></div>
+
+          <button type="submit" class="btn btn-danger" id="send-otp-btn" disabled>Send Verification Code</button>
+        </form>
+
+        <!-- Step 1: OTP -->
+        <form id="step-1" class="hidden" onsubmit="return handleOtpNext(event)">
+          <div class="field">
+            <label id="otp-label">Enter the 6-digit code sent to your number</label>
+            <input type="tel" inputmode="numeric" maxlength="6" placeholder="6-digit OTP" id="otp" class="otp-input" />
+            <p class="hint">The code expires in 10 minutes. <button type="button" onclick="goToStep(0)">Change number</button></p>
+          </div>
+          <button type="submit" class="btn btn-danger" id="otp-next-btn" disabled>Continue</button>
+        </form>
+
+        <!-- Step 2: Confirm -->
+        <form id="step-2" class="hidden" onsubmit="return handleConfirm(event)">
+          <div class="consequences" style="margin-bottom:20px;" id="consequences-2"></div>
+
+          <div class="field">
+            <label>Reason for leaving <span style="font-weight:400;color:#9ca3af;">(optional)</span></label>
+            <textarea rows="3" placeholder="Help us improve CHSHUB…" id="reason" maxlength="500"></textarea>
+          </div>
+
+          <button type="submit" class="btn btn-danger">Yes, Delete My Account</button>
+          <button type="button" class="btn btn-ghost" onclick="resetFlow()">Cancel — Keep My Account</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Done state -->
+    <div id="done-card" class="card done-card hidden">
+      <div class="done-icon">✓</div>
+      <h2>Request Received</h2>
+      <p>Your email client has been opened with a pre-filled deletion request. Please send it to complete your submission.</p>
+      <div class="done-note">
+        <strong>What happens next?</strong> We'll verify your identity and confirm via email or SMS within 7 business days. Your account will be permanently deleted within 30 days of confirmation, except where retention is required by law.
+      </div>
+    </div>
+
+    <div class="footer-nav">
+      <a href="mailto:support@vengurlatech.com">Contact</a>
+    </div>
+  </div>
+
+  <script>
+    const CONSEQUENCES = {
+      owner: [
+        'Your profile, name, mobile number, and photo will be permanently deleted',
+        'Society, building, wing, and flat/unit association will be removed',
+        'Vehicle and household/helper records you added will be deleted',
+        'Family member profiles linked to your account will be deleted',
+        'This action cannot be undone after the 30-day grace period',
+      ],
+      security: [
+        'Your staff profile, name, staff ID, and photo will be permanently deleted',
+        'Society and gate/post assignment details will be removed',
+        'Your login credentials and app settings will be deleted',
+        'This action cannot be undone after the 30-day grace period',
+      ],
+    };
+
+    let currentApp = 'owner';
+    let currentStep = 0;
+    let phoneValue = '';
+
+    function renderConsequences() {
+      const html = CONSEQUENCES[currentApp]
+        .map((c) => `<div><span class="x">✕</span>${c}</div>`)
+        .join('');
+      document.getElementById('consequences-0').innerHTML = html;
+      document.getElementById('consequences-2').innerHTML =
+        '<p style="font-weight:600;color:#b91c1c;margin:0 0 8px;">You are about to delete:</p>' + html;
+    }
+
+    document.querySelectorAll('.switcher button').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        currentApp = btn.dataset.app;
+        document.querySelectorAll('.switcher button').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        renderConsequences();
+      });
+    });
+
+    document.getElementById('phone').addEventListener('input', (e) => {
+      e.target.value = e.target.value.replace(/\D/g, '').slice(0, 10);
+      document.getElementById('send-otp-btn').disabled = e.target.value.length !== 10;
+    });
+
+    document.getElementById('otp').addEventListener('input', (e) => {
+      e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6);
+      document.getElementById('otp-next-btn').disabled = e.target.value.length !== 6;
+    });
+
+    function showError(msg) {
+      const box = document.getElementById('error-box');
+      box.textContent = msg;
+      box.classList.remove('hidden');
+    }
+    function clearError() {
+      document.getElementById('error-box').classList.add('hidden');
+    }
+
+    function goToStep(n) {
+      clearError();
+      currentStep = n;
+      [0, 1, 2].forEach((i) => {
+        document.getElementById(`step-${i}`).classList.toggle('hidden', i !== n);
+        const dot = document.getElementById(`dot-${i}`);
+        const label = document.getElementById(`label-${i}`);
+        dot.classList.remove('active', 'done');
+        label.classList.remove('on');
+        if (i < n) { dot.classList.add('done'); dot.textContent = '✓'; label.classList.add('on'); }
+        else if (i === n) { dot.classList.add('active'); dot.textContent = i + 1; label.classList.add('on'); }
+        else { dot.textContent = i + 1; }
+      });
+      document.getElementById('line-0').classList.toggle('done', n > 0);
+      document.getElementById('line-1').classList.toggle('done', n > 1);
+    }
+
+    function handleSendOtp(e) {
+      e.preventDefault();
+      clearError();
+      phoneValue = document.getElementById('phone').value;
+      if (!/^\d{10}$/.test(phoneValue)) { showError('Enter a valid 10-digit phone number.'); return false; }
+      document.getElementById('otp-label').textContent = `Enter the 6-digit code sent to +91 ${phoneValue}`;
+      goToStep(1);
+      return false;
+    }
+
+    function handleOtpNext(e) {
+      e.preventDefault();
+      clearError();
+      const otp = document.getElementById('otp').value;
+      if (!/^\d{6}$/.test(otp)) { showError('OTP must be exactly 6 digits.'); return false; }
+      goToStep(2);
+      return false;
+    }
+
+    function handleConfirm(e) {
+      e.preventDefault();
+      const appLabel = currentApp === 'owner' ? 'CHSHUB Owner' : 'CHSHUB Gatekeeper';
+      const reason = document.getElementById('reason').value.trim();
+      const subject = `Account Deletion Request — ${appLabel}`;
+      const bodyLines = [
+        `App: ${appLabel}`,
+        `Registered mobile number: ${phoneValue}`,
+        reason ? `Reason: ${reason}` : null,
+      ].filter(Boolean);
+      const mailto = `mailto:support@vengurlatech.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyLines.join('\n'))}`;
+      window.location.href = mailto;
+
+      document.getElementById('form-card').classList.add('hidden');
+      document.getElementById('done-card').classList.remove('hidden');
+      return false;
+    }
+
+    function resetFlow() {
+      phoneValue = '';
+      document.getElementById('phone').value = '';
+      document.getElementById('otp').value = '';
+      document.getElementById('reason').value = '';
+      document.getElementById('send-otp-btn').disabled = true;
+      document.getElementById('otp-next-btn').disabled = true;
+      goToStep(0);
+    }
+
+    renderConsequences();
+  </script>
+</body>
+</html>

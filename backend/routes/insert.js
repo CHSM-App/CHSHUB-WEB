@@ -5,6 +5,7 @@ var router = express.Router();
 var bodyParser = require('body-parser');
 router.use(bodyParser.json());
 const auth = require('./middleware/auth');
+const { requireOwnership } = require('./middleware/ownership');
 router.use(bodyParser.urlencoded({ extended: true }));
 
 router.post('/Insert/Notification',  async (req, res) => {
@@ -1012,73 +1013,25 @@ router.post("/DeleteStaffPhoto", async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });*/
-router.post('/AddReceipt', async (req, res) => {
-  try {
-    // receipt.bill_details is nvarchar(20) and sp_SettleMaintenancePayment splits
-    // it to decide which bills to clear. A longer list is silently truncated by
-    // SQL Server, so the trailing bills stay due even though the full amount was
-    // collected. Reject it rather than under-settle the payment.
-    if (req.body?.bill_details && String(req.body.bill_details).length > 20) {
-      return res.status(400).json({
-        success: false,
-        error:
-          "Too many bills for one receipt (bill_details holds 20 characters). " +
-          "Split the payment across several receipts.",
-        attempted: String(req.body.bill_details).length
-      });
-    }
-
-    const {
-      society_id,
-      flat_id,
-      receipt_date,
-      pay_mode,
-      cheque_no,
-      cheque_date,
-      bank_name,
-      transaction_ref,
-      bill_details,
-      paid_amount,
-      remarks,
-      status,
-      created_by
-    } = req.body;
-
-    const result = await db.request()
-      .input("Action", "INSERT")
-      .input("SocietyID", society_id)
-      .input("FlatID", flat_id)
-      .input("ReceiptDate", receipt_date)
-      .input("PayMode", pay_mode)
-      .input("ChequeNo", cheque_no)
-      .input("ChequeDate", cheque_date)
-      .input("BankName", bank_name)
-      .input("TransactionRef", transaction_ref)
-      .input("bills", bill_details)
-      .input("PaidAmount", paid_amount)
-      .input("Remarks", remarks)
-      .input("Status", status)
-      .input("CreatedBy", created_by)
-      .execute("sp_MaintenanceReceipt");
-
-    // Pick the last recordset to ensure receipt_id is returned
-    const lastRecordset = result.recordsets[result.recordsets.length - 1];
-    const newReceipt = lastRecordset[0]?.receipt_id;
-
-    if (!newReceipt) {
-      throw new Error("Receipt ID not returned from database.");
-    }
-
-    res.status(200).json({
-      success: true,
-      message: "Receipt inserted successfully",
-      receipt: newReceipt
-    });
-  } catch (err) {
-    console.error("Error inserting receipt:", err);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
+/*
+ * DISABLED for residents. Letting a resident post an arbitrary `paid_amount`
+ * here is the financial-integrity hole (audit P0-3): it settles bills for money
+ * that may never have been collected, for any flat.
+ *
+ * Online payments now create the receipt server-side, after Razorpay
+ * verification binds the paid amount to a real captured payment
+ * (routes/payments.js -> sp_payment_order -> sp_MaintenanceReceipt). Manual and
+ * cash receipts are entered by the society through the admin API
+ * (web/routes/billing/receipts.js), which is authenticated and society-scoped.
+ *
+ * Kept as an explicit 403 so an old client build fails loudly rather than
+ * silently settling a bill.
+ */
+router.post('/AddReceipt', (_req, res) =>
+  res.status(403).json({
+    success: false,
+    error: 'Direct receipt creation is disabled. Pay online via /payments, or use admin receipt entry.',
+  }));
 
 
 router.post('/updateProduct', async (req, res) => {

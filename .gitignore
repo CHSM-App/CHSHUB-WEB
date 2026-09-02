@@ -61,3 +61,12 @@ serviceAccountKey.json
 # Env backups. The bare .env rule above misses these.
 .env.*
 !.env.example
+
+# Android release signing — never commit keystores or filled-in key.properties
+*.jks
+*.keystore
+**/key.properties
+!**/key.properties.example
+
+# Flutter golden-test failure output (regenerate goldens deliberately, never commit diffs)
+**/test/failures/

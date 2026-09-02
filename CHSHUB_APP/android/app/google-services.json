@@ -66,7 +66,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:303424747645:android:e1f5c2990cf5746d10d914",
         "android_client_info": {
-          "package_name": "com.example.society_app"
+          "package_name": "co.in.chshub.resident"
         }
       },
       "oauth_client": [],

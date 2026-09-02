@@ -19,9 +19,12 @@ function generateRefreshToken() {
   return crypto.randomBytes(64).toString('hex');
 }
 
-// Create tokens helper
+// Create tokens helper.
+// `scope: 'mobile'` marks the token as issued by the mobile login. The mobile
+// auth middleware requires it, and the website API (web/middleware/authenticate.js)
+// requires `scope: 'web'` — so neither API's tokens are accepted by the other.
 function createAccessToken(payload) {
-  return jwt.sign(payload, process.env.JWT_SECRET_KEY, { expiresIn: '15m' }); // production: 15m
+  return jwt.sign({ ...payload, scope: 'mobile' }, process.env.JWT_SECRET_KEY, { expiresIn: '15m' }); // production: 15m
 }
 function createRefreshTokenPayload(mobile) {
   // we don't sign this with jwt secret; we'll store opaque token in db

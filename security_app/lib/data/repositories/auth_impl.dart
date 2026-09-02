@@ -9,6 +9,11 @@ class AuthImpl implements AuthRepository {
   AuthImpl(this.apiService);
 
   @override
+  Future<void> requestOtp(String mobile) {
+    return apiService.requestOtp({"mobile": mobile});
+  }
+
+  @override
   Future<TokenResponse> createLogin(TokenResponse token) {
     return apiService.createLogin(token);
   }

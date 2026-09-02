@@ -7,6 +7,8 @@ const express = require('express');
 
 const { errorHandler, notFoundHandler, ok } = require('./lib/http');
 const { authenticate } = require('./middleware/authenticate');
+const { requireUserType, GROUPS } = require('./middleware/authorize');
+const { pool } = require('./lib/db');
 
 const authRoutes = require('./routes/auth');
 const buildingRoutes = require('./routes/masters/buildings');
@@ -39,8 +41,25 @@ const router = express.Router();
 router.use(express.json());
 router.use(express.urlencoded({ extended: true }));
 
-/** Unauthenticated liveness probe. */
-router.get('/health', (_req, res) => ok(res, { status: 'up', api: 'web', time: new Date().toISOString() }));
+/*
+ * Unauthenticated health probe for an uptime monitor. Reports app liveness and
+ * database connectivity. Returns 503 when the DB is unreachable so a monitor can
+ * alert. Exposes no connection string, credentials, or internal detail.
+ */
+router.get('/health', async (_req, res) => {
+  let dbUp = false;
+  try {
+    if (pool.connected) {
+      await pool.request().query('SELECT 1 AS ok');
+      dbUp = true;
+    }
+  } catch (_e) {
+    dbUp = false;
+  }
+  const body = { status: dbUp ? 'up' : 'degraded', api: 'web', db: dbUp ? 'up' : 'down', time: new Date().toISOString() };
+  if (dbUp) return ok(res, body);
+  return res.status(503).json({ ok: false, error: 'database unavailable', data: body });
+});
 
 // Public. onboarding applies `authenticate` internally to its setup routes.
 router.use('/auth', authRoutes);
@@ -56,34 +75,40 @@ router.use('/cron', cronRoutes);
 // Protected areas. authenticate is applied per mount rather than globally so an
 // unknown path still falls through to notFoundHandler and reports 404 instead of
 // a misleading 401.
-router.use('/masters/buildings', authenticate, buildingRoutes);
-router.use('/masters/wings', authenticate, wingRoutes);
-router.use('/masters/flats', authenticate, flatRoutes);
-router.use('/masters/owners', authenticate, ownerRoutes);
-router.use('/masters/family', authenticate, familyRoutes);
-router.use('/masters/owner-extras', authenticate, ownerExtraRoutes);
+// Master data (config) — Chairman/Secretary only. See middleware/authorize.js;
+// role checks stay permissive until ROLE_*_IDS are configured from dbo.UserType.
+router.use('/masters/buildings', authenticate, requireUserType(GROUPS.SOCIETY_ADMIN), buildingRoutes);
+router.use('/masters/wings', authenticate, requireUserType(GROUPS.SOCIETY_ADMIN), wingRoutes);
+router.use('/masters/flats', authenticate, requireUserType(GROUPS.SOCIETY_ADMIN), flatRoutes);
+router.use('/masters/owners', authenticate, requireUserType(GROUPS.SOCIETY_ADMIN), ownerRoutes);
+router.use('/masters/family', authenticate, requireUserType(GROUPS.SOCIETY_ADMIN), familyRoutes);
+router.use('/masters/owner-extras', authenticate, requireUserType(GROUPS.SOCIETY_ADMIN), ownerExtraRoutes);
 router.use('/uploads', authenticate, uploadRoutes);
 
-router.use('/settings/account', authenticate, accountSettingRoutes);
-router.use('/settings/charges', authenticate, chargeRoutes);
-router.use('/settings/terms', authenticate, termsRoutes);
-router.use('/settings/society-charges', authenticate, societyChargeRoutes);
+// Society configuration — Chairman/Secretary only.
+router.use('/settings/account', authenticate, requireUserType(GROUPS.SOCIETY_ADMIN), accountSettingRoutes);
+router.use('/settings/charges', authenticate, requireUserType(GROUPS.SOCIETY_ADMIN), chargeRoutes);
+router.use('/settings/terms', authenticate, requireUserType(GROUPS.SOCIETY_ADMIN), termsRoutes);
+router.use('/settings/society-charges', authenticate, requireUserType(GROUPS.SOCIETY_ADMIN), societyChargeRoutes);
 
-// Mount generation before /bills so its paths are not shadowed.
-router.use('/billing/generate', authenticate, generationRoutes);
-router.use('/billing/pdc', authenticate, pdcRoutes);
-router.use('/billing/receipts', authenticate, receiptRoutes);
-router.use('/billing/bills', authenticate, billRoutes);
+// Billing & receipts — Treasurer and above. Mount generation before /bills.
+router.use('/billing/generate', authenticate, requireUserType(GROUPS.FINANCE), generationRoutes);
+router.use('/billing/pdc', authenticate, requireUserType(GROUPS.FINANCE), pdcRoutes);
+router.use('/billing/receipts', authenticate, requireUserType(GROUPS.FINANCE), receiptRoutes);
+router.use('/billing/bills', authenticate, requireUserType(GROUPS.FINANCE), billRoutes);
 
 // Remaining master screens (staff, caretakers, contacts, inventory, parking,
-// car pooling, loans, society profile, committee members).
-router.use('/masters', authenticate, miscMasterRoutes);
+// car pooling, loans, society profile, committee members) — Chairman/Secretary.
+router.use('/masters', authenticate, requireUserType(GROUPS.SOCIETY_ADMIN), miscMasterRoutes);
 
-router.use('/accounts/vendor-bills', authenticate, vendorBillRoutes);
-router.use('/accounts/vendors', authenticate, vendorRoutes);
-router.use('/accounts', authenticate, accountRoutes);
+// Accounts & vendor-bill approval, financial reports — Treasurer and above.
+router.use('/accounts/vendor-bills', authenticate, requireUserType(GROUPS.FINANCE), vendorBillRoutes);
+router.use('/accounts/vendors', authenticate, requireUserType(GROUPS.FINANCE), vendorRoutes);
+router.use('/accounts', authenticate, requireUserType(GROUPS.FINANCE), accountRoutes);
+router.use('/reports', authenticate, requireUserType(GROUPS.FINANCE), reportRoutes);
+
+// Community is open to any authenticated committee member (incl. Member).
 router.use('/community', authenticate, communityRoutes);
-router.use('/reports', authenticate, reportRoutes);
 router.use('/village', authenticate, villageRoutes);
 
 // Terminal handlers, scoped to this router so the mobile API is unaffected.

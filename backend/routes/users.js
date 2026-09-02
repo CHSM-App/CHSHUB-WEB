@@ -5,6 +5,7 @@ var http=require('http');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 const auth = require('./middleware/auth');
+const { requireOwnership } = require('./middleware/ownership');
 let refreshTokens = [];
 
 router.get('/SearchSociety',  async function (req, res) {
@@ -245,7 +246,7 @@ router.get('/FindHelper/Info/worksAt/:helper_id/:type', async (req, res) => {
   }
 });*/
 
-router.get('/Home/TotalDue/:flat_id',  async (req, res) => {
+router.get('/Home/TotalDue/:flat_id', requireOwnership('flat', r => r.params.flat_id), async (req, res) => {
   try {
     const result = await db.request()
       .input('operation', 'TotalDue')
@@ -258,7 +259,8 @@ router.get('/Home/TotalDue/:flat_id',  async (req, res) => {
   }
 });
 
-router.get('/Home/DueHistory/:owner_id',  async (req, res) => {
+// param is named owner_id but the handler passes it as flat_id to the SP.
+router.get('/Home/DueHistory/:owner_id', requireOwnership('flat', r => r.params.owner_id), async (req, res) => {
   try {
     const result = await db.request()
       .input('operation', 'DueHistory')
@@ -469,7 +471,7 @@ router.get('/OwnerProductBuy/:society_id/:owner_id',  async (req, res) => {
 });
 
 // GET today’s visitors or all visitors by flat
-router.get('/visitor/:date/:flat_id', async (req, res) => {
+router.get('/visitor/:date/:flat_id', requireOwnership('flat', r => r.params.flat_id), async (req, res) => {
   try {
     const operation = req.params.date === "today" ? "today" : "byFlat";
 
@@ -485,7 +487,7 @@ router.get('/visitor/:date/:flat_id', async (req, res) => {
 });
 
 // GET all visitors by flat (legacy endpoint)
-router.get('/visitor/:flat_id',  async (req, res) => {
+router.get('/visitor/:flat_id', requireOwnership('flat', r => r.params.flat_id), async (req, res) => {
   try {
     const result = await db.request()
       .input('operation', 'byFlat')
@@ -525,7 +527,7 @@ router.get('/NotificationDetails/:society/:type/:id',  async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-router.get('/SelectPanicAlert/:owner_id', function (req, res,next) {
+router.get('/SelectPanicAlert/:owner_id', requireOwnership('owner', r => r.params.owner_id), function (req, res,next) {
     db.request()
       .input("owner_id", req.params.owner_id)
       .query("SELECT name,contact,type from panic_alert where owner_id=@owner_id", function(err,rows){
@@ -550,7 +552,7 @@ router.get('/SelectPanicAlert/:owner_id', function (req, res,next) {
 });*/
 
 
-router.get('/Maintenance/:flat_id/:bill_id',async (req, res) => {
+router.get('/Maintenance/:flat_id/:bill_id', requireOwnership('flat', r => r.params.flat_id), async (req, res) => {
   try {
     const result = await db.request()
       .input('operation', 'Select')
@@ -569,7 +571,7 @@ router.get('/Maintenance/:flat_id/:bill_id',async (req, res) => {
 });
 
 
-router.get('/Receipt/:receipt',async (req, res) => {
+router.get('/Receipt/:receipt', requireOwnership('receipt', r => r.params.receipt), async (req, res) => {
   try {
     const result = await db.request()
 	.input('Action', 'GetReceipt')
@@ -596,7 +598,7 @@ router.get('/ParkingSlotNo/:park_for/:society_id',  async (req, res) => {
   }
 });
 
-router.get('/VehicleList/:flat_id/:society_id',  async (req, res) => {
+router.get('/VehicleList/:flat_id/:society_id', requireOwnership('flat', r => r.params.flat_id), async (req, res) => {
   try {
     const result = await db.request()
 	.input('operation' ,'VehicleList')
@@ -676,7 +678,7 @@ router.get('/HomeNoFetch/:pre_mob/:flat_id',  async (req, res) => {
   }
 });
 
-router.get('/FamilyMembers/:flat_id',async function (req, res,next)  {
+router.get('/FamilyMembers/:flat_id', requireOwnership('flat', r => r.params.flat_id), async function (req, res,next)  {
     try {
     const result = await db.request()
       .input('operation', 'GetFamily')
@@ -804,7 +806,7 @@ router.get("/polls/:pollId/votes", async (req, res) => {
 });
 
 
-router.get('/OwnerDocumentsList/:flat_id',async (req, res) => {
+router.get('/OwnerDocumentsList/:flat_id', requireOwnership('flat', r => r.params.flat_id), async (req, res) => {
   try {
     const result = await db.request()
       .input('operation', 'GetOwnerDocs')

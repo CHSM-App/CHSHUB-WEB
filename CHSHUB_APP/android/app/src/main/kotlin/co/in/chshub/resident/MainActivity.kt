@@ -1,4 +1,4 @@
-package com.example.security_app
+package co.`in`.chshub.resident
 
 import io.flutter.embedding.android.FlutterActivity
 

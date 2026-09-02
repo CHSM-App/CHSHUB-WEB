@@ -21,6 +21,17 @@ class AuthViewModel extends StateNotifier<AsyncValue<void>> {
   AuthViewModel(this.ref, this.authRepository)
       : super(const AsyncValue.data(null));
 
+  /// Ask the server to send a verification code to [mobile].
+  /// Returns null on success, or an error message to show the user.
+  Future<String?> requestOtp(String mobile) async {
+    try {
+      await authRepository.requestOtp(mobile);
+      return null;
+    } catch (e) {
+      return "Could not send the verification code. Please try again.";
+    }
+  }
+
   /// Login function
   Future<String?> login(TokenResponse token) async {
     state = const AsyncValue.loading();

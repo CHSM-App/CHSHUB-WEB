@@ -1,18 +1,25 @@
  var createError = require('http-errors');
 var express = require('express');
 const cron = require('node-cron');
-const firebase = require('./routes/firebase');
-const admin = { messaging: () => firebase.messaging() };
 
 require('dotenv').config({ path: __dirname + '/.env' });
 var path = require('path');
 const cors = require('cors');
 var cookieParser = require('cookie-parser');
-var logger = require('morgan');
+const pinoHttp = require('pino-http');
+const { randomUUID } = require('crypto');
+const logger = require('./lib/logger');
+const { initErrorTracking } = require('./lib/error-tracking');
+const { securityHeaders, globalLimiter, authLimiter, otpLimiter, paymentLimiter } = require('./lib/security');
+const jobs = require('./lib/jobs');
 const http = require('http');
+
+// Process-level error tracking (uncaught exceptions / unhandled rejections).
+initErrorTracking();
 var  insertRouter=require('./routes/insert')
 var  loginRouter=require('./routes/login')
 var  testRouter=require('./routes/test')
+var  paymentsRouter=require('./routes/payments')
 var  uploadRouter=require('./routes/uploadfile')
 var indexRouter = require('./routes/deleteapi');
 var usersRouter = require('./routes/users');
@@ -41,6 +48,14 @@ app.set('view engine', 'pug');
  * /assets/* request into a 500 and left a blank page. Same-origin static files
  * need no CORS check, so they are answered before it runs.
  */
+// Behind the Plesk/IIS reverse proxy there is exactly one hop; trust it so
+// req.ip / X-Forwarded-* are correct (and express-rate-limit keys on the real
+// client IP, not a spoofable header). Set before helmet/static/limiters.
+app.set('trust proxy', 1);
+
+// Security headers on every response, including static assets.
+app.use(securityHeaders);
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 /*
@@ -65,9 +80,33 @@ app.use(cors({
 }));
 
 
-app.set('trust proxy', true);  
-app.use(logger('dev'));
-app.use(express.json());
+// Structured request logging with a request id (echoed as X-Request-Id).
+// Redaction of secrets is configured in lib/logger.js. The authenticated
+// identity is logged masked — never the full mobile/token.
+app.use(pinoHttp({
+  logger,
+  genReqId: (req, res) => {
+    const id = req.headers['x-request-id'] || randomUUID();
+    res.setHeader('X-Request-Id', id);
+    return id;
+  },
+  customLogLevel: (_req, res, err) =>
+    (res.statusCode >= 500 || err ? 'error' : res.statusCode >= 400 ? 'warn' : 'info'),
+  customProps: (req) => {
+    const mob = req.user && req.user.mobile;
+    return {
+      authId: (req.user && (req.user.sub || req.user.userId)) || (mob ? '***' + String(mob).slice(-4) : undefined),
+      tenant: req.societyId || req.villageId || undefined,
+    };
+  },
+}));
+
+// Abuse ceiling — after express.static so the SPA's asset requests are not counted.
+app.use(globalLimiter);
+
+// Keep the raw body so /payments/webhook can verify the Razorpay signature
+// over the exact bytes Razorpay signed (a re-serialised body would not match).
+app.use(express.json({ verify: (req, _res, buf) => { req.rawBody = buf; } }));
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 /*
@@ -88,7 +127,19 @@ app.use(cookieParser());
 app.use('/', indexRouter);
 app.use('/insert', protect, insertRouter);
 app.use('/test', protect, testRouter);
-app.use('/login', loginRouter);
+// Online payments. protect is applied per-route inside (create-order, verify),
+// leaving /payments/webhook public but authenticated by its Razorpay signature.
+// The webhook is deliberately NOT rate-limited (Razorpay retries), only the
+// resident-facing order/verify routes are.
+app.use('/payments/create-order', paymentLimiter);
+app.use('/payments/verify', paymentLimiter);
+app.use('/payments', paymentsRouter);
+
+// OTP endpoints get the strict per-mobile+IP limiter; the rest of /login gets
+// the auth limiter.
+app.use('/login/otp/request', otpLimiter);
+app.use('/login/Createlogin', otpLimiter);
+app.use('/login', authLimiter, loginRouter);
 app.use('/users', protect, usersRouter);
 app.use('/upload', protect, uploadRouter);
 app.use('/data', protect, dataRouter);
@@ -100,6 +151,7 @@ app.use('/file', protect, fileAccess);
 
 // Website (admin) API. Self-contained: brings its own auth, validation and
 // error handling, so it cannot affect the mobile routes mounted above.
+app.use('/api/web/auth', authLimiter);   // brute-force protection on web login
 app.use('/api/web', webApi);
 app.get('/privacy-policy', (req, res) => {
   res.sendFile(path.join(__dirname, 'routes', 'privacy-policy.html'));
@@ -130,113 +182,15 @@ app.use((req, res, next) => {
 });
 
 
-async function sendMaintenancePaymentNotifications() {
-  try {
-    // 1️⃣ Call stored procedure  
-	   const result = await db.request()
-	.input('operation','send_notification')
-	.execute('sp_maintenance_charges');
+// The four scheduled jobs moved to lib/jobs.js so they no longer run as a
+// side effect of module load, and so the /api/web/cron HTTP endpoints and the
+// node-cron schedule below can share one guarded, idempotent implementation.
 
-    const rows = result.recordset;
-
-    if (!rows || rows.length === 0) {
-      console.log("No notification data found.");
-      return;
-    }
-
-    // 2️⃣ Loop through each row & send notification
-    for (const row of rows) {
-      if (!row.token) continue;
-
-      const message = {
-        token: row.token,
-        notification: {
-          title: "Maintenance Payment Reminder",
-          body: `Hello Resident 👋
-This is a gentle reminder that your maintenance payment is pending.
-
-⏳ ${row.remaining_days} days remaining
-📅 Due date: ${row.due_date}
-💰 Amount: ₹${row.total_amount}
-
-Please make the payment on time to avoid late charges. Thank you!`
-        },
-        data: {
-          messageType: "maintenance_payment",
-          daysLeft: String(row.daysLeft),
-          date: String(row.date),
-          amount: String(row.amount)
-        }
-      };
-
-      try {
-        await admin.messaging().send(message);
-        console.log(`Notification sent to token: ${row.token}`);
-      } catch (err) {
-        console.error(`Failed for token ${row.token}`, err.message);
-      }
-    }
-  } catch (error) {
-    console.error("Error sending maintenance notifications:", error);
-  }
-}
-
-
-
-async function cleanupRefreshTokens() {
-  try {
-   const result = await db.request()
-      .input('operation', 'AutoTask')
-      .execute('ManageRefreshToken');
-
-  } catch (err) {
-   
-	  	 console.error(err);
-  }
-}
-/*
- * Village tax bills, the counterpart to GenerateBill above.
- *
- * Called with no village and no period: sp_village_bill_run's 'Auto' branch
- * works out both, the way gen_bill does for societies. It bills each village
- * whose village_setting has auto_bill_generation on and whose bill_gen_day is
- * today, and holds yearly charges back until the month named by
- * property_tax_month so property tax is not attempted every month.
- *
- * Nothing is raised twice: a house and charge already billed for the period is
- * skipped, so a restart on the same day is harmless. That also means the run
- * on boot below costs nothing when the day's bills already exist.
- *
- * node-cron rather than a SQL Server Agent job, matching the society side —
- * the API is deployed to Plesk, where Agent is generally unavailable, and this
- * runs inside the Node process instead.
- */
-async function GenerateVillageBill() {
-  try {
-    await db.request()
-      .input('operation', 'Auto')
-      .execute('sp_village_bill_run');
-
-  } catch (err) {
-    console.error('Village bill generation failed:', err);
-  }
-}
-
-async function GenerateBill() {
-  try {
-   const result = await db.request()
-
-      .execute('gen_bill');
-
-  } catch (err) {
-    
-	 console.error(err);
-  }
-}
- 
 app.use((err, req, res, next) => {
   // 404s are routine and would otherwise fill the log with noise.
-  if (!err.status || err.status >= 500) console.error("Unhandled Error:", err);
+  if (!err.status || err.status >= 500) {
+    (req.log || logger).error({ err, category: 'request', route: req.originalUrl, method: req.method }, 'unhandled error');
+  }
 
   // If response already sent (like 401), do nothing
   if (res.headersSent) {
@@ -251,53 +205,31 @@ app.use((err, req, res, next) => {
 });
 
 
-sendMaintenancePaymentNotifications();
-cleanupRefreshTokens();
-GenerateBill();
-GenerateVillageBill();
-
-//schedule job at 10:00 AM daily
-cron.schedule('0 10 * * *', () => {
-  GenerateBill()
-});
-
 /*
- * Village tax bills at 02:00, not 10:00 like the society run above.
+ * Scheduled work.
  *
- * Bills are raised overnight so the day's figures do not change under anyone:
- * a run at 10:00 lands while the office is open, and a clerk part-way through
- * taking a payment would see the outstanding amounts grow as they worked.
- * Overnight also means a bad run has hours to be spotted before anyone acts on
- * it, and the month-end is genuinely over by then.
+ * NOTE: none of these run at boot any more. They used to be invoked at module
+ * load, so every process start (and Plesk recycles idle processes often) fired
+ * bill generation — audit finding P1-9. Scheduling is now deterministic only.
  *
- * 02:00 rather than midnight: backups and other nightly work cluster at 00:00.
- *
- * This only fires if the Node process happens to be running at 02:00, which on
- * Plesk it may not be — an idle app is recycled. GET /api/web/village/bill-run/auto
- * exists for a Plesk scheduled task to call, and that does not depend on this
- * process being up. Both are safe to run: a period already billed is skipped.
+ * node-cron fires these when the process happens to be up. Because Plesk
+ * recycles idle apps, the AUTHORITATIVE schedule is Plesk scheduled tasks
+ * hitting the token-protected /api/web/cron/* endpoints, which start the app to
+ * serve the request. Both paths call the same guarded, idempotent jobs (a
+ * period already billed is skipped; an in-process lock stops overlap), so
+ * running both is safe. See docs/BACKEND-HARDENING.md for the exact schedule.
  */
-cron.schedule('0 2 * * *', () => {
-  GenerateVillageBill()
+if (process.env.ENABLE_INPROCESS_CRON !== 'false') {
+  cron.schedule('0 10 * * *', () => { jobs.generateSocietyBills(); });        // society bills, 10:00
+  cron.schedule('0 2 * * *',  () => { jobs.generateVillageBills(); });        // village bills, 02:00
+  cron.schedule('0 10 * * *', () => { jobs.sendMaintenanceNotifications(); }); // reminders, 10:00
+  cron.schedule('0 0 * * *',  () => { jobs.cleanupRefreshTokens(); });         // token cleanup, 00:00
+}
+
+const PORT = process.env.PORT || 8000;
+app.listen(PORT, function () {
+  logger.info({ port: PORT }, 'backend listening');
 });
-
-//schedule job at 10:00 AM daily
-cron.schedule('0 10 * * *', () => {
-  sendMaintenancePaymentNotifications();
-});
-
-// Schedule the job at 12:00 AM every day
-cron.schedule('0 0 * * *', () => {
-  cleanupRefreshTokens(); // Call your function here
-});
-
-
-
-
-const PORT=process.env.PORT || 8000
-app.listen(PORT,function(){
-  console.log("Listning on :"+PORT);
-})
 
 module.exports = app;
  

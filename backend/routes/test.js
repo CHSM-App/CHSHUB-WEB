@@ -14,58 +14,18 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
-router.post('/create-order', async (req, res) => {
-    const { amount, currency , receipt  } = req.body;
+/*
+ * The payment routes that used to live here were insecure: /create-order took
+ * the amount from the client, and /verify-payment string-compared the signature
+ * and bound the payment to no bill. They have MOVED to routes/payments.js, which
+ * prices the order server-side, verifies in constant time, and binds the payment
+ * to a receipt transactionally. These stubs stay so an old client build gets a
+ * clear error instead of a silent security hole.
+ */
+router.post('/create-order', (_req, res) =>
+  res.status(410).json({ error: 'Moved to POST /payments/create-order' }));
 
-  const options = {
-    amount: amount, // amount in paise
-    currency: currency,
-    receipt: receipt,
-    payment_capture: 1,
-  };
-
-  try {
-    const order = await razorpay.orders.create(options);
-    res.json(order);
-  } catch (error) {
-    console.error('Error creating Razorpay order:', error);
-    res.status(500).json({ error: 'Failed to create order' });
-  }
-});
-
-router.post('/verify-payment', async (req, res) => {
-  try {
-    const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
-
-    const generated_signature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-      .update(razorpayOrderId + '|' + razorpayPaymentId)
-      .digest('hex');
-
-    if (generated_signature !== razorpaySignature) {
-      return res.json({ status: 'failure' });
-    }
-
-    // ✅ Fetch payment details from Razorpay
-    const payment = await razorpay.payments.fetch(razorpayPaymentId);
-
-    const rrn = payment.acquirer_data?.rrn || payment.acquirer_data?.upi_transaction_id;
-
-    res.json({
-      success: true,
-      payment_id: razorpayPaymentId,
-      order_id: razorpayOrderId,
-      rrn: rrn,
-      method: payment.method,
-      bank: payment.bank,
-      created_at: payment.created_at,
-    });
-  } catch (err) {
-    console.error("💥 Verification error:", err);
-    res.status(500).json({ status: 'failure', error: err.message });
-  }
-});
-
-
+router.post('/verify-payment', (_req, res) =>
+  res.status(410).json({ error: 'Moved to POST /payments/verify' }));
 
 module.exports = router; 

@@ -13,8 +13,8 @@
 // already billed is skipped, so running both is harmless.
 const express = require('express');
 
-const { exec } = require('../lib/db');
 const { ok, asyncHandler, ApiError } = require('../lib/http');
+const jobs = require('../../lib/jobs'); // guarded, idempotent, logged job implementations
 
 const router = express.Router();
 
@@ -60,12 +60,22 @@ router.use(requireCronToken);
  * GET as well as POST because Plesk's scheduled tasks fetch a URL, and a task
  * that has to POST needs curl arguments people get wrong.
  */
-const runVillageBills = asyncHandler(async (_req, res) => {
-  await exec('sp_village_bill_run', { operation: 'Auto' });
-  return ok(res, { ran: true, at: new Date().toISOString() });
-});
+// Each endpoint drives the same guarded job app.js's node-cron uses. Jobs are
+// idempotent (a period already billed is skipped) and locked (no overlap), so a
+// scheduler firing while a run is in progress is safe. GET and POST both work
+// because Plesk scheduled tasks fetch a URL.
+function cronRoute(path, job) {
+  const handler = asyncHandler(async (_req, res) => {
+    const result = await job();
+    return ok(res, { ...result, at: new Date().toISOString() });
+  });
+  router.get(path, handler);
+  router.post(path, handler);
+}
 
-router.get('/village-bills', runVillageBills);
-router.post('/village-bills', runVillageBills);
+cronRoute('/village-bills', jobs.generateVillageBills);   // village tax/house bills
+cronRoute('/society-bills', jobs.generateSocietyBills);   // society maintenance bills (gen_bill)
+cronRoute('/notifications', jobs.sendMaintenanceNotifications); // maintenance-due FCM reminders
+cronRoute('/token-cleanup', jobs.cleanupRefreshTokens);   // expire old refresh tokens
 
 module.exports = router;

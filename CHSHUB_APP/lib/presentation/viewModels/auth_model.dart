@@ -41,6 +41,17 @@ class AuthViewModel extends StateNotifier<AuthState> {
   AuthViewModel(this.ref, this.usecase)
       : super(const AuthState());
 
+  /// Ask the server to send a verification code to [mobile].
+  /// Returns null on success, or an error message to show the user.
+  Future<String?> requestOtp(String mobile) async {
+    try {
+      await usecase.requestOtp(mobile);
+      return null;
+    } catch (e) {
+      return ErrorMessageMapper.map(e);
+    }
+  }
+
   /// Login function
   Future<String?> login(TokenResponse mobile) async {
     state = state.copyWith(isLoading: true);

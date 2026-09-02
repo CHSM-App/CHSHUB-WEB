@@ -51,6 +51,14 @@ class _OTPVerificationState extends ConsumerState<OTPVerification>
     );
     _animationController.forward();
     _startResendTimer();
+    // Ask the server to send the code as soon as the screen opens.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _sendOtp());
+  }
+
+  Future<void> _sendOtp() async {
+    final error =
+        await ref.read(authViewModelProvider.notifier).requestOtp(widget.mobileNumber);
+    if (error != null && mounted) _showErrorSnackBar(error);
   }
 
   @override
@@ -92,18 +100,14 @@ class _OTPVerificationState extends ConsumerState<OTPVerification>
       _showErrorSnackBar("Please enter complete 6-digit OTP");
       return;
     }
-    Future.delayed(const Duration(milliseconds: 1500));
-    if (otp != "123456") {
-      _showErrorSnackBar("Enter Valid OTP");
-      setState(() {
-        _isError = true;
-        _isLoading = false;
-        _autoVerifying = false;
-      });
-      return;
-    }
-
-    _autoVerifying = true;
+    // The server verifies the code inside POST /login/Createlogin (authVM.login)
+    // below. A wrong, expired or reused code makes that call fail and is handled
+    // in the catch. There is no client-side code check any more.
+    setState(() {
+      _isLoading = true;
+      _isError = false;
+      _autoVerifying = true;
+    });
 
     try {
       final authVM = ref.read(authViewModelProvider.notifier);
@@ -123,7 +127,7 @@ class _OTPVerificationState extends ConsumerState<OTPVerification>
 
       if (flats.length == 1) {
         // Single flat → continue normal flow
-        final loginResponse = await authVM.login(TokenResponse(mobile:widget.mobileNumber,deviceDetails: await getUniqueId()));
+        final loginResponse = await authVM.login(TokenResponse(mobile:widget.mobileNumber,deviceDetails: await getUniqueId(), otp: otp));
       if (loginResponse == null || loginResponse.isEmpty) {
         setState(() => _isError = true);
         _showErrorSnackBar("Login failed. Please try again.");
@@ -160,7 +164,7 @@ class _OTPVerificationState extends ConsumerState<OTPVerification>
         });
 
         // show flat selection
-        await _showFlatSelectionDialog(flats);
+        await _showFlatSelectionDialog(flats, otp);
         return;
       }
       
@@ -183,7 +187,7 @@ Future<String?> getUniqueId() async {
   return await PlatformDeviceId.getDeviceId;
 }
 
-  Future<void> _showFlatSelectionDialog(List<BasicInfo> flats) async {
+  Future<void> _showFlatSelectionDialog(List<BasicInfo> flats, String otp) async {
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -220,7 +224,7 @@ Future<String?> getUniqueId() async {
               final flat = flats[index];
               return GestureDetector(
                 onTap: () async {
-                  final loginResponse = await ref.read(authViewModelProvider.notifier).login(TokenResponse(mobile: widget.mobileNumber));
+                  final loginResponse = await ref.read(authViewModelProvider.notifier).login(TokenResponse(mobile: widget.mobileNumber, deviceDetails: await getUniqueId(), otp: otp));
       if (loginResponse == null || loginResponse.isEmpty) {
         setState(() => _isError = true);
         _showErrorSnackBar("Login failed. Please try again.");
@@ -370,12 +374,19 @@ Future<String?> getUniqueId() async {
       _autoVerifying = false;
     });
 
-    await Future.delayed(const Duration(seconds: 2));
+    // Re-request through the same server endpoint (rate-limited server-side).
+    final error =
+        await ref.read(authViewModelProvider.notifier).requestOtp(widget.mobileNumber);
 
     setState(() {
       _isResending = false;
       _resendTimer = 30;
     });
+
+    if (error != null && mounted) {
+      _showErrorSnackBar(error);
+      return;
+    }
 
     _startResendTimer();
 

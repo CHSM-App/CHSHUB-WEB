@@ -5,6 +5,9 @@ class AuthUseCase {
   final AuthRepository authRepository;
   AuthUseCase(this.authRepository);
 
+  Future<void> requestOtp(String mobile) {
+    return authRepository.requestOtp(mobile);
+  }
   Future<TokenResponse> login(TokenResponse token) {
     return authRepository.createLogin(token);
   }

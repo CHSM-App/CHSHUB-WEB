@@ -33,8 +33,65 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # ---- Validation gate -----------------------------------------------------
+  # Deployment (split + sync-backend below) cannot run until these pass. A red
+  # test therefore prevents any component branch from being force-pushed.
+  validate-backend:
+    name: Validate backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: npm, cache-dependency-path: backend/package-lock.json }
+      - run: npm ci
+      - name: Security audit (critical only)
+        run: npm audit --audit-level=critical
+      - name: Tests
+        run: |
+          set -e
+          for t in test/*.test.js; do echo "== $t =="; node "$t"; done
+
+  validate-frontend:
+    name: Validate frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - run: npm ci
+      - run: npm run build
+      - run: npx vitest run
+
+  validate-flutter:
+    name: Validate Flutter (${{ matrix.folder }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        folder: [CHSHUB_APP, security_app, Secretary_app]
+    defaults:
+      run:
+        working-directory: ${{ matrix.folder }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable, cache: true }
+      - run: flutter pub get
+      - run: flutter analyze
+      - name: Test (excluding environment-sensitive goldens)
+        run: |
+          FILES=$(find test -name '*_test.dart' ! -name '*golden*' 2>/dev/null || true)
+          if [ -n "$FILES" ]; then flutter test $FILES; else echo "no non-golden tests"; fi
+
   split:
     name: ${{ matrix.folder }} -> ${{ matrix.branch }}
+    needs: [validate-backend, validate-frontend, validate-flutter]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -122,6 +179,7 @@ jobs:
 
   sync-backend:
     name: Build frontend + sync backend branch
+    needs: [validate-backend, validate-frontend, validate-flutter]
     runs-on: ubuntu-latest
     permissions:
       contents: write

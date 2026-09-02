@@ -40,6 +40,11 @@ abstract class ApiService {
   @GET("login/Otp/CheckUser")
   Future<List<BasicInfo>> checkUser(@Query("pre_mob") String mobile);
 
+  // Step 1 of login: ask the server to generate and SMS a code to this number.
+  @POST("login/otp/request")
+  Future<dynamic> requestOtp(@Body() Map<String, dynamic> body);
+
+  // Step 2: exchange the code for tokens. The body must carry `otp`.
   @POST("login/CreateLogin")
   Future<TokenResponse> createLogin(@Body() TokenResponse tokenResponse);
 

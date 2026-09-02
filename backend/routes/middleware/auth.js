@@ -18,7 +18,12 @@ module.exports = function (req, res, next) {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY);
-    req.user = decoded; // Attach decoded token data (like user_id)
+    // Only tokens minted by the mobile login belong here. A website token
+    // (scope 'web') must not be usable against the mobile API, and vice versa.
+    if (decoded.scope !== 'mobile') {
+      return res.status(401).json({ msg: 'Token is not valid for the mobile API' });
+    }
+    req.user = decoded; // { mobile, scope, iat, exp }
     return next();
   } catch (err) {
     console.error("JWT verification failed:", err.message);

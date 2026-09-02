@@ -72,6 +72,43 @@ jobs:
         working-directory: ${{ matrix.folder }}
         run: flutter pub get
 
+      # Writes android/key.properties + the keystore from per-app secrets, so
+      # release builds are signed with the real upload key. Nothing secret is
+      # printed. If the keystore secret is absent, the build falls back to the
+      # debug key (see build.gradle.kts) — a dev artifact, not for the Play Store.
+      - name: Configure release signing
+        working-directory: ${{ matrix.folder }}/android
+        env:
+          RESIDENT_KEYSTORE_BASE64: ${{ secrets.RESIDENT_KEYSTORE_BASE64 }}
+          RESIDENT_STORE_PASSWORD: ${{ secrets.RESIDENT_STORE_PASSWORD }}
+          RESIDENT_KEY_PASSWORD: ${{ secrets.RESIDENT_KEY_PASSWORD }}
+          RESIDENT_KEY_ALIAS: ${{ secrets.RESIDENT_KEY_ALIAS }}
+          SECURITY_KEYSTORE_BASE64: ${{ secrets.SECURITY_KEYSTORE_BASE64 }}
+          SECURITY_STORE_PASSWORD: ${{ secrets.SECURITY_STORE_PASSWORD }}
+          SECURITY_KEY_PASSWORD: ${{ secrets.SECURITY_KEY_PASSWORD }}
+          SECURITY_KEY_ALIAS: ${{ secrets.SECURITY_KEY_ALIAS }}
+          SECRETARY_KEYSTORE_BASE64: ${{ secrets.SECRETARY_KEYSTORE_BASE64 }}
+          SECRETARY_STORE_PASSWORD: ${{ secrets.SECRETARY_STORE_PASSWORD }}
+          SECRETARY_KEY_PASSWORD: ${{ secrets.SECRETARY_KEY_PASSWORD }}
+          SECRETARY_KEY_ALIAS: ${{ secrets.SECRETARY_KEY_ALIAS }}
+          APP_KEY: ${{ matrix.key }}
+        run: |
+          set -euo pipefail
+          PREFIX=$(echo "$APP_KEY" | tr '[:lower:]' '[:upper:]')
+          B64=$(printenv "${PREFIX}_KEYSTORE_BASE64" || true)
+          if [ -z "$B64" ]; then
+            echo "::warning::No keystore secret for '$APP_KEY'; release will use the debug key (not for Play)."
+            exit 0
+          fi
+          echo "$B64" | base64 -d > app/upload-keystore.jks
+          {
+            echo "storeFile=upload-keystore.jks"
+            echo "storePassword=$(printenv "${PREFIX}_STORE_PASSWORD")"
+            echo "keyPassword=$(printenv "${PREFIX}_KEY_PASSWORD")"
+            echo "keyAlias=$(printenv "${PREFIX}_KEY_ALIAS")"
+          } > key.properties
+          echo "Release signing configured (credentials not printed)."
+
       - name: Build APK
         if: ${{ inputs[format('{0}_apk', matrix.key)] }}
         working-directory: ${{ matrix.folder }}

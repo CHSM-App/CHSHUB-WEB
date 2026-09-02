@@ -38,6 +38,14 @@ class _OTPVerificationScreenState extends ConsumerState<OTPVerificationScreen> {
   void initState() {
     super.initState();
     _startResendTimer();
+    // Ask the server to send the code as soon as the screen opens.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _sendOtp());
+  }
+
+  Future<void> _sendOtp() async {
+    final error =
+        await ref.read(authViewModelProvider.notifier).requestOtp(widget.mobileNumber);
+    if (error != null && mounted) _showErrorSnackBar(error);
   }
 
   @override
@@ -551,28 +559,32 @@ class _OTPVerificationScreenState extends ConsumerState<OTPVerificationScreen> {
       _isLoading = true;
     });
 
-    // Simulate OTP verification
-    await Future.delayed(const Duration(seconds: 2));
+    // The server verifies the code inside POST /login/Createlogin (login()).
+    // A wrong, expired or reused code makes login() return null. There is no
+    // client-side code check any more.
+    final result = await ref
+        .read(authViewModelProvider.notifier)
+        .login(TokenResponse(mobile: widget.mobileNumber, otp: otp));
 
+    if (!mounted) return;
     setState(() {
       _isLoading = false;
     });
 
-    // For demo, accept any 6-digit OTP
-    if (otp.length == 6) {
-      HapticFeedback.lightImpact();
-      await ref.read(authViewModelProvider.notifier).login(TokenResponse(mobile: widget.mobileNumber));
-      await ref.read(securitymodelProvider.notifier).fetchLogin(widget.mobileNumber);
-              
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => MainTabScreen()
-        ),
-      );
-    } else {
-      _showErrorSnackBar('Invalid OTP. Please try again.');
+    if (result == null) {
+      _showErrorSnackBar('Invalid or expired OTP. Please try again.');
+      return;
     }
+
+    HapticFeedback.lightImpact();
+    await ref.read(securitymodelProvider.notifier).fetchLogin(widget.mobileNumber);
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MainTabScreen()
+      ),
+    );
   }
 
   void _handleResendOTP() async {
@@ -580,16 +592,22 @@ class _OTPVerificationScreenState extends ConsumerState<OTPVerificationScreen> {
       _isResending = true;
     });
 
-    // Simulate resending OTP
-    await Future.delayed(const Duration(seconds: 2));
+    // Re-request through the same server endpoint (rate-limited server-side).
+    final error =
+        await ref.read(authViewModelProvider.notifier).requestOtp(widget.mobileNumber);
 
     setState(() {
       _isResending = false;
       _resendTimer = 30;
     });
 
+    if (error != null && mounted) {
+      _showErrorSnackBar(error);
+      return;
+    }
+
     _startResendTimer();
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Row(

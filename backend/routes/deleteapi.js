@@ -24,6 +24,7 @@ var express = require('express');
 var db = require("./db");
 var router = express.Router();
 const protect = require('./middleware/protect');
+const { requireOwnership } = require('./middleware/ownership');
 
 /* GET home page. */
 router.get('/', function(req, res, next) {
@@ -46,7 +47,7 @@ function callProc(res, procName, params, body) {
 }
 
 //Add Vehicle
-router.delete('/Home/DeleteVehicle/:p_id', protect, function(req, res, next){
+router.delete('/Home/DeleteVehicle/:p_id', protect, requireOwnership('parking', r => r.params.p_id), function(req, res, next){
     callProc(res, 'sp_parking_master',
         { operation: 'Delete', parking_id: req.params.p_id },
         { success: true, message: "Record Deleted Successfully" });
@@ -54,7 +55,7 @@ router.delete('/Home/DeleteVehicle/:p_id', protect, function(req, res, next){
 
 
 //Expected Visitor
-router.delete('/DeleteExpectedVisitor/:v_id', protect, function(req, res, next) {
+router.delete('/DeleteExpectedVisitor/:v_id', protect, requireOwnership('visitor', r => r.params.v_id), function(req, res, next) {
     callProc(res, 'sp_Visitor',
         { operation: 'Delete', visitor_id: req.params.v_id },
         { success: true, message: "Record Deleted Successfully" });
@@ -62,13 +63,13 @@ router.delete('/DeleteExpectedVisitor/:v_id', protect, function(req, res, next) 
 
 
 //Add Family
-router.delete('/DeleteFamilyMember/:o_ex_id', protect, function(req, res, next) {
+router.delete('/DeleteFamilyMember/:o_ex_id', protect, requireOwnership('ownerext', r => r.params.o_ex_id), function(req, res, next) {
     callProc(res, 'sp_owner_master',
         { operation: 'D_delete', o_ex_id: req.params.o_ex_id },
         { success: true, message: "Record Deleted Successfully" });
 });
 
-router.delete('/DeleteFamilyVehicle/:id', protect, function(req, res, next) {
+router.delete('/DeleteFamilyVehicle/:id', protect, requireOwnership('vehicle', r => r.params.id), function(req, res, next) {
     callProc(res, 'sp_parking',
         { operation: 'deleteFamilyVehicle', vehicle_id: req.params.id },
         { success: true, message: "Record Deleted Successfully" });
@@ -177,7 +178,7 @@ router.delete("/polls/votes/:votingId/:userId", protect, async (req, res) => {
   }
 });
 
-router.delete('/DeleteDocuments/:id', protect, function(req, res, next) {
+router.delete('/DeleteDocuments/:id', protect, requireOwnership('document', r => r.params.id), function(req, res, next) {
     callProc(res, 'sp_doc_master',
         { operation: 'deleteDocuments', document_id: req.params.id },
         { success: true, message: "Record Deleted Successfully" });

@@ -9,6 +9,7 @@ var db = require("./db")
 // could not boot the API at all, even to serve routes that send no push.
 const firebase = require("./firebase");
 const admin = { messaging: () => firebase.messaging() };
+const { requireOwnership } = require('./middleware/ownership');
 var router = express.Router();
 
 
@@ -188,7 +189,12 @@ router.post('/GateKeeperApp/Insert/NewToken', async (req, res) => {
     });
   }
 });
-router.post('/OwnerApp/Insert/NewToken', function (req, res) {
+router.post('/OwnerApp/Insert/NewToken',
+  // Without this, any caller could point another resident's push token at their
+  // own device. type=Owner writes owner_master by owner_id; otherwise
+  // owner_extension by o_ex_id — both scoped to the caller here.
+  requireOwnership(r => (r.query.type == 'Owner' ? 'owner' : 'ownerext'), r => r.query.owner_id),
+  function (req, res) {
     // The table differs by caller type, so it is chosen here rather than
   // interpolated — a table name cannot be a bound parameter.
   const sql = req.query.type == "Owner"

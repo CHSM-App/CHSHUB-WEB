@@ -8,12 +8,16 @@ class TokenResponse {
   final String? refreshToken;
   final String? mobile;
   final String? deviceDetails;
+  // The verification code the server checks in POST /login/Createlogin.
+  // Only sent on login; never returned, so it stays null on responses.
+  final String? otp;
 
   TokenResponse({
      this.accessToken,
      this.refreshToken,
     this.mobile,
-    this.deviceDetails
+    this.deviceDetails,
+    this.otp
 
   });
 

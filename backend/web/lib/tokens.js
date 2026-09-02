@@ -95,6 +95,45 @@ async function revokeRefreshToken(token) {
   });
 }
 
+/**
+ * End every live session for one person. Called after a password change or
+ * reset.
+ *
+ * A password change that leaves the old sessions running defeats its own
+ * purpose: the session someone changes their password to get rid of is exactly
+ * the one that would otherwise keep refreshing for the full 7 days. Access
+ * tokens cannot be recalled — they are stateless JWTs — so revoking the refresh
+ * tokens is what bounds an old session, to at most one access-token lifetime
+ * (15 minutes) instead of a week.
+ *
+ * Revokes across BOTH apps. RefreshTokens.user_mobile holds a phone number for
+ * the mobile API and 'web:<user_id>' for this one; a password belongs to the
+ * person rather than to one of their devices, so signing them out of the
+ * website while leaving the mobile app running would be a half-measure.
+ * `contactNo` is therefore the user's phone number, not a second web identity.
+ *
+ * @param {object}  user           row carrying user_id and contact_no
+ * @param {string?} exceptToken    refresh token to spare — the session doing
+ *                                 the changing, so the user is not signed out
+ *                                 of the device they are typing on. Omit on a
+ *                                 reset, where there is no session to keep.
+ * @returns {Promise<number>} how many sessions were actually ended
+ */
+async function revokeAllRefreshTokensForUser(user, exceptToken = null) {
+  const contactNo = String(user?.contact_no ?? '').trim();
+
+  const rows = await query('ManageRefreshToken', {
+    operation: 'revoke_all_for_user',
+    user_mobile: { type: sql.NVarChar(50), value: `web:${user.user_id}` },
+    // Empty string would match no row anyway, but NULL is what the proc's
+    // "skip this key" branch tests for.
+    contact_no: { type: sql.NVarChar(50), value: contactNo || null },
+    except_token: { type: sql.NVarChar(sql.MAX), value: exceptToken || null },
+  });
+
+  return Number(rows?.[0]?.revoked_count ?? 0);
+}
+
 /** Extract the user_id encoded by issueRefreshToken. */
 function userIdFromStoredMobile(userMobile) {
   const m = /^web:(\d+)$/.exec(String(userMobile || ''));
@@ -107,6 +146,7 @@ module.exports = {
   issueRefreshToken,
   findRefreshToken,
   revokeRefreshToken,
+  revokeAllRefreshTokensForUser,
   userIdFromStoredMobile,
   REFRESH_TTL_DAYS,
 };

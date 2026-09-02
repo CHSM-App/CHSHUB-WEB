@@ -9,7 +9,6 @@
 // See lib/password.js.
 const express = require('express');
 
-const { query, sql } = require('../lib/db');
 const { ApiError, ok, asyncHandler } = require('../lib/http');
 const { str, optionalStr } = require('../lib/validate');
 const { verifyPassword } = require('../lib/password');
@@ -23,35 +22,14 @@ const {
 const { authenticate } = require('../middleware/authenticate');
 // Shared with the registration route, which signs the new account in directly.
 const { publicUser } = require('../lib/publicUser');
+// Shared with the password routes, which need the same rows to revoke sessions.
+const {
+  storedPassword,
+  findUserByUsername,
+  findUserById,
+} = require('../lib/users');
 
 const router = express.Router();
-
-/**
- * `validateuser` selects UserLogin.password twice in its column list, so the
- * mssql driver surfaces it as an array of two identical values rather than a
- * string. Collapse it before verifying.
- */
-function storedPassword(row) {
-  const p = row.password;
-  return Array.isArray(p) ? p[0] : p;
-}
-
-
-async function findUserByUsername(username) {
-  const rows = await query('validateuser', {
-    operation: 'login',
-    username: { type: sql.VarChar(250), value: username },
-  });
-  return rows.length ? rows[0] : null;
-}
-
-async function findUserById(userId) {
-  const rows = await query('sp_UserLogin', {
-    operation: 'Select',
-    user_id: { type: sql.Int, value: userId },
-  });
-  return rows.length ? rows[0] : null;
-}
 
 /**
  * POST /api/web/auth/login
@@ -81,11 +59,26 @@ router.post(
     const accessToken = accessTokenFor(user);
     const refresh = await issueRefreshToken(user, deviceInfo);
 
+    /*
+     * Re-read through the same path /auth/me uses before answering.
+     *
+     * `validateuser` is a login-verification proc: it returns what is needed to
+     * check a password, and its column list is not the one publicUser expects.
+     * photo_path is the field that exposed this — absent there, so a freshly
+     * signed-in session carried no avatar until something happened to call
+     * /auth/me, which is why the photo appeared in the app (it calls loadMe on
+     * open) and not in the website's header.
+     *
+     * Falls back to the login row if the re-read comes back empty, so a
+     * mismatch can never turn a successful sign-in into a failed one.
+     */
+    const full = (await findUserById(user.user_id)) ?? user;
+
     return ok(res, {
       accessToken,
       refreshToken: refresh.token,
       expiresAt: refresh.expiresAt,
-      user: publicUser(user),
+      user: publicUser(full),
     });
   }),
 );

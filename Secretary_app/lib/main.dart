@@ -9,11 +9,19 @@ import 'screens/auth/login_screen.dart';
 import 'screens/home_shell.dart';
 
 /// Kept for the ScaffoldMessenger, so background work can surface a snackbar
-/// without a BuildContext. Navigation deliberately does *not* go through a
-/// global key — the interceptor raises `authEventProvider` and the root widget
-/// below routes, which keeps the network layer out of the widget tree.
+/// without a BuildContext. The interceptor still does *not* navigate — it
+/// raises `authEventProvider` and AuthGate below does the routing, which keeps
+/// the network layer out of the widget tree.
 final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
+
+/// AuthGate is `home:`, so it sits at the *bottom* of the route stack.
+/// Anything pushed over it — Profile, a bill detail, an edit form — stays on
+/// top when the gate rebuilds, which is why clearing the tokens on its own did
+/// not visibly sign anyone out: the login screen was rendered underneath the
+/// screen the user was still looking at. This key is what lets the gate pop
+/// those routes off when the session ends.
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -47,6 +55,7 @@ class SecretaryApp extends ConsumerWidget {
     );
 
     return MaterialApp(
+      navigatorKey: rootNavigatorKey,
       scaffoldMessengerKey: rootScaffoldMessengerKey,
       title: 'Secretary',
       debugShowCheckedModeBanner: false,
@@ -93,6 +102,17 @@ class _AuthGateState extends ConsumerState<AuthGate> {
       }
     });
 
+    // The one place a sign-out is turned into navigation, so it behaves the
+    // same however the session ended — the Sign out button, or a refresh that
+    // failed mid-request while the user was several screens deep.
+    //
+    // Watching the transition rather than `authEventProvider` is deliberate:
+    // an explicit sign-out raises no event, and cleared tokens are the single
+    // fact both paths share.
+    ref.listen<bool>(tokenProvider.select((t) => t.isLoggedIn), (was, now) {
+      if (was == true && now == false) _returnToLogin();
+    });
+
     final token = ref.watch(tokenProvider);
 
     // main() has already awaited loadTokens, so this only shows if something
@@ -102,5 +122,26 @@ class _AuthGateState extends ConsumerState<AuthGate> {
     }
 
     return token.isLoggedIn ? const HomeShell() : const LoginScreen();
+  }
+
+  /// Tears down everything stacked over the gate so the login screen is what
+  /// the user is actually looking at.
+  ///
+  /// `popUntil(isFirst)` rather than `pushAndRemoveUntil(LoginScreen)`: the
+  /// gate is already the first route and already rebuilds to the login screen
+  /// on cleared tokens, so pushing another one would leave a second, orphaned
+  /// LoginScreen above a gate that no longer governs it — and signing back in
+  /// would swap the tree underneath without that copy ever going away.
+  ///
+  /// Dialogs and bottom sheets are routes too, so the sign-out confirmation
+  /// and any open sheet come off in the same pass.
+  void _returnToLogin() {
+    // Fired from a listener during a build; navigating now would mutate the
+    // tree mid-frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final navigator = rootNavigatorKey.currentState;
+      if (navigator == null || !navigator.mounted) return;
+      navigator.popUntil((route) => route.isFirst);
+    });
   }
 }

@@ -21,7 +21,7 @@
 // const String baseUrl = 'http://10.0.2.2:8000/';
 
 // Local backend — physical device on the same network:
-// const String baseUrl = 'http://192.168.0.160:8000/';
+// const String baseUrl = 'http://192.168.1.7:8000/';
 
 // Production:
 const String baseUrl = 'https://chshub.co.in/';

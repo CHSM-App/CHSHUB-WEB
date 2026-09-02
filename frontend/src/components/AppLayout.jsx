@@ -60,6 +60,7 @@ const NAV = [
         icon: 'city',
         items: [
           { to: '/community/documents', label: 'Upload Documents' },
+          { to: '/community/noc', label: 'NOC Requests' },
           { to: '/accounts/shop-maintenance', label: 'Shop Maintenance' },
           { to: '/community/meetings', label: 'Meeting Master' },
           { to: '/masters/inventory', label: 'Inventory' },
@@ -489,15 +490,31 @@ export default function AppLayout() {
             aria-haspopup="menu"
             onClick={() => setMenuOpen((v) => !v)}
           >
+            {/* The account's photo when it has one, the initial otherwise.
+                Reads the same photo_path the app does, so a photo set in
+                either place shows in both. */}
             <span
-              className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white"
+              className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full text-xs font-bold text-white"
               style={{
                 background: 'linear-gradient(135deg, #b91c1c, #e31b23)',
                 boxShadow: '0 2px 6px rgba(168, 42, 42,0.4), inset 0 1px 0 rgba(255,255,255,0.25)',
               }}
               aria-hidden="true"
             >
-              {(user?.name || '?').trim().charAt(0).toUpperCase()}
+              {user?.photo_path ? (
+                <img
+                  src={`/api/web/uploads/file/${user.photo_path}`}
+                  alt=""
+                  className="h-full w-full object-cover"
+                  // A photo that will not load must leave the initial behind
+                  // rather than a broken image in the header of every page.
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              ) : (
+                (user?.name || '?').trim().charAt(0).toUpperCase()
+              )}
             </span>
             <span className="hidden text-sm font-medium sm:inline" style={{ color: '#1f2937' }}>
               Hello, {user?.name}

@@ -19,9 +19,14 @@ import '../billing/defaulters_screen.dart';
 import '../billing/generate_bills_screen.dart';
 import '../billing/receipt_entry_screen.dart';
 import '../billing/receipts_screen.dart';
+import '../community/facility_bookings_screen.dart';
 import '../community/helpdesk_screen.dart';
-import '../community/notices_screen.dart';
-import '../settings/settings_screen.dart';
+import '../community/announcements_screen.dart';
+import '../community/noc_screen.dart';
+import '../community/notifications_screen.dart';
+import '../community/polls_screen.dart';
+import '../community/visitors_screen.dart';
+import '../profile/profile_screen.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -31,6 +36,9 @@ class DashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  /// Whether the secondary quick actions are showing.
+  bool _quickActionsExpanded = false;
+
   @override
   void initState() {
     super.initState();
@@ -75,10 +83,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             'Hello, ${user?.name ?? 'there'} '
             '(${user?.userType ?? 'Secretary'})',
         avatarName: user?.name,
+        avatarPhotoUrl: user?.photoUrl,
         subtitle: user?.societyName ?? 'Society',
         notificationCount: unread,
-        onNotifications: () => _open(const HelpdeskScreen()),
-        onAvatar: () => _open(const SettingsScreen()),
+        onNotifications: () => _open(const NotificationsScreen()),
+        onAvatar: () => _open(const ProfileScreen()),
       ),
       body: RefreshIndicator(
         onRefresh: _refresh,
@@ -309,38 +318,146 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   // ── Quick actions ────────────────────────────────────────────────────
 
+  /// The first row is always on screen; everything after it sits behind the
+  /// More toggle so the card keeps its original height until asked to grow.
+  static const _primaryActionCount = 4;
+
   Widget _buildQuickActions() {
-    return AppCard(
-      padding: const EdgeInsets.symmetric(horizontal: AppTheme.space2),
-      margin: EdgeInsets.zero,
-      child: Row(
-        children: [
-          QuickAction(
-            icon: Icons.playlist_add_check_circle_outlined,
-            label: 'Generate\nbills',
-            color: AppTheme.primary,
-            onTap: () => _open(const GenerateBillsScreen()),
-          ),
-          QuickAction(
-            icon: Icons.point_of_sale_outlined,
-            label: 'Record\npayment',
-            color: AppTheme.success,
-            onTap: () => _open(const ReceiptEntryScreen()),
-          ),
-          QuickAction(
-            icon: Icons.campaign_outlined,
-            label: 'Post\nnotice',
-            color: AppTheme.violet,
-            onTap: () => _open(const NoticesScreen()),
-          ),
-          QuickAction(
-            icon: Icons.support_agent_outlined,
-            label: 'Open\ncomplaints',
-            color: AppTheme.warning,
-            onTap: () => _open(const HelpdeskScreen()),
-          ),
-        ],
+    final actions = <Widget>[
+      QuickAction(
+        expand: false,
+        icon: Icons.playlist_add_check_circle_outlined,
+        label: 'Generate\nbills',
+        color: AppTheme.primary,
+        onTap: () => _open(const GenerateBillsScreen()),
       ),
+      QuickAction(
+        expand: false,
+        icon: Icons.point_of_sale_outlined,
+        label: 'Record\npayment',
+        color: AppTheme.success,
+        onTap: () => _open(const ReceiptEntryScreen()),
+      ),
+      QuickAction(
+        expand: false,
+        icon: Icons.campaign_outlined,
+        label: 'Post\nannouncement',
+        color: AppTheme.violet,
+        onTap: () => _open(const AnnouncementsScreen()),
+      ),
+      QuickAction(
+        expand: false,
+        icon: Icons.support_agent_outlined,
+        label: 'Open\ncomplaints',
+        color: AppTheme.warning,
+        onTap: () => _open(const HelpdeskScreen()),
+      ),
+      QuickAction(
+        expand: false,
+        icon: Icons.how_to_vote_outlined,
+        label: 'Polls',
+        color: AppTheme.info,
+        onTap: () => _open(const PollsScreen()),
+      ),
+      QuickAction(
+        expand: false,
+        icon: Icons.badge_outlined,
+        label: 'Visitors',
+        color: AppTheme.primary,
+        onTap: () => _open(const VisitorsScreen()),
+      ),
+      QuickAction(
+        expand: false,
+        icon: Icons.verified_outlined,
+        label: 'NOC',
+        color: AppTheme.success,
+        onTap: () => _open(const NocScreen()),
+      ),
+      QuickAction(
+        expand: false,
+        icon: Icons.event_available_outlined,
+        label: 'Facility\nbookings',
+        color: AppTheme.violet,
+        onTap: () => _open(const FacilityBookingsScreen()),
+      ),
+    ];
+
+    final visible = _quickActionsExpanded
+        ? actions
+        : actions.take(_primaryActionCount).toList();
+    final hasMore = actions.length > _primaryActionCount;
+
+    // Title on the left, the More toggle on the right — both above the card,
+    // so the card itself holds nothing but the tiles.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(
+            left: AppTheme.space1,
+            bottom: AppTheme.space2,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Quick actions',
+                  style: AppTheme.title.copyWith(fontSize: 15),
+                ),
+              ),
+              if (hasMore)
+                InkWell(
+                  onTap: () => setState(
+                    () => _quickActionsExpanded = !_quickActionsExpanded,
+                  ),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppTheme.space1,
+                      horizontal: AppTheme.space2,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _quickActionsExpanded ? 'Less' : 'More',
+                          style: AppTheme.caption.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.primary,
+                          ),
+                        ),
+                        Icon(
+                          _quickActionsExpanded
+                              ? Icons.keyboard_arrow_up
+                              : Icons.keyboard_arrow_down,
+                          size: 18,
+                          color: AppTheme.primary,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        AppCard(
+          padding: const EdgeInsets.symmetric(horizontal: AppTheme.space2),
+          margin: EdgeInsets.zero,
+          // Four per row, sized by LayoutBuilder rather than left to Wrap so
+          // the columns line up across rows even when the last row is short.
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final tileWidth = constraints.maxWidth / _primaryActionCount;
+              return Wrap(
+                children: [
+                  for (final action in visible)
+                    SizedBox(width: tileWidth, child: action),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 

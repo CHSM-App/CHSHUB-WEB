@@ -18,6 +18,7 @@ import '../../domain/models/broadcast.dart';
 import '../../domain/models/directory.dart';
 import '../../domain/models/helpdesk.dart';
 import '../../domain/models/helpdesk_comment.dart';
+import '../../domain/models/noc_request.dart';
 import '../../domain/models/helper.dart';
 import '../../domain/models/product_sell.dart';
 import '../../domain/models/visitor.dart';
@@ -183,6 +184,18 @@ abstract class ApiService {
 
   @POST("insert/community/comments")
   Future<dynamic> insertComments(@Body() HelpdeskComment comment);
+
+  // NOC requests
+  //
+  // Raising one is a write on /insert/community; the member's own list is a
+  // read on /community. Keyed by flat rather than by member: a NOC belongs to
+  // the home, and the household should see a request whichever of them raised
+  // it.
+  @POST("insert/community/noc-request")
+  Future<dynamic> insertNocRequest(@Body() NocRequest request);
+
+  @GET("community/noc-request/{flat_id}")
+  Future<List<NocRequest>> getNocRequests(@Path("flat_id") int flatId);
 
   // Visitors
   @GET('users/visitor/{pre_date}/{flat_id}')

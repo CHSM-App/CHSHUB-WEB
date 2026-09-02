@@ -83,6 +83,10 @@ router.use('/masters/flats', authenticate, requireUserType(GROUPS.SOCIETY_ADMIN)
 router.use('/masters/owners', authenticate, requireUserType(GROUPS.SOCIETY_ADMIN), ownerRoutes);
 router.use('/masters/family', authenticate, requireUserType(GROUPS.SOCIETY_ADMIN), familyRoutes);
 router.use('/masters/owner-extras', authenticate, requireUserType(GROUPS.SOCIETY_ADMIN), ownerExtraRoutes);
+// Reading a stored file is public and must be mounted before the authenticated
+// uploads router, because `<img src>` and Image.network cannot send a token —
+// behind `authenticate` every profile photo rendered as a broken image.
+router.use('/uploads/file', uploadRoutes.fileRouter);
 router.use('/uploads', authenticate, uploadRoutes);
 
 // Society configuration — Chairman/Secretary only.

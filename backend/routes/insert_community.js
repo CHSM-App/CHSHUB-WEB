@@ -15,6 +15,31 @@ var express = require('express');
 var db = require("./db");
 var router = express.Router();
 
+// The website API owns the notification helpers; the mobile routes borrow them
+// rather than keeping a second copy that could drift out of step.
+const { notifyPeople, findCommittee } = require('../web/lib/notify');
+const { addNocOfficers } = require('../web/lib/nocOfficers');
+
+/**
+ * Which society a ticket belongs to.
+ *
+ * HelpdeskRequest carries no society_id of its own — it hangs off the flat —
+ * and the mobile endpoints have no authenticated society to hand, so it is
+ * looked up from the ticket itself.
+ */
+async function societyOfHelpdesk(helpdeskId) {
+  const result = await db
+    .request()
+    .input('helpdesk_id', helpdeskId)
+    .query(`
+      SELECT TOP 1 f.society_id
+      FROM   HelpdeskRequest hr
+      JOIN   flat_master f ON f.flat_id = hr.flat_id
+      WHERE  hr.helpdesk_id = @helpdesk_id`);
+
+  return result.recordset[0]?.society_id ?? null;
+}
+
 /**
  * Execute a stored procedure with named parameters, then hand the result to
  * `onResult`. Replaces the repeated db.query(concatenated string) in this file.
@@ -155,6 +180,37 @@ router.post('/comments',  async (req, res, next) => {
       .input("description",  description)
       .execute("sp_helpdesk");
 
+    /*
+     * Tell the committee. A resident replying on their own ticket was silent
+     * before this: the secretary only learned of it by opening the thread,
+     * so a question asked here could sit unanswered for days.
+     *
+     * The committee only — the flat that wrote it already knows, and the rest
+     * of the society is not part of this conversation even when the original
+     * complaint was a community one.
+     *
+     * After the save and never in front of it: a push that throws must not
+     * take the comment with it.
+     */
+    try {
+      const societyId = await societyOfHelpdesk(helpdesk_id);
+      if (societyId) {
+        const committee = await findCommittee(societyId);
+        await notifyPeople({
+          societyId,
+          // The resident who just wrote it is in owner_master, the committee
+          // in UserLogin, so no filtering is needed between them.
+          people: committee,
+          type: 'Helpdesk',
+          id: helpdesk_id,
+          title: 'New reply on a complaint',
+          body: String(description ?? '').slice(0, 120),
+        });
+      }
+    } catch {
+      // The comment is saved; a failed notification must not fail the call.
+    }
+
     res.status(200).json({ message: "Comment inserted successfully" });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -169,6 +225,76 @@ router.post('/ManageFacility/:f_id/:status', function (req, res, next) {
             if (err) return res.status(500).json({ error: err.message });
             return res.status(200).json({ message: "Successfully" });
         });
+});
+
+
+/* ---------------------------------------------------------- noc requests -- */
+
+/*
+ * A member asking the society for a no-objection certificate, from their own
+ * app. The committee's side of this — naming approvers, deciding, issuing the
+ * signed letter — lives in the website API under /api/web/community.
+ *
+ * Only what the member writes is taken here. The wording, who must approve and
+ * the collection appointment are all the society's to set.
+ */
+router.post('/noc-request', function (req, res) {
+    const nocType = req.body.noc_type || 'General';
+
+    proc(res, 'sp_noc_request', {
+        operation: 'Insert',
+        society_id: req.body.society_id,
+        flat_id: req.body.flat_id,
+        requested_by: req.body.user_id,
+        member_name: req.body.member_name,
+        flat_no: req.body.flat_no,
+        building_name: req.body.building_name,
+        noc_type: nocType,
+        // Only an 'Other' request names itself; the rest are titled by type.
+        custom_title: nocType === 'Other' ? req.body.custom_title : null,
+        purpose: req.body.purpose,
+    }, async function (result) {
+        const requestId = result.recordset?.[0]?.request_id ?? null;
+
+        /*
+         * Put the society's offices on it straight away.
+         *
+         * A request that arrives with nobody on it is a request the secretary
+         * has to "send for approval" before they can approve it — two clicks
+         * where the member has already asked and the committee has already
+         * been told. Every request goes to the same offices anyway, so there
+         * is nothing being chosen by leaving it until later.
+         *
+         * Best effort: a failure here leaves the request raised and unassigned
+         * rather than losing it, and the committee's own screens put the
+         * offices on it when they open it.
+         */
+        if (requestId) {
+            try {
+                await addNocOfficers(req.body.society_id, requestId);
+            } catch {
+                // The request stands; the approvers can be added on opening it.
+            }
+        }
+
+        // The committee has something waiting. Notifying is not what the
+        // member asked for, so a failure here must not fail their request.
+        try {
+            const committee = await findCommittee(req.body.society_id);
+            await notifyPeople({
+                societyId: req.body.society_id,
+                people: committee,
+                type: 'noc',
+                id: requestId,
+                title: 'New NOC request',
+                body: `${req.body.member_name ?? 'A member'} (${req.body.flat_no ?? ''}) has requested a ${nocType} NOC.`,
+            });
+        } catch {
+            // The request stands whether or not the push went out.
+        }
+
+        return res.status(201).json({ request_id: requestId });
+    });
 });
 
 module.exports = router;

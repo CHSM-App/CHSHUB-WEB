@@ -30,12 +30,22 @@ class RowList {
   @JsonKey(name: 'flats', fromJson: asInt)
   final int? flats;
 
+  /// Who signs this society's NOC certificates — `{mode, secretary, chairman}`.
+  ///
+  /// Rides along with the certificate list rather than a call of its own: it
+  /// is one setting for the whole society, and every sheet printed from those
+  /// rows needs it. Empty on every other list, and on an older server, which
+  /// leaves the certificate on its own defaults.
+  @JsonKey(name: 'signatories', fromJson: asRow)
+  final Map<String, dynamic> signatories;
+
   const RowList({
     this.items = const [],
     this.count = 0,
     this.totalCollected,
     this.totalDue,
     this.flats,
+    this.signatories = const {},
   });
 
   factory RowList.fromJson(Map<String, dynamic> json) =>

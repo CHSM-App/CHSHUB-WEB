@@ -4,6 +4,7 @@ import 'package:society_app/data/repositories/auth_impl.dart';
 import 'package:society_app/data/repositories/due_history_impl.dart';
 import 'package:society_app/data/repositories/facilities_impl.dart';
 import 'package:society_app/data/repositories/helpdesk_impl.dart';
+import 'package:society_app/data/repositories/noc_impl.dart';
 import 'package:society_app/data/repositories/helper_impl.dart';
 import 'package:society_app/data/repositories/maintenance_repo_Impl.dart';
 import 'package:society_app/data/repositories/polls_impl.dart';
@@ -15,6 +16,7 @@ import 'package:society_app/domain/repository/auth_repository.dart';
 import 'package:society_app/domain/repository/due_History_repository.dart';
 import 'package:society_app/domain/repository/facilities_repository.dart';
 import 'package:society_app/domain/repository/helpdesk_repository.dart';
+import 'package:society_app/domain/repository/noc_repository.dart';
 import 'package:society_app/domain/repository/helper_repository.dart';
 import 'package:society_app/domain/repository/maintenance_repo.dart';
 import 'package:society_app/domain/repository/polls_repository.dart';
@@ -129,4 +131,12 @@ final profileSettingsRepositoryProvider = Provider<ProfileSettingsRepository>((r
    final dio = ref.watch(dioProvider).value!;
   final api = ApiService(dio);
   return ProfileSettingsImpl(api);
+});
+
+// NOC Repository Provider
+// ignore: non_constant_identifier_names
+final NocRepositoryProvider = Provider<NocRepository>((ref) {
+  final dio = ref.watch(dioProvider).value!;
+  final api = ApiService(dio);
+  return NocRepositoryImpl(api);
 });

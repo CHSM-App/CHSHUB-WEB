@@ -20,6 +20,28 @@ Map<String, dynamic> _$ForgotPasswordRequestToJson(
   'newPassword': instance.newPassword,
 };
 
+UpdateProfileRequest _$UpdateProfileRequestFromJson(
+  Map<String, dynamic> json,
+) => UpdateProfileRequest(
+  firstName: json['firstName'] as String,
+  username: json['username'] as String,
+  lastName: json['lastName'] as String?,
+  email: json['email'] as String?,
+  contactNo: json['contactNo'] as String?,
+  photoPath: json['photoPath'] as String?,
+);
+
+Map<String, dynamic> _$UpdateProfileRequestToJson(
+  UpdateProfileRequest instance,
+) => <String, dynamic>{
+  'firstName': instance.firstName,
+  'lastName': ?instance.lastName,
+  'username': instance.username,
+  'email': ?instance.email,
+  'contactNo': ?instance.contactNo,
+  'photoPath': ?instance.photoPath,
+};
+
 ChangePasswordRequest _$ChangePasswordRequestFromJson(
   Map<String, dynamic> json,
 ) => ChangePasswordRequest(
@@ -27,6 +49,7 @@ ChangePasswordRequest _$ChangePasswordRequestFromJson(
   username: json['username'] as String?,
   email: json['email'] as String?,
   contactNo: json['contactNo'] as String?,
+  refreshToken: json['refreshToken'] as String?,
 );
 
 Map<String, dynamic> _$ChangePasswordRequestToJson(
@@ -36,4 +59,5 @@ Map<String, dynamic> _$ChangePasswordRequestToJson(
   'username': ?instance.username,
   'email': ?instance.email,
   'contactNo': ?instance.contactNo,
+  'refreshToken': ?instance.refreshToken,
 };

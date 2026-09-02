@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/network/token_provider.dart';
@@ -143,6 +145,15 @@ class AuthViewModel extends StateNotifier<AuthState> {
   /// The API asks only for the new password — a valid access token is already
   /// proof of possession, and requiring the old one locked out anyone who had
   /// forgotten it.
+  ///
+  /// The server ends every *other* session for this account, in this app, the
+  /// other apps and the website alike: a session that outlives the password it
+  /// was opened with is the one a password change exists to destroy. This
+  /// device is spared and handed a replacement pair, which is saved here.
+  ///
+  /// If no replacement comes back the account has been signed out everywhere,
+  /// this device included, so the tokens are cleared and AuthGate returns to
+  /// the login screen — the same path an expired session takes.
   Future<bool> changePassword(String newPassword) async {
     state = state.copyWith(
       isLoading: true,
@@ -150,12 +161,82 @@ class AuthViewModel extends StateNotifier<AuthState> {
       passwordChanged: false,
     );
     try {
-      await usecase.changePassword(newPassword);
+      final session = await usecase.changePassword(
+        newPassword,
+        currentRefreshToken: ref.read(tokenProvider).refreshToken,
+      );
+
+      final access = session?.accessToken;
+      final refresh = session?.refreshToken;
+
+      if (access != null &&
+          access.isNotEmpty &&
+          refresh != null &&
+          refresh.isNotEmpty) {
+        // Before the success state: the old access token is revoked by now, so
+        // any request racing the rest of this method must use the new one.
+        await ref.read(tokenProvider.notifier).saveTokens(access, refresh);
+      } else {
+        // Password changed, but this device kept no session. Report success —
+        // it did change — and let the cleared tokens take the user to login.
+        state = state.copyWith(isLoading: false, passwordChanged: true);
+        await ref.read(tokenProvider.notifier).clearTokens();
+        return true;
+      }
+
       state = state.copyWith(isLoading: false, passwordChanged: true);
       return true;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: formatError(e));
       return false;
+    }
+  }
+
+  /// Save an edit to the signed-in user's own profile.
+  ///
+  /// The usecase answers the re-read user, so state carries the server's copy
+  /// rather than the values typed into the form — a name the server title-cased
+  /// shows the way it was actually stored.
+  Future<bool> updateProfile({
+    required String name,
+    required String username,
+    String? email,
+    String? contactNo,
+    String? photoPath,
+  }) async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final user = await usecase.updateProfile(
+        name: name,
+        username: username,
+        email: email,
+        contactNo: contactNo,
+        photoPath: photoPath,
+      );
+      state = state.copyWith(isLoading: false, user: user);
+      await _persistSession(user);
+      return true;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: formatError(e));
+      return false;
+    }
+  }
+
+  /// Upload a picked profile photo, answering the stored path.
+  ///
+  /// Returns null on failure, with the reason left in `state.error` for the
+  /// caller to show. Deliberately does not touch `state.user`: the photo is not
+  /// part of the account until the profile is saved with the path, so a picked
+  /// photo that is never saved leaves nothing behind.
+  Future<String?> uploadProfilePhoto(File file) async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final path = await usecase.uploadProfilePhoto(file);
+      state = state.copyWith(isLoading: false);
+      return path;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: formatError(e));
+      return null;
     }
   }
 

@@ -10440,7 +10440,7 @@ CREATE PROCEDURE [dbo].[sp_UserLogin]
 @operation NVARCHAR (100)=NULL, @user_id INT=0, @user_type_id INT=0,  @Name NVARCHAR (500)=NULL, @address2 NVARCHAR (50)=NULL, @username NVARCHAR (50)=NULL,
 @password NVARCHAR (200)=NULL, @address1 NVARCHAR (50)=NULL, @contact_no NVARCHAR (50)=NULL, @active_status INT=0,  @email NVARCHAR (100)=NULL,@type NVARCHAR(50)=NULL, 
 @join_dt SMALLDATETIME=NULL, @last_dt SMALLDATETIME=NULL, @society_id NVARCHAR (10)=NULL,@web_token NVARCHAR (MAX)=NULL,  @new  NVARCHAR (10)=null,@search nvarchar(50)=null,
-                     @num AS INT=0,@village_id NVARCHAR(10)=NULL,@owner_id int=0, @v_name NVARCHAR(100) = NULL, @flat_id int = 0
+                     @num AS INT=0,@village_id NVARCHAR(10)=NULL,@owner_id int=0, @v_name NVARCHAR(100) = NULL, @flat_id int = 0, @photo_path NVARCHAR(500) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -10634,9 +10634,21 @@ FROM            dbo.UserLogin INNER JOIN
 		
 		IF @operation = 'UpdateProfile'
         BEGIN
-           Update UserLogin set contact_no =@contact_no,email=@email,password= case when @Password is  null or @Password ='' then password else @Password end,username=@username where user_id=@user_id
-		  update owner_master set pre_mob=@contact_no ,email=@email where owner_id=@owner_id
-        END 
+           -- Every column here treats a NULL parameter as "not supplied, leave
+           -- it alone". That has to hold for ALL of them, not just some:
+           -- change-password calls this branch to write only the password, so
+           -- any column without the guard is overwritten with NULL. username,
+           -- email and contact_no previously lacked it, which wiped the
+           -- account's identity — the correct password then had no username to
+           -- match against and the account could neither log in nor self-reset.
+           --
+           -- '' is not the same as NULL: it means "clear this", which is what
+           -- the profile editor sends to remove an email or a photo. username
+           -- is the exception and preserves on '' too, since a blank username
+           -- can never be valid and would lock the account out again.
+           Update UserLogin set contact_no = case when @contact_no is null then contact_no else @contact_no end,email = case when @email is null then email else @email end,password= case when @Password is  null or @Password ='' then password else @Password end,username = case when @username is null or @username = '' then username else @username end,Name = case when @Name is null or @Name = '' then Name else dbo.InitCap(@Name) end,photo_path = case when @photo_path is null then photo_path when @photo_path = '' then null else @photo_path end where user_id=@user_id
+		  update owner_master set pre_mob = case when @contact_no is null then pre_mob else @contact_no end,email = case when @email is null then email else @email end where owner_id=@owner_id
+        END
 		IF @operation = 'ResetPass'
         BEGIN
            Update UserLogin set password= case when @Password is  null or @Password ='' then password else @Password end where email=@email
@@ -10645,7 +10657,7 @@ FROM            dbo.UserLogin INNER JOIN
 		IF @operation = 'GetProfile'
         BEGIN
              SELECT        dbo.UserLogin.user_id, dbo.UserLogin.user_type_id, dbo.UserType.UserTypeName, dbo.UserLogin.name, dbo.UserLogin.username, dbo.UserLogin.password,  
-                         dbo.UserLogin.active_status,dbo.UserLogin.society_id, dbo.UserLogin.token,dbo.society_master.name AS Society_name,userlogin.contact_no,userlogin.email,UserLogin.owner_id
+                         dbo.UserLogin.active_status,dbo.UserLogin.society_id, dbo.UserLogin.token,dbo.society_master.name AS Society_name,userlogin.contact_no,userlogin.email,UserLogin.owner_id,UserLogin.photo_path
 FROM            dbo.UserLogin INNER JOIN
  
                          dbo.UserType ON dbo.UserLogin.user_type_id = dbo.UserType.UserTypeId
@@ -12715,7 +12727,7 @@ BEGIN
     Begin
 SELECT        dbo.UserLogin.user_id, dbo.UserLogin.user_type_id, dbo.UserType.UserTypeName, dbo.UserLogin.name, dbo.UserLogin.username, dbo.UserLogin.password, 
                          dbo.UserLogin.active_status,  dbo.UserLogin.society_id, dbo.UserLogin.token, dbo.society_master.name AS Society_name, 
-                         dbo.UserLogin.village_id, dbo.village_master.name AS village_name, case when UserLogin.type=1 then 'Society' else 'Village' end as type ,USerLogin.password,owner_id
+                         dbo.UserLogin.photo_path, dbo.UserLogin.village_id, dbo.village_master.name AS village_name, case when UserLogin.type=1 then 'Society' else 'Village' end as type ,USerLogin.password,owner_id
 FROM            dbo.UserLogin INNER JOIN
                          dbo.UserType ON dbo.UserLogin.user_type_id = dbo.UserType.UserTypeId LEFT OUTER JOIN
                          dbo.village_master ON dbo.UserLogin.village_id = dbo.village_master.village_id LEFT OUTER JOIN
